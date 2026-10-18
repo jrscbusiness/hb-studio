@@ -1,0 +1,52 @@
+cmake_minimum_required(VERSION 3.24)
+project(HBStudio VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(HB_BUILD_TESTS "Build unit tests" ON)
+option(HB_BUILD_TOOLS "Build command line tools" ON)
+
+find_package(Threads REQUIRED)
+
+add_library(hb_core STATIC
+  src/core/event_bus.cpp
+  src/core/redact.cpp
+  src/core/logger.cpp
+  src/core/clock.cpp
+  src/core/hardware_profile.cpp
+  src/video/program_output.cpp
+)
+target_include_directories(hb_core PUBLIC src)
+target_link_libraries(hb_core PUBLIC Threads::Threads)
+if(MSVC)
+  target_compile_options(hb_core PRIVATE /W4 /permissive-)
+else()
+  target_compile_options(hb_core PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(HB_BUILD_TOOLS)
+  add_executable(hb_probe tools/hb_probe.cpp)
+  target_link_libraries(hb_probe PRIVATE hb_core)
+endif()
+
+if(HB_BUILD_TESTS)
+  include(FetchContent)
+  FetchContent_Declare(googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0)
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+  enable_testing()
+  add_executable(hb_tests
+    tests/event_bus_test.cpp
+    tests/redact_test.cpp
+    tests/logger_test.cpp
+    tests/clock_test.cpp
+    tests/hardware_profile_test.cpp
+    tests/program_output_test.cpp)
+  target_link_libraries(hb_tests PRIVATE hb_core GTest::gtest_main)
+  include(GoogleTest)
+  gtest_discover_tests(hb_tests)
+endif()

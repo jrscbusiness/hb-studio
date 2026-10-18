@@ -1,0 +1,13 @@
+# Licenças (rascunho — Fase 1)
+
+Licença do HB Studio: **pendente**. Candidatas compatíveis com Qt/FFmpeg LGPL e libsrt MPL:
+Apache-2.0 ou MPL-2.0 (decisão do mantenedor; não é aconselhamento jurídico).
+
+| Dependência | Uso | Licença | Notas |
+|---|---|---|---|
+| GoogleTest 1.14 | testes | BSD-3 | só em desenvolvimento |
+| Qt 6 (futuro) | UI | LGPLv3 | linkagem dinâmica |
+| FFmpeg (futuro) | mídia | LGPL 2.1+ (build sem GPL/nonfree) | sem x264/x265 |
+| libsrt (futuro) | SRT | MPL 2.0 | |
+| NDI SDK (futuro) | NDI | Proprietária | **não** vai no repositório; usuário instala o Runtime; atribuição de marca obrigatória |
+| OBS Studio | referência | GPL-2.0 | **nenhum código copiado** |
