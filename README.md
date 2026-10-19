@@ -11,6 +11,7 @@ Arquitetura e decisões aprovadas: [ARCHITECTURE.md](ARCHITECTURE.md).
 |---|---|
 | 0 Arquitetura | Concluída (aprovada) |
 | 1 Projeto base | **Parcial**: núcleo portátil pronto e testado (Linux). Pendentes: janela Qt, backend D3D11, build/CI no Windows 11 (ainda não executados) |
+| 10 (PoC) Virtual Camera Windows 11 | **Código pronto e autotestado no CI** (22 verificações). **Falta o teste real no OBS** — ver [docs/VIRTUAL_CAMERA.md](docs/VIRTUAL_CAMERA.md) |
 | 2+ | Não iniciadas |
 
 ### Núcleo da Fase 1 (`src/`)
