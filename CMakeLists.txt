@@ -8,6 +8,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(HB_BUILD_TESTS "Build unit tests" ON)
 option(HB_BUILD_TOOLS "Build command line tools" ON)
 
+# Static MSVC runtime everywhere: the virtual camera DLL is loaded by a system
+# service and must not depend on a VC++ redistributable being installed.
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 find_package(Threads REQUIRED)
 
 add_library(hb_core STATIC
@@ -31,12 +37,33 @@ if(HB_BUILD_TOOLS)
   target_link_libraries(hb_probe PRIVATE hb_core)
 endif()
 
+# Windows 11 virtual camera (Media Foundation Frame Server media source + PoC app).
+if(WIN32)
+  add_library(hb_vcam_source SHARED
+    src/virtual-camera/windows/vcam_source.cpp
+    src/virtual-camera/windows/vcam_source.def)
+  target_include_directories(hb_vcam_source PRIVATE src/virtual-camera/windows)
+  target_link_libraries(hb_vcam_source PRIVATE
+    mfplat mf mfuuid mfsensorgroup propsys ole32 advapi32 strmiids)
+  target_compile_definitions(hb_vcam_source PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
+  target_compile_options(hb_vcam_source PRIVATE /W4 /EHsc)
+
+  add_library(hb_vcam_sender STATIC src/virtual-camera/windows/vcam_sender.cpp)
+  target_link_libraries(hb_vcam_sender PUBLIC hb_core)
+  target_compile_definitions(hb_vcam_sender PUBLIC UNICODE _UNICODE NOMINMAX)
+
+  if(HB_BUILD_TOOLS)
+    add_executable(hb_vcam_poc tools/hb_vcam_poc.cpp)
+    target_link_libraries(hb_vcam_poc PRIVATE hb_vcam_sender mfplat mf mfuuid mfsensorgroup ole32)
+  endif()
+endif()
+
 if(HB_BUILD_TESTS)
   include(FetchContent)
   FetchContent_Declare(googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG v1.14.0)
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  set(gtest_force_shared_crt OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
   enable_testing()
   add_executable(hb_tests

@@ -1,4 +1,3 @@
-# Not yet exercised on GitHub (written without access to a runner).
 name: ci
 on: [push, pull_request]
 jobs:
@@ -16,3 +15,17 @@ jobs:
         run: cmake --build build --config Release
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package virtual camera PoC
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item build/Release/hb_vcam_poc.exe, build/Release/hb_vcam_source.dll dist/
+          Copy-Item tools/vcam/*.ps1 dist/
+          Copy-Item docs/VIRTUAL_CAMERA.md dist/LEIA-ME.md
+      - name: Upload virtual camera PoC
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hb-studio-vcam-poc
+          path: dist
