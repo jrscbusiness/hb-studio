@@ -55,6 +55,10 @@ if(WIN32)
   if(HB_BUILD_TOOLS)
     add_executable(hb_vcam_poc tools/hb_vcam_poc.cpp)
     target_link_libraries(hb_vcam_poc PRIVATE hb_vcam_sender mfplat mf mfuuid mfsensorgroup ole32)
+
+    add_executable(hb_vcam_selftest tools/hb_vcam_selftest.cpp)
+    target_link_libraries(hb_vcam_selftest PRIVATE hb_vcam_sender mfplat mf mfuuid mfsensorgroup ole32 propsys)
+    add_dependencies(hb_vcam_selftest hb_vcam_source)
   endif()
 endif()
 

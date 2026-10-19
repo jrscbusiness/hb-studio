@@ -15,6 +15,11 @@ jobs:
         run: cmake --build build --config Release
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Virtual camera self-test (loads the DLL in-process)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: build/Release
+        run: ./hb_vcam_selftest.exe
       - name: Package virtual camera PoC
         if: runner.os == 'Windows'
         shell: pwsh
