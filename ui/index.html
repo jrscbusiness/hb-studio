@@ -76,6 +76,7 @@ main{padding:18px 22px;min-height:0;position:relative}
 .tile:hover{border-color:var(--sky)}
 .tile .lb{position:absolute;left:6px;bottom:5px;display:flex;gap:5px;align-items:center}
 .tile .lb b{white-space:nowrap;font-family:var(--mono);font-size:9.5px;color:#fff;background:rgba(7,18,43,.62);padding:2px 6px;border-radius:5px;backdrop-filter:blur(4px)}
+.tile .lb em.bad{background:#B07A00;color:#FFF3D6}
 .tile .lb em{font-style:normal;font-size:7px;letter-spacing:.14em;color:#BFD6FF;background:rgba(31,107,255,.45);padding:2px 5px;border-radius:4px}
 .tile.pvw{border-color:var(--blue-2);box-shadow:0 0 0 3px rgba(79,141,255,.22)}
 .tile.pgm{border-color:var(--blue);box-shadow:var(--glow)}
@@ -235,6 +236,35 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
   .busrow .cap{width:54px}
 }
 .warn{color:#A76A00!important;background:#FFF6E5;border:1px solid #F3D08A;border-radius:999px;padding:2px 9px}
+
+/* ---------- CÂMERAS ---------- */
+.camwrap{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px;align-content:start;overflow:auto;padding:2px}
+.dev{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px dashed var(--line)}
+.dev:last-child{border-bottom:0}
+.dev .ico{width:36px;height:36px;border-radius:10px;background:var(--mist);display:grid;place-items:center;color:var(--blue);flex:none}
+.dev .nm{flex:1;min-width:0}
+.dev .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dev .nm em{font-style:normal;color:var(--muted);font-size:11px}
+.badge{font-size:9px;letter-spacing:.14em;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--mist);color:var(--blue)}
+.badge.v{background:#E7F0FF;color:#1F4FBF}
+.assign{display:flex;gap:4px}
+.assign button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line-2);background:#fff;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2)}
+.assign button:hover{border-color:var(--blue);color:var(--blue);background:var(--mist)}
+.assign button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.slot{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.slot:last-child{border-bottom:0}
+.slot .n{font-family:var(--mono);font-weight:700;width:44px;color:var(--ink-2)}
+.slot .w{flex:1;min-width:0}
+.slot .w b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot .w em{font-style:normal;font-size:11px;color:var(--muted)}
+.st{font-size:9px;letter-spacing:.14em;font-weight:700;padding:2px 7px;border-radius:999px}
+.st.online{background:#E5F0FF;color:var(--blue)}
+.st.connecting{background:var(--mist);color:var(--ink-2)}
+.st.nosignal,.st.error{background:#FFF6E5;color:#A76A00;border:1px solid #F3D08A}
+.st.test{background:var(--mist);color:var(--muted)}
+.slot .x{font-size:11px;color:var(--muted);padding:4px 8px;border-radius:8px;border:1px solid var(--line)}
+.slot .x:hover{border-color:var(--blue);color:var(--blue)}
+.devempty{padding:22px 4px;color:var(--ink-2);line-height:1.6}
 @media (max-height:760px){.keys .key{height:38px}.tiles{gap:8px}}
 </style>
 </head>
@@ -356,11 +386,19 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
 
     <!-- ===================== CÂMERAS ===================== -->
     <section class="view" id="v-cam">
-      <div class="empty">
-        <svg viewBox="0 0 96 96" fill="none" stroke="#1F6BFF" stroke-width="2"><rect x="14" y="28" width="52" height="38" rx="9"/><path d="M66 42l16-9v30l-16-9"/><circle cx="40" cy="47" r="9" stroke="#9DBDFF"/><circle cx="40" cy="47" r="2.5" fill="#1F6BFF"/></svg>
-        <h2>Descoberta de câmeras</h2>
-        <p>Busca automática de câmeras ONVIF, RTSP e NDI na rede (FOMAKO e outras).<br>As 8 entradas da Produção são <b>fontes de teste</b> geradas pelo próprio programa até esta etapa ficar pronta.</p>
-        <span class="phase">FASES 2 · 3 · 4 · 6</span>
+      <div class="camwrap">
+        <div class="card">
+          <h3><span class="cap">Câmeras e dispositivos de vídeo neste computador</span>
+            <button class="btn sm" id="dev-refresh">ATUALIZAR LISTA</button></h3>
+          <div class="body">
+            <p class="note" style="margin-bottom:10px">Webcams, placas de captura e <b>câmeras virtuais</b> (como a “OBS Virtual Camera”). Escolha em qual entrada (CAM 1–8) cada uma deve aparecer.</p>
+            <div id="dev-list"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Entradas</span></h3>
+          <div class="body" id="slot-list"></div>
+        </div>
       </div>
     </section>
 
@@ -395,7 +433,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
 
   <footer>
     <span>ATALHOS · <b>1–8</b> preview · <b>⇧ 1–8</b> program direto · <b>ESPAÇO</b> cut · <b>ENTER</b> dissolve</span>
-    <span>HB STUDIO <b id="ver">0.2</b> · fontes de vídeo: <b>TESTE</b></span>
+    <span>HB STUDIO <b id="ver">0.2</b> · fontes de vídeo: <b id="foot-src">TESTE</b></span>
   </footer>
 </div>
 <div id="modal" class="modal"><div class="sheet" id="cfg-sheet">
@@ -576,6 +614,47 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
   $('#nm-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveName($('#nm-input').value); });
   $$('.modal').forEach(m => m.addEventListener('mousedown', e => { if (e.target === m) closeModals(); }));
 
+
+  // ---------- input devices (CÂMERAS tab) ----------
+  let devs = null, slots = [], devBusy = false;
+  const camSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="7" width="12" height="10" rx="2.5"/><path d="M15 11l6-3v8l-6-3"/></svg>';
+  const stTxt = {online: 'AO VIVO', connecting: 'CONECTANDO', nosignal: 'SEM SINAL', error: 'ERRO', test: 'TESTE'};
+  function renderDevices() {
+    const box = $('#dev-list'); box.innerHTML = '';
+    if (!devs) { box.innerHTML = '<div class="devempty">Procurando dispositivos…</div>'; return; }
+    if (!devs.length) { box.innerHTML = '<div class="devempty"><b>Nenhum dispositivo de vídeo encontrado.</b><br>Conecte uma webcam ou ative uma câmera virtual (ex.: no OBS: <i>Iniciar Câmera Virtual</i>) e clique em “Atualizar lista”. Verifique também em Configurações › Privacidade e segurança › Câmera se apps da área de trabalho têm permissão.</div>'; return; }
+    devs.forEach(d => {
+      const row = document.createElement('div'); row.className = 'dev';
+      const cur = slots.findIndex(x => x && x.k === 'dev' && x.id === d.id);
+      row.innerHTML = '<div class="ico">' + camSvg + '</div><div class="nm"><b></b><em></em></div><span class="badge' + (d.virt ? ' v' : '') + '">' + (d.virt ? 'VIRTUAL' : 'CÂMERA') + '</span><div class="assign"></div>';
+      row.querySelector('b').textContent = d.name;
+      row.querySelector('em').textContent = cur >= 0 ? 'Em uso na CAM ' + (cur + 1) : 'Disponível';
+      const as = row.querySelector('.assign');
+      for (let i = 0; i < N; i++) {
+        const b = document.createElement('button'); b.textContent = i + 1; b.title = 'Usar na CAM ' + (i + 1);
+        if (slots[i] && slots[i].k === 'dev' && slots[i].id === d.id) b.className = 'on';
+        b.onclick = () => send('devassign', i, d.id);
+        as.appendChild(b);
+      }
+      box.appendChild(row);
+    });
+  }
+  function renderSlots() {
+    const box = $('#slot-list'); box.innerHTML = '';
+    for (let i = 0; i < N; i++) {
+      const x = slots[i] || {k: 'test', st: 'test', name: ''};
+      const r = document.createElement('div'); r.className = 'slot';
+      const dims = x.k === 'dev' && x.w ? x.w + '×' + x.h + (x.fps ? ' · ' + x.fps.toFixed(0) + ' fps' : '') : '';
+      r.innerHTML = '<span class="n">CAM ' + (i + 1) + '</span><div class="w"><b></b><em></em></div><span class="st ' + x.st + '">' + stTxt[x.st] + '</span>' + (x.k === 'dev' ? '<button class="x">Remover</button>' : '');
+      r.querySelector('b').textContent = x.k === 'dev' ? x.name : 'Fonte de teste (gerada pelo programa)';
+      r.querySelector('em').textContent = x.msg || dims || (x.k === 'dev' ? '' : 'Não é uma câmera real');
+      const rm = r.querySelector('.x'); if (rm) rm.onclick = () => send('devclear', i);
+      box.appendChild(r);
+    }
+  }
+  $('#dev-refresh').onclick = () => { devs = null; renderDevices(); send('devrefresh'); };
+  $$('#tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.v === 'cam') { send('devrefresh'); } }));
+
   // ---------- frames ----------
   const imgs = {};
   function drawFrame(id, b64) {
@@ -590,13 +669,29 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 3200); }
   let lastMsg = -1;
   function render(s) {
+    if (s.slots) {
+      slots = s.slots;
+      $$('.tile').forEach(t => {
+        const x = s.slots[+t.dataset.i], b = t.querySelector('b'), em = t.querySelector('em');
+        b.textContent = x.k === 'dev' ? x.name : 'CAM ' + (+t.dataset.i + 1);
+        em.textContent = stTxt[x.st]; em.style.display = '';
+        em.className = x.k === 'dev' && x.st !== 'online' ? 'bad' : '';
+      });
+      const hud = i => s.slots[i].k === 'dev' && s.slots[i].w ? s.slots[i].w + '×' + s.slots[i].h : '1920×1080';
+      const nm = i => s.slots[i].k === 'dev' ? s.slots[i].name : 'CAM ' + (i + 1);
+      $('#pgm-name').textContent = nm(s.pgm); $('#pvw-name').textContent = nm(s.pvw);
+      $('#pvw-hud').textContent = 'PRÓXIMA · ' + hud(s.pvw);
+      $('#pgm-res').textContent = hud(s.pgm) + ' → 1920×1080 · ' + s.target + ' fps';
+      const nd = s.slots.filter(x => x.k === 'dev').length;
+      $('#foot-src').textContent = nd ? nd + ' dispositivo(s) · ' + (8 - nd) + ' teste' : 'TESTE';
+      renderSlots(); renderDevices();
+    }
     lastPvw = s.pvw;
     if ($('#ptz-follow').checked && ptzCam !== s.pvw) { ptzCam = s.pvw; renderPtz(); }
     $$('.tile').forEach(t => { const i = +t.dataset.i; t.classList.toggle('pgm', i === s.pgm); t.classList.toggle('pvw', i === s.pvw); t.querySelector('.tally').textContent = i === s.pgm ? 'PGM' : 'PVW'; });
     $$('#bus-pgm .key').forEach(k => k.classList.toggle('pgm', +k.dataset.i === s.pgm));
     $$('#bus-pvw .key').forEach(k => k.classList.toggle('pvw', +k.dataset.i === s.pvw));
-    $('#pgm-name').textContent = 'CAM ' + (s.pgm + 1);
-    $('#pvw-name').textContent = 'CAM ' + (s.pvw + 1);
+    if (!s.slots) { $('#pgm-name').textContent = 'CAM ' + (s.pgm + 1); $('#pvw-name').textContent = 'CAM ' + (s.pvw + 1); }
     $('#tbar').style.width = (s.transition ? Math.round(s.progress * 100) : 0) + '%';
     $('#b-cut').disabled = $('#b-dis').disabled = !!s.transition;
     $('#c-fps').textContent = s.fps.toFixed(1) + ' fps';
@@ -643,7 +738,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
 
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
-    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); }
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderDevices(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
   window.__hbMessage = onMsg;   // used by the design preview harness

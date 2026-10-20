@@ -48,6 +48,11 @@ public:
     // Measured FPS is derived between consecutive calls.
     Snapshot snapshot();
 
+    // Input slots (CAM 1..8): assign a real device (webcam, virtual camera...) or go back to the test source.
+    bool assignSlot(int slot, std::shared_ptr<const video::LiveSource> device, std::string deviceId, std::string deviceName);
+    bool clearSlot(int slot);
+    video::SlotSource::Info slotInfo(int slot) const;
+
     // UI frames: "pgm", "pvw", "s0".."s7". Returns false for unknown ids.
     bool renderUiFrame(const std::string& id, video::Frame& out);
 
@@ -57,6 +62,7 @@ private:
     std::shared_ptr<core::MemorySink> log_;
     core::HardwareInfo hw_;
     core::Tier tier_;
+    std::vector<std::shared_ptr<video::SlotSource>> slots_;
     std::vector<std::shared_ptr<const video::Source>> sources_;
     std::unique_ptr<switcher::Switcher> switcher_;
     std::unique_ptr<video::ProgramOutput> program_;

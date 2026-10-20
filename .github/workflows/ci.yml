@@ -53,6 +53,15 @@ jobs:
           if (-not $p.WaitForExit(45000)) { $p.Kill(); "Setup timed out" }
           Get-ChildItem shots
 
+      - name: Camera enumeration smoke test (no cameras expected on a CI runner)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process build/Release/HBStudio.exe -ArgumentList "--list-cameras","$PWD\cameras.json" -PassThru
+          if (-not $p.WaitForExit(30000)) { $p.Kill(); throw "--list-cameras timed out" }
+          if ($p.ExitCode -ne 0) { throw "--list-cameras exit code $($p.ExitCode)" }
+          "cameras.json: " + (Get-Content cameras.json -Raw)
+
       - name: Upload screenshots
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4

@@ -10,8 +10,12 @@ Engine::Engine(video::ProgramFormat format) {
     hw_ = core::detectHardware();
     tier_ = core::classify(hw_);
 
-    for (int i = 0; i < kSourceCount; ++i)
-        sources_.push_back(std::make_shared<video::SyntheticSource>(i + 1, "CAM " + std::to_string(i + 1)));
+    for (int i = 0; i < kSourceCount; ++i) {
+        auto test = std::make_shared<video::SyntheticSource>(i + 1, "CAM " + std::to_string(i + 1));
+        auto slot = std::make_shared<video::SlotSource>(i + 1, test);
+        slots_.push_back(slot);
+        sources_.push_back(slot);
+    }
     switcher_ = std::make_unique<switcher::Switcher>(sources_, &bus_);
     program_ = std::make_unique<video::ProgramOutput>(format, &bus_);
     program_->setRenderer([this](video::Frame& f, std::uint64_t i) { switcher_->renderProgram(f, i); });
@@ -56,6 +60,26 @@ Engine::Snapshot Engine::snapshot() {
     s.sourcesMax = p.hardMaxSources;
     s.targetFps = static_cast<int>(program_->format().fps.value() + 0.5);
     return s;
+}
+
+bool Engine::assignSlot(int slot, std::shared_ptr<const video::LiveSource> device, std::string deviceId,
+                        std::string deviceName) {
+    if (slot < 0 || slot >= kSourceCount || !device) return false;
+    slots_[static_cast<std::size_t>(slot)]->assign(std::move(device), deviceId, deviceName);
+    logger_.info("input", "CAM " + std::to_string(slot + 1) + " <- " + deviceName);
+    return true;
+}
+
+bool Engine::clearSlot(int slot) {
+    if (slot < 0 || slot >= kSourceCount) return false;
+    slots_[static_cast<std::size_t>(slot)]->clear();
+    logger_.info("input", "CAM " + std::to_string(slot + 1) + " <- fonte de teste");
+    return true;
+}
+
+video::SlotSource::Info Engine::slotInfo(int slot) const {
+    if (slot < 0 || slot >= kSourceCount) return {};
+    return slots_[static_cast<std::size_t>(slot)]->info();
 }
 
 bool Engine::renderUiFrame(const std::string& id, video::Frame& out) {

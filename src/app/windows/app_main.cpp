@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -21,6 +22,9 @@
 
 #include "app/engine.hpp"
 #include "app/ptz_settings.hpp"
+#include "app/source_assignments.hpp"
+#include "app/windows/dshow_capture.hpp"
+#include "app/windows/task_queue.hpp"
 #include "app/windows/resource_ids.h"
 #include "app/windows/vcam_controller.hpp"
 #include "app/windows/webview_host.hpp"
@@ -49,6 +53,21 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, i
     std::string j = b;
     j += toastId > 0 ? ",\"toast\":{\"id\":" + std::to_string(toastId) + ",\"text\":\"" + win::jsonEscape(toast) + "\"}"
                      : std::string(",\"toast\":null");
+    j += ",\"slots\":[";
+    for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+        const auto info = engine.slotInfo(i);
+        const char* st = "test";
+        if (info.live) {
+            using S = video::SourceStatus::State;
+            st = info.status.state == S::Online ? "online" : info.status.state == S::Connecting ? "connecting"
+               : info.status.state == S::NoSignal ? "nosignal" : "error";
+        }
+        char sb[160];
+        snprintf(sb, sizeof sb, "%s{\"k\":\"%s\",\"st\":\"%s\",\"w\":%d,\"h\":%d,\"fps\":%.1f,\"name\":\"", i ? "," : "",
+                 info.live ? "dev" : "test", st, info.status.width, info.status.height, info.status.fps);
+        j += sb + win::jsonEscape(info.label) + "\",\"id\":\"" + win::jsonEscape(info.deviceId) + "\",\"msg\":\"" + win::jsonEscape(info.status.message) + "\"}";
+    }
+    j += "]";
     j += ",\"log\":[";
     auto tail = engine.logTail();
     const std::size_t from = tail.size() > 9 ? tail.size() - 9 : 0;
@@ -70,13 +89,31 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, i
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
-    std::wstring screenshotPath;
+    std::wstring screenshotPath, listCamerasPath;
     {
         int argc = 0;
         LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-        for (int i = 1; argv && i + 1 < argc; ++i)
+        for (int i = 1; argv && i + 1 < argc; ++i) {
             if (std::wstring(argv[i]) == L"--screenshot") screenshotPath = argv[i + 1];
+            if (std::wstring(argv[i]) == L"--list-cameras") listCamerasPath = argv[i + 1];
+        }
         if (argv) LocalFree(argv);
+    }
+    if (!listCamerasPath.empty()) {
+        // Diagnostic mode (also used by CI): print the detected video devices as JSON and exit.
+        const auto devs = win::enumerateVideoDevices();
+        std::string j = "[";
+        for (std::size_t i = 0; i < devs.size(); ++i)
+            j += std::string(i ? "," : "") + "{\"name\":\"" + win::jsonEscape(devs[i].name) + "\",\"virtual\":" +
+                 (devs[i].virtualCam ? "true" : "false") + "}";
+        j += "]";
+        HANDLE f = CreateFileW(listCamerasPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f != INVALID_HANDLE_VALUE) {
+            DWORD w = 0;
+            WriteFile(f, j.data(), static_cast<DWORD>(j.size()), &w, nullptr);
+            CloseHandle(f);
+        }
+        return 0;
     }
 
     win::trace("wWinMain start");
@@ -114,6 +151,69 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (!ptzPath.empty() && !ptzSettings.load(ptzPath))
             engine.logger().info("ptz", "sem configuração anterior: usando padrões");
     }
+    // ---- input devices (webcams, OBS Virtual Camera, ...) ----
+    app::SourceAssignments assignments;
+    std::string assignPath;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            assignPath = win::narrow(std::wstring(p) + L"\\HBStudio\\inputs.txt");
+            CoTaskMemFree(p);
+        }
+        if (!assignPath.empty()) assignments.load(assignPath);
+    }
+    std::mutex devMutex;
+    std::map<int, std::shared_ptr<win::DShowSource>> devices;   // slot -> running capture (keeps it alive)
+    std::map<std::string, std::string> knownNames;          // id -> friendly name from the last scan
+    std::atomic<bool> scanning{false};
+    // Declared AFTER everything its jobs touch: destroyed first, so queued jobs finish while those still exist.
+    win::TaskQueue tasks;                                   // slow jobs: enumeration, closing capture graphs
+
+    auto retire = [&](std::shared_ptr<win::DShowSource> d) {
+        if (d) tasks.post([d] { d->stop(); });              // never block UI/Program thread on a driver
+    };
+    auto attach = [&](int slot, const std::string& id, const std::string& name) {
+        auto src = std::make_shared<win::DShowSource>(id, name);
+        src->start();
+        std::shared_ptr<win::DShowSource> old;
+        {
+            std::lock_guard lock(devMutex);
+            old = devices[slot];
+            devices[slot] = src;
+        }
+        engine.assignSlot(slot, src, id, name);
+        retire(old);
+    };
+    auto detach = [&](int slot) {
+        std::shared_ptr<win::DShowSource> old;
+        {
+            std::lock_guard lock(devMutex);
+            auto it = devices.find(slot);
+            if (it != devices.end()) { old = it->second; devices.erase(it); }
+        }
+        engine.clearSlot(slot);
+        retire(old);
+    };
+    auto scan = [&] {
+        if (scanning.exchange(true)) return;
+        tasks.post([&] {
+            const auto devs = win::enumerateVideoDevices();
+            std::string j = "{\"t\":\"devices\",\"busy\":false,\"list\":[";
+            {
+                std::lock_guard lock(devMutex);
+                knownNames.clear();
+                for (std::size_t i = 0; i < devs.size(); ++i) {
+                    knownNames[devs[i].id] = devs[i].name;
+                    j += std::string(i ? "," : "") + "{\"id\":\"" + win::jsonEscape(devs[i].id) + "\",\"name\":\"" +
+                         win::jsonEscape(devs[i].name) + "\",\"virt\":" + (devs[i].virtualCam ? "true" : "false") + "}";
+                }
+            }
+            j += "]}";
+            host.postQueued("devices", j);
+            scanning = false;
+        });
+    };
+
     std::atomic<unsigned> ptzSent{0};
     std::mutex toastMutex;
     int toastId = 0;
@@ -140,7 +240,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
-        const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 : 8));
+        const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 : (c0 == "devassign" ? 3 : 8)));
         auto a = split(msg, maxParts);
         if (a.empty()) return;
         auto idx = [&](std::size_t k) { return k < a.size() ? std::atoi(a[k].c_str()) : -1; };
@@ -155,6 +255,29 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         else if (c == "vcam" && a.size() > 1) {
             if (a[1] == "activate") vcam.activate();
             else if (a[1] == "deactivate") vcam.deactivate();
+        } else if (c == "devrefresh") {
+            scan();
+        } else if (c == "devassign" && a.size() >= 3) {
+            const int slot = idx(1);
+            std::string name = a[2];
+            {
+                std::lock_guard lock(devMutex);
+                auto it = knownNames.find(a[2]);
+                if (it != knownNames.end()) name = it->second;
+            }
+            if (slot >= 0 && slot < app::Engine::kSourceCount && assignments.set(slot, a[2], name)) {
+                attach(slot, a[2], name);
+                if (!assignPath.empty()) assignments.save(assignPath);
+                toast("CAM " + std::to_string(slot + 1) + ": " + name + " conectando…");
+            }
+        } else if (c == "devclear") {
+            const int slot = idx(1);
+            if (slot >= 0 && slot < app::Engine::kSourceCount) {
+                detach(slot);
+                assignments.clear(slot);
+                if (!assignPath.empty()) assignments.save(assignPath);
+                toast("CAM " + std::to_string(slot + 1) + ": voltou para a fonte de teste.");
+            }
         } else if (c == "ptzname" && a.size() >= 4) {
             if (ptzSettings.setPresetName(cam, idx(2), a[3])) ptzChanged();
         } else if (c == "ptzcfg" && a.size() >= 3) {
@@ -185,6 +308,12 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     std::thread feeder;
     auto startFeeder = [&] {
         if (feeder.joinable()) return;   // never start a second feeder (page reload)
+        // Restore the inputs used last time and list the devices for the CÂMERAS tab.
+        for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+            const auto e = assignments.get(i);
+            if (!e.empty()) attach(i, e.id, e.name);
+        }
+        scan();
         feeder = std::thread([&] {
             win::trace("feeder thread start");
             CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -261,6 +390,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     win::trace("message loop ended");
     running = false;
+    {
+        std::lock_guard lock(devMutex);
+        for (auto& kv : devices) kv.second->stop();   // close capture graphs before the engine goes away
+    }
     if (feeder.joinable()) feeder.join();
     win::trace("feeder joined");
     vcam.shutdown();

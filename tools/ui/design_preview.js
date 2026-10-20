@@ -18,12 +18,14 @@ const [,, html, out, view] = process.argv;
     for (let i = 0; i < 8; i++) window.__hbMessage({ t: 'f', id: 's' + i, d: mk(192, 108, 200 + i * 15, i + 1) });
     window.__hbMessage({ t: 'f', id: 'pvw', d: mk(640, 360, 230, 2) });
     window.__hbMessage({ t: 'f', id: 'pgm', d: mk(640, 360, 215, 1) });
-    window.__hbMessage({ t: 's', pvw: 1, pgm: 0, transition: false, progress: 0, fps: 29.9, target: 30, produced: 5421, frames: 5421, skipped: 0,
+    window.__hbMessage({ t: 's', slots: [{k:'dev',st:'online',w:1920,h:1080,fps:30,name:'OBS Virtual Camera',id:'a',msg:''},{k:'dev',st:'nosignal',w:1280,h:720,fps:0,name:'Logitech C920 HD Pro Webcam',id:'b',msg:'Sem imagem. Se for uma câmera virtual (ex.: OBS), inicie-a no programa de origem.'},{k:'test',st:'test',name:'',id:'',msg:''},{k:'test',st:'test',name:'',id:'',msg:''},{k:'test',st:'test',name:'',id:'',msg:''},{k:'test',st:'test',name:'',id:'',msg:''},{k:'test',st:'test',name:'',id:'',msg:''},{k:'test',st:'test',name:'',id:'',msg:''}], pvw: 1, pgm: 0, transition: false, progress: 0, fps: 29.9, target: 30, produced: 5421, frames: 5421, skipped: 0,
       tier: window.__tier, cores: 8, ramGiB: 16, srcRec: window.__rec, srcMax: 10,
       vcam: { supported: true, installed: true, active: true, connected: true, busy: false, sent: 4210, message: '' },
       log: [{ t: '16:20:01 [INFO] [engine] perfil MEDIUM, 8 núcleos', l: 'INFO' }, { t: '16:20:01 [INFO] [program] program.started', l: 'INFO' }, { t: '16:20:09 [INFO] [switcher] switcher.programChanged pvw=0 pgm=1', l: 'INFO' }] });
     const names = ['Altar','Púlpito','Louvor','Banda','Plateia','','Batismo','','Coral','Entrada'];
     window.__hbMessage({ t: 'ptz', cams: Array.from({length: 8}, (_, i) => ({ protocol: 'onvif', host: '192.168.15.10' + i, port: 0, address: 1, slots: 10, base: 1, storage: 'camera', speed: 50, invPan: false, invTilt: false, defPort: 80, connected: false, names }))});
+    window.__hbMessage({ t: 'devices', list: [
+      { id: 'a', name: 'OBS Virtual Camera', virt: true }, { id: 'b', name: 'Logitech C920 HD Pro Webcam', virt: false }, { id: 'c', name: 'Cam Link 4K', virt: false } ]});
     if (view === 'modal') document.querySelector('#ptz-cfg').click();
     else if (view === 'edit') { document.querySelector('#ptz-mode button[data-m=edit]').click(); }
     else if (view) document.querySelector(`#tabs button[data-v=${view}]`).click();

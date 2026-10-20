@@ -28,6 +28,7 @@ add_library(hb_core STATIC
   src/switcher/switcher.cpp
   src/app/engine.cpp
   src/app/ptz_settings.cpp
+  src/app/source_assignments.cpp
 )
 target_include_directories(hb_core PUBLIC src)
 target_link_libraries(hb_core PUBLIC Threads::Threads)
@@ -81,10 +82,11 @@ if(WIN32)
 
     set(HB_WIN_COMMON src/app/windows/webview_host.cpp src/app/windows/win_util.cpp)
     set(HB_WIN_LIBS "${HB_WEBVIEW2_DIR}/build/native/x64/WebView2LoaderStatic.lib"
-        windowscodecs shlwapi dwmapi shell32 ole32 oleaut32 advapi32 user32 version)
+        strmiids windowscodecs shlwapi dwmapi shell32 ole32 oleaut32 advapi32 user32 version)
 
     add_executable(hb_studio WIN32 ${HB_WIN_COMMON}
       src/app/windows/app_main.cpp src/app/windows/wic_jpeg.cpp src/app/windows/vcam_controller.cpp
+      src/app/windows/dshow_capture.cpp
       "${CMAKE_BINARY_DIR}/rc/app.rc" src/app/windows/rc/app.manifest)
     set_target_properties(hb_studio PROPERTIES OUTPUT_NAME HBStudio)
     target_include_directories(hb_studio PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
@@ -126,7 +128,8 @@ if(HB_BUILD_TESTS)
     tests/program_output_test.cpp
     tests/switcher_test.cpp
     tests/engine_test.cpp
-    tests/ptz_settings_test.cpp)
+    tests/ptz_settings_test.cpp
+    tests/slots_test.cpp)
   target_link_libraries(hb_tests PRIVATE hb_core GTest::gtest_main)
   include(GoogleTest)
   gtest_discover_tests(hb_tests)
