@@ -1,5 +1,12 @@
 name: ci
 on: [push, pull_request]
+
+permissions:
+  contents: write   # publishes the "latest" pre-release with HBStudio-Setup.exe
+
+env:
+  WEBVIEW2_SDK_VERSION: 1.0.3856.49
+
 jobs:
   build:
     strategy:
@@ -9,28 +16,70 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Fetch WebView2 SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$env:WEBVIEW2_SDK_VERSION" -OutFile wv2.zip
+          Expand-Archive wv2.zip third_party/webview2 -Force
+
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
       - name: Virtual camera self-test (loads the DLL in-process)
         if: runner.os == 'Windows'
         shell: pwsh
         working-directory: build/Release
         run: ./hb_vcam_selftest.exe
-      - name: Package virtual camera PoC
+
+      # Real UI smoke test: starts the real executables, lets the UI render, saves a PNG.
+      - name: UI screenshots (real HBStudio.exe / HBStudio-Setup.exe)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory shots | Out-Null
+          $p = Start-Process build/Release/HBStudio.exe -ArgumentList "--screenshot","$PWD\shots\app.png" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); "HBStudio.exe timed out" }
+          $p = Start-Process build/Release/HBStudio-Setup.exe -ArgumentList "--screenshot","$PWD\shots\setup.png" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); "Setup timed out" }
+          Get-ChildItem shots
+
+      - name: Upload screenshots
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: shots
+          if-no-files-found: ignore
+
+      - name: Package
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory dist | Out-Null
-          Copy-Item build/Release/hb_vcam_poc.exe, build/Release/hb_vcam_source.dll dist/
-          Copy-Item tools/vcam/*.ps1 dist/
-          Copy-Item docs/VIRTUAL_CAMERA.md dist/LEIA-ME.md
-      - name: Upload virtual camera PoC
+          Copy-Item build/Release/HBStudio-Setup.exe dist/
+          Get-Item dist/HBStudio-Setup.exe | Select-Object Name, Length
+
+      - name: Upload installer artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: hb-studio-vcam-poc
-          path: dist
+          name: HBStudio-Setup
+          path: dist/HBStudio-Setup.exe
+
+      - name: Publish "latest" pre-release
+        if: runner.os == 'Windows' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag 2>$null
+          gh release create latest dist/HBStudio-Setup.exe --prerelease --target ${{ github.sha }} `
+            --title "HB Studio - ultima versao" `
+            --notes "Instalador automatico (commit ${{ github.sha }}). Baixe HBStudio-Setup.exe, de dois cliques e siga a janela."

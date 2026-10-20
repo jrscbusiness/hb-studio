@@ -1,0 +1,20 @@
+#include <winres.h>
+#include "@HB_SOURCE_DIR@/src/app/windows/resource_ids.h"
+IDI_APPICON ICON "@HB_SOURCE_DIR@/ui/hbstudio.ico"
+IDR_SETUP_HTML RCDATA "@HB_EMBED_DIR@/setup.html"
+IDR_APP_EXE RCDATA "@HB_EMBED_DIR@/HBStudio.exe"
+IDR_VCAM_DLL RCDATA "@HB_EMBED_DIR@/hb_vcam_source.dll"
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @HB_VER_COMMA@
+ PRODUCTVERSION @HB_VER_COMMA@
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+BEGIN BLOCK "StringFileInfo" BEGIN BLOCK "041604B0" BEGIN
+  VALUE "CompanyName", "HB Studio"
+  VALUE "FileDescription", "Instalador do HB Studio"
+  VALUE "FileVersion", "@HB_VERSION@"
+  VALUE "ProductName", "HB Studio"
+  VALUE "ProductVersion", "@HB_VERSION@"
+  VALUE "OriginalFilename", "HBStudio-Setup.exe"
+END END
+BLOCK "VarFileInfo" BEGIN VALUE "Translation", 0x0416, 1200 END END

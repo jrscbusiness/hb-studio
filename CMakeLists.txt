@@ -63,6 +63,48 @@ if(WIN32)
     target_link_libraries(hb_vcam_selftest PRIVATE hb_vcam_sender mfplat mf mfuuid mfsensorgroup ole32 propsys)
     add_dependencies(hb_vcam_selftest hb_vcam_source)
   endif()
+
+  # ---- Graphical application + installer (needs the WebView2 SDK, see CI / BUILD.md) ----
+  set(HB_VERSION "0.2.0")
+  string(REPLACE "." "," HB_VER_COMMA "${HB_VERSION},0")
+  set(HB_WEBVIEW2_DIR "${CMAKE_SOURCE_DIR}/third_party/webview2" CACHE PATH "Microsoft.Web.WebView2 NuGet package, extracted")
+  if(EXISTS "${HB_WEBVIEW2_DIR}/build/native/include/WebView2.h")
+    set(HB_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+    set(HB_EMBED_DIR "${CMAKE_BINARY_DIR}/embed")
+    file(MAKE_DIRECTORY "${HB_EMBED_DIR}" "${CMAKE_BINARY_DIR}/rc")
+    configure_file(ui/index.html "${HB_EMBED_DIR}/index.html" COPYONLY)
+    configure_file(ui/setup.html "${HB_EMBED_DIR}/setup.html" COPYONLY)
+    configure_file(src/app/windows/rc/app.rc.in "${CMAKE_BINARY_DIR}/rc/app.rc" @ONLY)
+    configure_file(src/app/windows/rc/setup.rc.in "${CMAKE_BINARY_DIR}/rc/setup.rc" @ONLY)
+
+    set(HB_WIN_COMMON src/app/windows/webview_host.cpp src/app/windows/win_util.cpp)
+    set(HB_WIN_LIBS "${HB_WEBVIEW2_DIR}/build/native/x64/WebView2LoaderStatic.lib"
+        windowscodecs shlwapi dwmapi shell32 ole32 oleaut32 advapi32 user32 version)
+
+    add_executable(hb_studio WIN32 ${HB_WIN_COMMON}
+      src/app/windows/app_main.cpp src/app/windows/wic_jpeg.cpp src/app/windows/vcam_controller.cpp
+      "${CMAKE_BINARY_DIR}/rc/app.rc" src/app/windows/rc/app.manifest)
+    set_target_properties(hb_studio PROPERTIES OUTPUT_NAME HBStudio)
+    target_include_directories(hb_studio PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
+    target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX)
+    target_link_libraries(hb_studio PRIVATE hb_core hb_vcam_sender mfplat mf mfuuid mfsensorgroup ${HB_WIN_LIBS})
+    target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
+    add_custom_command(TARGET hb_studio POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")
+    add_custom_command(TARGET hb_vcam_source POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_vcam_source> "${HB_EMBED_DIR}/hb_vcam_source.dll")
+
+    add_executable(hb_setup WIN32 ${HB_WIN_COMMON} src/app/windows/setup_main.cpp
+      "${CMAKE_BINARY_DIR}/rc/setup.rc" src/app/windows/rc/setup.manifest)
+    set_target_properties(hb_setup PROPERTIES OUTPUT_NAME HBStudio-Setup)
+    target_include_directories(hb_setup PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
+    target_compile_definitions(hb_setup PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION}")
+    target_link_libraries(hb_setup PRIVATE ${HB_WIN_LIBS})
+    target_link_options(hb_setup PRIVATE /MANIFESTUAC:NO)
+    add_dependencies(hb_setup hb_studio hb_vcam_source)
+  else()
+    message(STATUS "WebView2 SDK not found in ${HB_WEBVIEW2_DIR}: skipping HBStudio.exe / HBStudio-Setup.exe")
+  endif()
 endif()
 
 if(HB_BUILD_TESTS)
