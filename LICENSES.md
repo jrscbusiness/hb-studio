@@ -12,3 +12,4 @@ Apache-2.0 ou MPL-2.0 (decisão do mantenedor; não é aconselhamento jurídico)
 | NDI SDK (futuro) | NDI | Proprietária | **não** vai no repositório; usuário instala o Runtime; atribuição de marca obrigatória |
 | OBS Studio | referência | GPL-2.0 | **nenhum código copiado** |
 | microsoft/Windows-Camera (VirtualCamera sample) | referência de estrutura do media source | MIT | Código reescrito; estrutura de objetos inspirada no exemplo. Aviso MIT: Copyright (c) Microsoft Corporation |
+| MD5 (src/rtsp/md5.cpp) | Digest auth do RTSP | Implementação própria a partir do RFC 1321 | Nenhum código de terceiros copiado; testada com os vetores do RFC. Sem dependência externa nova no módulo RTSP |
