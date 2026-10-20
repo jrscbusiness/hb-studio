@@ -23,6 +23,9 @@ add_library(hb_core STATIC
   src/core/clock.cpp
   src/core/hardware_profile.cpp
   src/video/program_output.cpp
+  src/video/synthetic_source.cpp
+  src/switcher/switcher.cpp
+  src/app/engine.cpp
 )
 target_include_directories(hb_core PUBLIC src)
 target_link_libraries(hb_core PUBLIC Threads::Threads)
@@ -76,8 +79,17 @@ if(HB_BUILD_TESTS)
     tests/logger_test.cpp
     tests/clock_test.cpp
     tests/hardware_profile_test.cpp
-    tests/program_output_test.cpp)
+    tests/program_output_test.cpp
+    tests/switcher_test.cpp
+    tests/engine_test.cpp)
   target_link_libraries(hb_tests PRIVATE hb_core GTest::gtest_main)
   include(GoogleTest)
   gtest_discover_tests(hb_tests)
 endif()
+
+# Feature modules: every cmake/modules/<name>.cmake registers its own library and
+# (inside `if(HB_BUILD_TESTS)`) its own gtest executable. Loaded after GoogleTest.
+file(GLOB HB_MODULES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/cmake/modules/*.cmake)
+foreach(m ${HB_MODULES})
+  include(${m})
+endforeach()

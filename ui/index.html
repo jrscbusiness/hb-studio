@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HB Studio</title>
+<style>
+:root{
+  --bg:#F2F6FD; --panel:#FFFFFF; --line:#DDE7F8; --line-2:#C9D8F2;
+  --ink:#0A1E47; --ink-2:#3B5280; --muted:#7A8DB3;
+  --blue:#1F6BFF; --blue-2:#4F8DFF; --sky:#BFD6FF; --mist:#EAF1FF;
+  --navy:#07122B; --ok:#1F6BFF; --warn:#E7A317;
+  --glow:0 0 0 1px rgba(31,107,255,.35), 0 8px 28px rgba(31,107,255,.28);
+  --shadow:0 1px 0 #fff inset, 0 10px 34px rgba(20,60,160,.07);
+  --mono:"Cascadia Mono","JetBrains Mono",Consolas,"DejaVu Sans Mono",monospace;
+  --sans:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:var(--sans); color:var(--ink); background:var(--bg); font-size:13px;
+  -webkit-font-smoothing:antialiased; user-select:none; cursor:default;
+  background-image:
+    radial-gradient(1200px 520px at 88% -8%, rgba(79,141,255,.20), transparent 60%),
+    radial-gradient(900px 480px at -8% 108%, rgba(31,107,255,.10), transparent 60%),
+    radial-gradient(circle, #CFDCF5 1px, transparent 1.2px);
+  background-size:auto,auto,26px 26px;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:disabled{cursor:not-allowed}
+.mono{font-family:var(--mono)}
+.cap{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* ---------- layout ---------- */
+.app{height:100%;display:grid;grid-template-rows:60px 1fr 30px;min-width:1100px}
+header{
+  display:grid;grid-template-columns:260px 1fr 460px;align-items:center;padding:0 22px;
+  border-bottom:1px solid var(--line); background:rgba(255,255,255,.72); backdrop-filter:blur(14px);
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand svg{width:30px;height:30px}
+.brand b{font-weight:700;letter-spacing:.34em;font-size:14px}
+.brand i{font-style:normal;color:var(--blue)}
+nav{display:flex;justify-content:center;gap:4px;position:relative}
+nav button{padding:8px 18px;border-radius:10px;font-size:11.5px;letter-spacing:.16em;font-weight:600;color:var(--muted);transition:.18s}
+nav button:hover{color:var(--ink);background:var(--mist)}
+nav button.on{color:var(--blue);background:var(--mist);box-shadow:inset 0 -2px 0 var(--blue)}
+.chips{display:flex;justify-content:flex-end;gap:8px}
+.chip{
+  display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:999px;
+  background:#fff;border:1px solid var(--line);font-size:11px;white-space:nowrap
+}
+.chip .k{color:var(--muted);letter-spacing:.12em;font-size:9.5px;text-transform:uppercase;font-weight:600}
+.chip .v{font-family:var(--mono);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--sky)}
+.dot.on{background:var(--blue);box-shadow:0 0 0 4px rgba(31,107,255,.18);animation:pulse 1.8s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 7px rgba(31,107,255,0)}}
+
+main{padding:18px 22px;min-height:0;position:relative}
+.view{display:none;height:100%}
+.view.on{display:grid}
+#v-prod{grid-template-columns:minmax(0,1fr) 330px;gap:18px;min-height:0}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);position:relative}
+.card h3{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0}
+.card .body{padding:12px 16px 16px}
+.col{display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto;padding:2px}
+.col .card{flex:none}
+
+/* ---------- inputs ---------- */
+.inputs{flex:none}
+.tiles{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;padding:10px 14px 14px}
+.tile{position:relative;border-radius:10px;overflow:hidden;background:var(--navy);aspect-ratio:16/9;
+  border:2px solid transparent;transition:.15s;cursor:pointer}
+.tile canvas{width:100%;height:100%;display:block}
+.tile:hover{border-color:var(--sky)}
+.tile .lb{position:absolute;left:6px;bottom:5px;display:flex;gap:5px;align-items:center}
+.tile .lb b{font-family:var(--mono);font-size:9.5px;color:#fff;background:rgba(7,18,43,.62);padding:2px 6px;border-radius:5px;backdrop-filter:blur(4px)}
+.tile .lb em{font-style:normal;font-size:7px;letter-spacing:.14em;color:#BFD6FF;background:rgba(31,107,255,.45);padding:2px 5px;border-radius:4px}
+.tile.pvw{border-color:var(--blue-2);box-shadow:0 0 0 3px rgba(79,141,255,.22)}
+.tile.pgm{border-color:var(--blue);box-shadow:var(--glow)}
+.tile .tally{position:absolute;right:6px;top:6px;font-size:8.5px;letter-spacing:.14em;font-weight:700;padding:2px 6px;border-radius:4px;display:none}
+.tile.pgm .tally{display:block;background:var(--blue);color:#fff}
+.tile.pvw:not(.pgm) .tally{display:block;background:#fff;color:var(--blue)}
+
+/* ---------- monitors ---------- */
+.stage{display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto;padding:2px}
+.monitors{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.mon{padding:12px}
+.mon .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.mon .tag{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.2em;font-size:11px}
+.mon .tag.pgm{color:var(--blue)}
+.mon .tag.pvw{color:var(--ink-2)}
+.screen{position:relative;aspect-ratio:16/9;background:var(--navy);border-radius:10px;overflow:hidden}
+.screen canvas{width:100%;height:100%;display:block}
+.screen::before,.screen::after{content:"";position:absolute;inset:8px;pointer-events:none;
+  background:
+   linear-gradient(var(--sky),var(--sky)) 0 0/14px 1.5px no-repeat, linear-gradient(var(--sky),var(--sky)) 0 0/1.5px 14px no-repeat,
+   linear-gradient(var(--sky),var(--sky)) 100% 0/14px 1.5px no-repeat, linear-gradient(var(--sky),var(--sky)) 100% 0/1.5px 14px no-repeat,
+   linear-gradient(var(--sky),var(--sky)) 0 100%/14px 1.5px no-repeat, linear-gradient(var(--sky),var(--sky)) 0 100%/1.5px 14px no-repeat,
+   linear-gradient(var(--sky),var(--sky)) 100% 100%/14px 1.5px no-repeat, linear-gradient(var(--sky),var(--sky)) 100% 100%/1.5px 14px no-repeat;
+  opacity:.75}
+.screen::after{inset:0;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent 30%);opacity:1}
+.mon.pgm .screen{box-shadow:var(--glow);outline:2px solid var(--blue);outline-offset:0}
+.mon.pvw .screen{outline:2px dashed var(--blue-2);outline-offset:0}
+.screen .hud{position:absolute;left:14px;bottom:12px;right:14px;display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:10.5px;color:#CFE0FF;text-shadow:0 1px 6px rgba(0,0,0,.6);pointer-events:none}
+.screen .name{position:absolute;left:14px;top:12px;font-family:var(--mono);font-size:11px;font-weight:600;color:#fff;
+  background:rgba(7,18,43,.55);padding:3px 8px;border-radius:6px;backdrop-filter:blur(4px)}
+.mon .tc{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+
+/* ---------- switcher ---------- */
+.switch{padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px}
+.bus{display:flex;flex-direction:column;gap:12px}
+.busrow{display:flex;align-items:center;gap:12px}
+.busrow .cap{width:62px}
+.keys{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;flex:1}
+.key{height:46px;border-radius:11px;background:#fff;border:1px solid var(--line-2);font-family:var(--mono);font-weight:700;font-size:15px;color:var(--ink-2);transition:.12s;position:relative}
+.key:hover{border-color:var(--blue-2);color:var(--blue)}
+.key small{position:absolute;right:6px;top:3px;font-size:8px;color:var(--muted);font-weight:500}
+.key.pvw{background:var(--mist);border-color:var(--blue-2);color:var(--blue);box-shadow:0 0 0 3px rgba(79,141,255,.18)}
+.key.pgm{background:linear-gradient(180deg,#3C86FF,#1F6BFF);border-color:var(--blue);color:#fff;box-shadow:var(--glow)}
+.trans{display:flex;flex-direction:column;gap:12px;border-left:1px solid var(--line);padding-left:22px;min-width:0}
+.btnrow{display:flex;gap:10px}
+.btn{height:46px;padding:0 14px;min-width:0;border-radius:12px;font-weight:700;letter-spacing:.14em;font-size:12px;border:1px solid var(--line-2);background:#fff;color:var(--blue);transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover:not(:disabled){border-color:var(--blue);background:var(--mist)}
+.btn.primary{background:linear-gradient(180deg,#3C86FF,#1F6BFF);color:#fff;border-color:var(--blue);box-shadow:0 8px 22px rgba(31,107,255,.32);flex:1}
+.btn.primary:hover:not(:disabled){filter:brightness(1.06)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.45}
+.btn.sm{height:34px;font-size:11px;padding:0 14px;letter-spacing:.1em}
+.btn.wide{width:100%}
+kbd{font-family:var(--mono);font-size:9.5px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.35);padding:1px 5px;border-radius:4px;letter-spacing:0}
+.btn:not(.primary) kbd{background:var(--mist);border-color:var(--line-2);color:var(--ink-2)}
+.dur{display:flex;align-items:center;gap:6px}
+.seg{display:flex;background:var(--mist);border-radius:10px;padding:3px;flex:1}
+.seg button{flex:1;height:28px;border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.seg button.on{background:#fff;color:var(--blue);box-shadow:0 1px 4px rgba(20,60,160,.18);font-weight:700}
+.tbar{height:6px;border-radius:6px;background:var(--mist);overflow:hidden}
+.tbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue-2),var(--blue));border-radius:6px}
+
+/* ---------- right cards ---------- */
+.row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border-bottom:0}
+.row .k{color:var(--ink-2)}
+.row .v{font-family:var(--mono);font-weight:600}
+.tier{font-family:var(--mono);font-weight:700;color:var(--blue);background:var(--mist);padding:2px 9px;border-radius:999px;font-size:11px}
+.meter{height:5px;background:var(--mist);border-radius:5px;margin-top:6px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue-2),var(--blue));transition:width .3s}
+.note{color:var(--ink-2);line-height:1.5;font-size:12px}
+.note.err{color:#A76A00}
+.status{display:flex;align-items:center;gap:10px;margin:2px 0 12px}
+.status b{letter-spacing:.14em;font-size:12px}
+.log{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);line-height:1.55;max-height:130px;overflow:hidden}
+.log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log .w{color:#A76A00}.log .e{color:#B3261E}
+.ptz{display:grid;grid-template-columns:repeat(3,28px);gap:4px;opacity:.5}
+.ptzrow{display:flex;gap:16px;align-items:center}
+.ptz span{height:28px;border-radius:10px;border:1px solid var(--line-2);display:grid;place-items:center;color:var(--ink-2);font-size:13px;background:#fff}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--sky);border-top-color:var(--blue);animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ---------- other views ---------- */
+.empty{margin:auto;max-width:520px;text-align:center;padding:40px}
+.empty svg{width:96px;height:96px;margin-bottom:18px}
+.empty h2{font-size:18px;letter-spacing:.06em;margin-bottom:8px}
+.empty p{color:var(--ink-2);line-height:1.6}
+.phase{display:inline-block;margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--blue);background:var(--mist);padding:4px 12px;border-radius:999px}
+#v-cfg{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-content:start}
+table.pre{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
+table.pre td{padding:6px 4px;border-bottom:1px dashed var(--line)}
+table.pre td:last-child{text-align:right;color:var(--blue);font-weight:600}
+
+footer{display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-top:1px solid var(--line);color:var(--muted);font-size:10.5px;letter-spacing:.08em;background:rgba(255,255,255,.6)}
+footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
+#toast{position:fixed;left:50%;bottom:44px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;transition:.25s;pointer-events:none;box-shadow:0 12px 40px rgba(10,30,71,.35)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-height:760px){.keys .key{height:38px}.tiles{gap:8px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" fill="none"><path d="M16 2.5 27.7 9.25v13.5L16 29.5 4.3 22.75V9.25L16 2.5Z" stroke="#1F6BFF" stroke-width="1.8"/><circle cx="16" cy="16" r="5.2" stroke="#1F6BFF" stroke-width="1.8"/><circle cx="16" cy="16" r="1.7" fill="#1F6BFF"/><path d="M16 2.5v8.3M16 21.2v8.3M4.3 9.25l7.2 4.15M20.5 18.6l7.2 4.15M27.7 9.25l-7.2 4.15M11.5 18.6l-7.2 4.15" stroke="#9DBDFF" stroke-width="1.2"/></svg>
+      <b>HB<i> </i>STUDIO</b>
+    </div>
+    <nav id="tabs">
+      <button class="on" data-v="prod">PRODUÇÃO</button>
+      <button data-v="cam">CÂMERAS</button>
+      <button data-v="aud">ÁUDIO</button>
+      <button data-v="cfg">CONFIG</button>
+    </nav>
+    <div class="chips">
+      <div class="chip"><span class="k">Program</span><span class="v" id="c-fps">— fps</span></div>
+      <div class="chip"><span class="k">Perfil</span><span class="v" id="c-tier">—</span></div>
+      <div class="chip"><span class="dot" id="c-vdot"></span><span class="k">Câmera virtual</span><span class="v" id="c-vtxt">OFF</span></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ===================== PRODUÇÃO ===================== -->
+    <section class="view on" id="v-prod">
+      <div class="stage">
+        <div class="monitors">
+          <div class="card mon pvw">
+            <div class="top"><div class="tag pvw"><span class="dot"></span>PREVIEW</div><span class="tc" id="pvw-name">—</span></div>
+            <div class="screen"><canvas id="cv-pvw" width="640" height="360"></canvas>
+              <div class="hud"><span>1920×1080</span><span id="pvw-hud">PRÓXIMA</span></div></div>
+          </div>
+          <div class="card mon pgm">
+            <div class="top"><div class="tag pgm"><span class="dot on"></span>PROGRAM</div><span class="tc" id="tc">00:00:00:00</span></div>
+            <div class="screen"><canvas id="cv-pgm" width="640" height="360"></canvas>
+              <div class="name" id="pgm-name">—</div>
+              <div class="hud"><span id="pgm-res">1920×1080 · 30 fps</span><span>NO AR</span></div></div>
+          </div>
+        </div>
+
+        <div class="card switch">
+          <div class="bus">
+            <div class="busrow"><span class="cap">Program</span><div class="keys" id="bus-pgm"></div></div>
+            <div class="busrow"><span class="cap">Preview</span><div class="keys" id="bus-pvw"></div></div>
+          </div>
+          <div class="trans">
+            <div class="btnrow">
+              <button class="btn" id="b-cut">CUT <kbd>ESPAÇO</kbd></button>
+              <button class="btn primary" id="b-dis">DISSOLVE <kbd>ENTER</kbd></button>
+            </div>
+            <div class="dur"><span class="cap" style="width:62px">Duração</span>
+              <div class="seg" id="dur"><button data-ms="250">250</button><button data-ms="500" class="on">500</button><button data-ms="1000">1000</button><button data-ms="2000">2000</button></div>
+            </div>
+            <div class="tbar"><i id="tbar"></i></div>
+          </div>
+        </div>
+
+        <div class="card inputs">
+          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">8 / 8</span></h3>
+          <div class="tiles" id="tiles"></div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h3><span class="cap">Saída · Câmera virtual</span></h3>
+          <div class="body">
+            <div class="status"><span class="dot" id="v-dot"></span><b id="v-title">—</b></div>
+            <p class="note" id="v-note"></p>
+            <div style="height:12px"></div>
+            <button class="btn primary wide sm" id="v-main" style="flex:none"></button>
+            <div style="height:8px"></div>
+            <button class="btn wide sm" id="v-sec" style="display:none"></button>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Sistema</span></h3>
+          <div class="body">
+            <div class="row"><span class="k">Perfil do computador</span><span class="tier" id="s-tier">—</span></div>
+            <div class="row"><span class="k">Processador</span><span class="v" id="s-cores">—</span></div>
+            <div class="row"><span class="k">Memória</span><span class="v" id="s-ram">—</span></div>
+            <div class="row"><span class="k">Program</span><span class="v" id="s-fps">—</span></div>
+            <div class="meter"><i id="s-meter"></i></div>
+            <div class="row" style="margin-top:6px"><span class="k">Quadros pulados</span><span class="v" id="s-skip">0</span></div>
+            <div class="row"><span class="k">Câmera virtual</span><span class="v" id="s-vsent">0 quadros</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">PTZ</span><span class="cap" style="color:var(--blue-2)">aguardando câmera</span></h3>
+          <div class="body">
+            <div class="ptzrow"><div class="ptz"><span></span><span>▲</span><span></span><span>◀</span><span>■</span><span>▶</span><span></span><span>▼</span><span></span></div>
+            <p class="note">Disponível quando uma câmera ONVIF for conectada (Fases 4–5).</p></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Registro</span></h3>
+          <div class="body"><div class="log" id="log"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CÂMERAS ===================== -->
+    <section class="view" id="v-cam">
+      <div class="empty">
+        <svg viewBox="0 0 96 96" fill="none" stroke="#1F6BFF" stroke-width="2"><rect x="14" y="28" width="52" height="38" rx="9"/><path d="M66 42l16-9v30l-16-9"/><circle cx="40" cy="47" r="9" stroke="#9DBDFF"/><circle cx="40" cy="47" r="2.5" fill="#1F6BFF"/></svg>
+        <h2>Descoberta de câmeras</h2>
+        <p>Busca automática de câmeras ONVIF, RTSP e NDI na rede (FOMAKO e outras).<br>As 8 entradas da Produção são <b>fontes de teste</b> geradas pelo próprio programa até esta etapa ficar pronta.</p>
+        <span class="phase">FASES 2 · 3 · 4 · 6</span>
+      </div>
+    </section>
+
+    <!-- ===================== ÁUDIO ===================== -->
+    <section class="view" id="v-aud">
+      <div class="empty">
+        <svg viewBox="0 0 96 96" fill="none" stroke="#1F6BFF" stroke-width="2"><path d="M20 56V40M32 66V30M44 58V38M56 70V26M68 56V40M80 62V34" stroke-linecap="round"/><path d="M14 80h68" stroke="#9DBDFF"/></svg>
+        <h2>Mixer de áudio</h2>
+        <p>Canais por câmera, microfones, fader, mute, solo e medidores — saída <i>Program Audio</i>.</p>
+        <span class="phase">FASE 12</span>
+      </div>
+    </section>
+
+    <!-- ===================== CONFIG ===================== -->
+    <section class="view" id="v-cfg">
+      <div class="card"><h3><span class="cap">Computador detectado</span></h3>
+        <div class="body">
+          <div class="row"><span class="k">Perfil sugerido</span><span class="tier" id="g-tier">—</span></div>
+          <div class="row"><span class="k">Núcleos lógicos</span><span class="v" id="g-cores">—</span></div>
+          <div class="row"><span class="k">Memória</span><span class="v" id="g-ram">—</span></div>
+          <div class="row"><span class="k">Fontes recomendadas / máximo</span><span class="v" id="g-src">—</span></div>
+        </div></div>
+      <div class="card"><h3><span class="cap">Formatos de saída comuns</span></h3>
+        <div class="body"><table class="pre">
+          <tr><td>720p30</td><td>1280×720 · 30</td></tr><tr><td>720p60</td><td>1280×720 · 60</td></tr>
+          <tr><td>1080p25</td><td>1920×1080 · 25</td></tr><tr><td><b>1080p30</b> (ativo)</td><td>1920×1080 · 30</td></tr>
+          <tr><td>1080p60</td><td>1920×1080 · 60</td></tr><tr><td>2160p30 (4K)</td><td>3840×2160 · 30</td></tr>
+        </table>
+        <p class="note" style="margin-top:10px">Nesta versão a saída é fixa em 1080p30 (a câmera virtual usa este formato). A escolha de formato chega com a fase de Program Output configurável.</p></div></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>ATALHOS · <b>1–8</b> preview · <b>⇧ 1–8</b> program direto · <b>ESPAÇO</b> cut · <b>ENTER</b> dissolve</span>
+    <span>HB STUDIO <b id="ver">0.2</b> · fontes de vídeo: <b>TESTE</b></span>
+  </footer>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+  const N = 8;
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const host = window.chrome && window.chrome.webview;
+  const send = (...a) => { if (host) host.postMessage(a.join('|')); };
+
+  // ---------- build static DOM ----------
+  const tiles = $('#tiles'), busP = $('#bus-pgm'), busV = $('#bus-pvw');
+  const canv = {pgm: $('#cv-pgm').getContext('2d'), pvw: $('#cv-pvw').getContext('2d')};
+  for (let i = 0; i < N; i++) {
+    const t = document.createElement('div');
+    t.className = 'tile'; t.dataset.i = i;
+    t.innerHTML = `<canvas width="192" height="108"></canvas><div class="lb"><b>CAM ${i+1}</b><em>TESTE</em></div><div class="tally"></div>`;
+    t.addEventListener('click', () => send('preview', i));
+    t.addEventListener('dblclick', () => send('program', i));
+    tiles.appendChild(t);
+    canv['s' + i] = t.querySelector('canvas').getContext('2d');
+    for (const [bus, cmd] of [[busP, 'program'], [busV, 'preview']]) {
+      const k = document.createElement('button');
+      k.className = 'key'; k.dataset.i = i; k.textContent = i + 1;
+      k.addEventListener('click', () => send(cmd, i));
+      bus.appendChild(k);
+    }
+  }
+  let duration = 500;
+  $$('#dur button').forEach(b => b.addEventListener('click', () => {
+    duration = +b.dataset.ms; $$('#dur button').forEach(x => x.classList.toggle('on', x === b));
+  }));
+  $('#b-cut').addEventListener('click', () => send('cut'));
+  $('#b-dis').addEventListener('click', () => send('dissolve', duration));
+  $$('#tabs button').forEach(b => b.addEventListener('click', () => {
+    $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+    $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.v));
+  }));
+  addEventListener('keydown', e => {
+    if (e.repeat) return;
+    if (e.key >= '1' && e.key <= '8') { send(e.shiftKey ? 'program' : 'preview', +e.key - 1); }
+    else if (e.code && /^Digit[1-8]$/.test(e.code)) { send(e.shiftKey ? 'program' : 'preview', +e.code.slice(5) - 1); }
+    else if (e.code === 'Space') { e.preventDefault(); send('cut'); }
+    else if (e.code === 'Enter') { send('dissolve', duration); }
+  });
+
+  // ---------- frames ----------
+  const imgs = {};
+  function drawFrame(id, b64) {
+    const ctx = canv[id]; if (!ctx) return;
+    const im = imgs[id] || (imgs[id] = new Image());
+    im.onload = () => ctx.drawImage(im, 0, 0, ctx.canvas.width, ctx.canvas.height);
+    im.src = 'data:image/jpeg;base64,' + b64;
+  }
+
+  // ---------- state ----------
+  const pad = n => String(n).padStart(2, '0');
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 3200); }
+  let lastMsg = '';
+  function render(s) {
+    $$('.tile').forEach(t => { const i = +t.dataset.i; t.classList.toggle('pgm', i === s.pgm); t.classList.toggle('pvw', i === s.pvw); t.querySelector('.tally').textContent = i === s.pgm ? 'PGM' : 'PVW'; });
+    $$('#bus-pgm .key').forEach(k => k.classList.toggle('pgm', +k.dataset.i === s.pgm));
+    $$('#bus-pvw .key').forEach(k => k.classList.toggle('pvw', +k.dataset.i === s.pvw));
+    $('#pgm-name').textContent = 'CAM ' + (s.pgm + 1);
+    $('#pvw-name').textContent = 'CAM ' + (s.pvw + 1);
+    $('#tbar').style.width = (s.transition ? Math.round(s.progress * 100) : 0) + '%';
+    $('#b-cut').disabled = $('#b-dis').disabled = !!s.transition;
+    $('#c-fps').textContent = s.fps.toFixed(1) + ' fps';
+    $('#c-tier').textContent = s.tier;
+    $('#s-tier').textContent = s.tier; $('#g-tier').textContent = s.tier;
+    $('#s-cores').textContent = s.cores + ' núcleos'; $('#g-cores').textContent = s.cores;
+    $('#s-ram').textContent = s.ramGiB + ' GB'; $('#g-ram').textContent = s.ramGiB + ' GB';
+    $('#g-src').textContent = s.srcRec + ' / ' + s.srcMax;
+    $('#s-fps').textContent = s.fps.toFixed(1) + ' / ' + s.target + ' fps';
+    $('#s-meter').style.width = Math.min(100, s.fps / s.target * 100) + '%';
+    $('#s-skip').textContent = s.skipped;
+    $('#in-count').textContent = '8 / ' + s.srcMax;
+    const f = s.frames, fps = s.target, sec = Math.floor(f / fps);
+    $('#tc').textContent = pad(Math.floor(sec / 3600)) + ':' + pad(Math.floor(sec / 60) % 60) + ':' + pad(sec % 60) + ':' + pad(f % fps);
+
+    const v = s.vcam;
+    $('#c-vdot').className = 'dot' + (v.active ? ' on' : '');
+    $('#c-vtxt').textContent = v.active ? (v.connected ? 'AO VIVO' : 'PRONTA') : 'OFF';
+    $('#s-vsent').textContent = v.sent + ' quadros';
+    $('#v-dot').className = 'dot' + (v.active ? ' on' : '');
+    const main = $('#v-main'), sec2 = $('#v-sec');
+    let title, note, mainTxt, mainCmd = null, secTxt = null, secCmd = null;
+    if (!v.supported) { title = 'INDISPONÍVEL'; note = 'A câmera virtual exige Windows 11 (build 22000 ou superior).'; mainTxt = 'Indisponível'; }
+    else if (v.busy) { title = 'AGUARDE…'; note = v.message || 'Processando…'; mainTxt = 'Trabalhando…'; }
+    else if (!v.installed) { title = 'NÃO INSTALADA'; note = 'O componente da câmera virtual não está instalado. Execute o instalador do HB Studio novamente e marque “Instalar a câmera virtual”.'; mainTxt = 'Indisponível'; }
+    else if (!v.active) { title = 'INSTALADA · DESATIVADA'; note = 'Ative para o "HB Studio Windows Virtual Camera" aparecer no OBS, Zoom, Teams e navegador.'; mainTxt = 'Ativar câmera virtual'; mainCmd = 'activate'; }
+    else { title = v.connected ? 'AO VIVO · ENVIANDO' : 'ATIVA · AGUARDANDO APP'; note = v.connected ? 'O Program está sendo entregue ao aplicativo que abriu a câmera.' : 'No OBS: Fontes → + → Dispositivo de Captura de Vídeo → “HB Studio Windows Virtual Camera”.'; mainTxt = 'Desativar câmera virtual'; mainCmd = 'deactivate'; }
+    $('#v-title').textContent = title;
+    $('#v-note').textContent = note + (v.message && !v.busy ? '\n' + v.message : '');
+    $('#v-note').className = 'note' + (v.error ? ' err' : '');
+    main.textContent = mainTxt; main.disabled = !mainCmd; main.onclick = () => mainCmd && send('vcam', mainCmd);
+    main.classList.toggle('primary', mainCmd !== 'deactivate');
+    sec2.style.display = secTxt ? '' : 'none'; if (secTxt) { sec2.textContent = secTxt; sec2.onclick = () => send('vcam', secCmd); }
+    if (v.busy && !$('#v-main .spin')) main.insertAdjacentHTML('afterbegin', '<span class="spin"></span>');
+
+    const lg = $('#log'); lg.innerHTML = '';
+    (s.log || []).slice(-9).forEach(l => { const d = document.createElement('div'); d.textContent = l.t; if (l.l === 'WARNING') d.className = 'w'; if (l.l === 'ERROR' || l.l === 'CRITICAL') d.className = 'e'; lg.appendChild(d); });
+    if (s.toast && s.toast !== lastMsg) { lastMsg = s.toast; toast(s.toast); }
+  }
+
+  const onMsg = m => {
+    const d = typeof m === 'string' ? JSON.parse(m) : m;
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d);
+  };
+  if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
+  window.__hbMessage = onMsg;   // used by the design preview harness
+})();
+</script>
+</body>
+</html>
