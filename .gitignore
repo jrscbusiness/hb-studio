@@ -3,3 +3,4 @@ build*/
 *.user
 .claude/
 third_party/
+dist/
