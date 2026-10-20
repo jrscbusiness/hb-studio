@@ -27,7 +27,8 @@ TEST(Redact, UrlWithUserOnly) {
 TEST(Redact, KeyValueForms) {
     EXPECT_FALSE(contains(redactSecrets("password=hunter2 user=x"), "hunter2"));
     EXPECT_FALSE(contains(redactSecrets("Passphrase: abc123xyz"), "abc123xyz"));
-    EXPECT_FALSE(contains(redactSecrets(R"({"token":"eyJhbGci"})"), "eyJhbGci"));
+    const std::string raw1 = R"({"token":"eyJhbGci"})";
+    EXPECT_FALSE(contains(redactSecrets(raw1), "eyJhbGci"));
     EXPECT_FALSE(contains(redactSecrets("api_key=AKIA999"), "AKIA999"));
     EXPECT_TRUE(contains(redactSecrets("password=hunter2 user=x"), "user=x"));
 }
@@ -81,8 +82,10 @@ TEST(RedactRegression, Cookies) {
     EXPECT_FALSE(has(redactSecrets("Set-Cookie: sid=COOKIEVAL42; HttpOnly"), "COOKIEVAL42"));
 }
 TEST(RedactRegression, JsonAuthorizationKey) {
-    EXPECT_FALSE(has(redactSecrets(R"({"Authorization":"Bearer ABCDEF123"})"), "ABCDEF123"));
-    EXPECT_FALSE(has(redactSecrets(R"({"authorization": "Basic QUJD"})"), "QUJD"));
+    const std::string raw2 = R"({"Authorization":"Bearer ABCDEF123"})";
+    EXPECT_FALSE(has(redactSecrets(raw2), "ABCDEF123"));
+    const std::string raw3 = R"({"authorization": "Basic QUJD"})";
+    EXPECT_FALSE(has(redactSecrets(raw3), "QUJD"));
 }
 TEST(RedactRegression, CompoundKeys) {
     for (const char* k : {"access_token=ACC123", "refresh_token=REF123", "client_secret=CS123", "secretKey=SK123",
@@ -93,12 +96,16 @@ TEST(RedactRegression, CompoundKeys) {
     }
 }
 TEST(RedactRegression, ValuesWithSpecialCharacters) {
-    EXPECT_FALSE(has(redactSecrets(R"({"password":"hun ter2 more"})"), "ter2"));
-    EXPECT_FALSE(has(redactSecrets(R"(password="two words")"), "words"));
+    const std::string raw4 = R"({"password":"hun ter2 more"})";
+    EXPECT_FALSE(has(redactSecrets(raw4), "ter2"));
+    const std::string raw5 = R"(password="two words")";
+    EXPECT_FALSE(has(redactSecrets(raw5), "words"));
     EXPECT_FALSE(has(redactSecrets("password: two words here"), "words"));
     EXPECT_FALSE(has(redactSecrets("password=a,b;c"), "b;c"));
-    EXPECT_FALSE(has(redactSecrets(R"(password="a;b")"), "a;b"));
-    EXPECT_FALSE(has(redactSecrets(R"({"token":"abc\"def"})"), "def"));
+    const std::string raw6 = R"(password="a;b")";
+    EXPECT_FALSE(has(redactSecrets(raw6), "a;b"));
+    const std::string raw7 = R"({"token":"abc\"def"})";
+    EXPECT_FALSE(has(redactSecrets(raw7), "def"));
 }
 TEST(RedactRegression, QueryStringSecrets) {
     for (const char* q : {"http://h/p?access_token=XYZ123", "http://h/p?auth=XYZ123", "http://h/p?key=XYZ123",
