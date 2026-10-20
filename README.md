@@ -5,21 +5,17 @@ Virtual Camera) — Windows 11 primeiro, macOS depois. Projeto open source, em d
 
 Arquitetura e decisões aprovadas: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Status
+## Status (estado real — veja docs/TEST_REPORT.md e docs/BUGS.md)
 
-| Fase | Estado |
+**Download:** https://github.com/jrscbusiness/hb-studio/releases/tag/latest → `HBStudio-Setup.exe` (duplo clique; o Windows pode mostrar “Windows protegeu o computador”: o instalador ainda não é assinado digitalmente → *Mais informações → Executar assim mesmo*).
+
+| Área | Estado |
 |---|---|
-| 0 Arquitetura | Concluída (aprovada) |
-| 1 Projeto base | **Parcial**: núcleo portátil pronto e testado (Linux). Pendentes: janela Qt, backend D3D11, build/CI no Windows 11 (ainda não executados) |
-| 10 (PoC) Virtual Camera Windows 11 | **Código pronto e autotestado no CI** (22 verificações). **Falta o teste real no OBS** — ver [docs/VIRTUAL_CAMERA.md](docs/VIRTUAL_CAMERA.md) |
-| 2+ | Não iniciadas |
-
-### Núcleo da Fase 1 (`src/`)
-- `core/event_bus` — eventos `camera.*`, `switcher.*`…; handler com falha não afeta os demais.
-- `core/redact` + `core/logger` — logs com redação obrigatória de senhas/tokens/chaves; exportáveis.
-- `core/clock` — relógio mestre do Program sem drift; pula ticks atrasados em vez de acumular.
-- `video/program_output` — **Program Output headless** (resolução fixa, independente de janela), consumidores isolados, pool de frames.
-- `core/hardware_profile` — detecção, tiers LOW/MEDIUM/HIGH/PRO (automático ou escolhido), presets de saída comuns (720p30…4K30), modos de latência, orçamento de fontes com alerta/bloqueio e override de especialista.
+| Aplicativo (janela, Preview/Program, CUT/DISSOLVE, 8 entradas **de teste**, PTZ com 10–64 presets configuráveis por câmera) | Implementado; **inicia e renderiza no Windows (CI)**; não testado em Windows 11 real |
+| Instalador gráfico + desinstalador | Implementado; renderiza no CI; **instalação real não testada** |
+| Câmera virtual → OBS | Implementada e autotestada no CI; **não validada no Windows 11 real / OBS** |
+| ONVIF, WS-Discovery, RTSP/RTP/H.264, VISCA/Pelco, áudio (mixer/LUFS) | Módulos prontos e testados com simuladores; **ainda não ligados ao aplicativo**; nenhum validado em câmera real |
+| NDI, UVC, SRT, gravação, streaming, multi-monitor, macOS | Não implementados |
 
 ## Rodar
 Veja [BUILD.md](BUILD.md). Smoke test sem janela: `hb_probe 3 1080p30`.
