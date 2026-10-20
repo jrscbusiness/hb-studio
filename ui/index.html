@@ -32,9 +32,9 @@ button:disabled{cursor:not-allowed}
 .cap{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
 
 /* ---------- layout ---------- */
-.app{height:100%;display:grid;grid-template-rows:60px 1fr 30px;min-width:1100px}
+.app{height:100%;display:grid;grid-template-rows:60px 1fr 30px;min-width:900px}
 header{
-  display:grid;grid-template-columns:260px 1fr 460px;align-items:center;padding:0 22px;
+  display:grid;grid-template-columns:minmax(170px,260px) 1fr auto;align-items:center;padding:0 22px;
   border-bottom:1px solid var(--line); background:rgba(255,255,255,.72); backdrop-filter:blur(14px);
 }
 .brand{display:flex;align-items:center;gap:12px}
@@ -59,7 +59,7 @@ nav button.on{color:var(--blue);background:var(--mist);box-shadow:inset 0 -2px 0
 main{padding:18px 22px;min-height:0;position:relative}
 .view{display:none;height:100%}
 .view.on{display:grid}
-#v-prod{grid-template-columns:minmax(0,1fr) 330px;gap:18px;min-height:0}
+#v-prod{grid-template-columns:minmax(0,1fr) minmax(290px,330px);gap:18px;min-height:0}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);position:relative}
 .card h3{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0}
@@ -75,7 +75,7 @@ main{padding:18px 22px;min-height:0;position:relative}
 .tile canvas{width:100%;height:100%;display:block}
 .tile:hover{border-color:var(--sky)}
 .tile .lb{position:absolute;left:6px;bottom:5px;display:flex;gap:5px;align-items:center}
-.tile .lb b{font-family:var(--mono);font-size:9.5px;color:#fff;background:rgba(7,18,43,.62);padding:2px 6px;border-radius:5px;backdrop-filter:blur(4px)}
+.tile .lb b{white-space:nowrap;font-family:var(--mono);font-size:9.5px;color:#fff;background:rgba(7,18,43,.62);padding:2px 6px;border-radius:5px;backdrop-filter:blur(4px)}
 .tile .lb em{font-style:normal;font-size:7px;letter-spacing:.14em;color:#BFD6FF;background:rgba(31,107,255,.45);padding:2px 5px;border-radius:4px}
 .tile.pvw{border-color:var(--blue-2);box-shadow:0 0 0 3px rgba(79,141,255,.22)}
 .tile.pgm{border-color:var(--blue);box-shadow:var(--glow)}
@@ -226,6 +226,15 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
 .sheet input[type=range]{accent-color:var(--blue);height:38px}
 .checks{display:flex;gap:18px;align-items:flex-end;padding-bottom:8px}
 .chk{flex-direction:row!important;align-items:center;gap:8px!important;cursor:pointer;font-weight:500!important}
+@media (max-width:1280px){
+  .tile .lb em{display:none}
+  .tile .tally{display:none!important}
+  .chip .k{display:none}
+  .switch{grid-template-columns:1fr;gap:14px}
+  .trans{border-left:0;padding-left:0}
+  .busrow .cap{width:54px}
+}
+.warn{color:#A76A00!important;background:#FFF6E5;border:1px solid #F3D08A;border-radius:999px;padding:2px 9px}
 @media (max-height:760px){.keys .key{height:38px}.tiles{gap:8px}}
 </style>
 </head>
@@ -599,7 +608,11 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
     $('#s-fps').textContent = s.fps.toFixed(1) + ' / ' + s.target + ' fps';
     $('#s-meter').style.width = Math.min(100, s.fps / s.target * 100) + '%';
     $('#s-skip').textContent = s.skipped;
-    $('#in-count').textContent = '8 / ' + s.srcMax;
+    const over = 8 > s.srcRec;
+    const ic = $('#in-count');
+    ic.textContent = over ? '8 · acima do recomendado (' + s.srcRec + ')' : '8 / ' + s.srcRec;
+    ic.className = 'cap mono' + (over ? ' warn' : '');
+    ic.title = over ? 'AVISO DE DESEMPENHO: este computador (perfil ' + s.tier + ') recomenda até ' + s.srcRec + ' fontes simultâneas (máximo ' + s.srcMax + '). Sugestão: reduzir a qualidade do Preview.' : '';
     const f = s.frames, fps = s.target, sec = Math.floor(f / fps);
     $('#tc').textContent = pad(Math.floor(sec / 3600)) + ':' + pad(Math.floor(sec / 60) % 60) + ':' + pad(sec % 60) + ':' + pad(f % fps);
 

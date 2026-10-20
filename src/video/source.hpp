@@ -1,5 +1,9 @@
 #pragma once
+#include <map>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <utility>
 
 #include "video/program_output.hpp"
 
@@ -27,8 +31,14 @@ public:
     int number() const { return number_; }
 
 private:
+    // Static layer (gradient + grid) is rendered once per output size and copied per frame;
+    // only the moving parts (circle, progress bar, digit) are drawn every tick.
+    std::shared_ptr<const Frame> background(int w, int h) const;
+
     int number_;
     std::string name_;
+    mutable std::mutex cacheMutex_;
+    mutable std::map<std::pair<int, int>, std::shared_ptr<const Frame>> cache_;
 };
 
 }  // namespace hb::video

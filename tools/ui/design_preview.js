@@ -6,8 +6,9 @@ const [,, html, out, view] = process.argv;
 (async () => {
   const exe = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
   const b = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
-  const p = await b.newPage({ viewport: { width: 1600, height: 900 } });
+  const p = await b.newPage({ viewport: { width: +(process.env.VW || 1600), height: +(process.env.VH || 900) } });
   await p.goto('file://' + require('path').resolve(html));
+  await p.evaluate(([t, r]) => { window.__tier = t; window.__rec = r; }, [process.env.TIER || 'MEDIUM', +(process.env.REC || 8)]);
   await p.evaluate(async (view) => {
     const mk = (w, h, hue, label) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
       const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, `hsl(${hue},60%,70%)`); g.addColorStop(1, `hsl(${hue},80%,30%)`); x.fillStyle = g; x.fillRect(0, 0, w, h);
@@ -18,7 +19,7 @@ const [,, html, out, view] = process.argv;
     window.__hbMessage({ t: 'f', id: 'pvw', d: mk(640, 360, 230, 2) });
     window.__hbMessage({ t: 'f', id: 'pgm', d: mk(640, 360, 215, 1) });
     window.__hbMessage({ t: 's', pvw: 1, pgm: 0, transition: false, progress: 0, fps: 29.9, target: 30, produced: 5421, frames: 5421, skipped: 0,
-      tier: 'MEDIUM', cores: 8, ramGiB: 16, srcRec: 8, srcMax: 10,
+      tier: window.__tier, cores: 8, ramGiB: 16, srcRec: window.__rec, srcMax: 10,
       vcam: { supported: true, installed: true, active: true, connected: true, busy: false, sent: 4210, message: '' },
       log: [{ t: '16:20:01 [INFO] [engine] perfil MEDIUM, 8 núcleos', l: 'INFO' }, { t: '16:20:01 [INFO] [program] program.started', l: 'INFO' }, { t: '16:20:09 [INFO] [switcher] switcher.programChanged pvw=0 pgm=1', l: 'INFO' }] });
     const names = ['Altar','Púlpito','Louvor','Banda','Plateia','','Batismo','','Coral','Entrada'];

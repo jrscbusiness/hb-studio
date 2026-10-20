@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <thread>
+
 #include "switcher/switcher.hpp"
 #include "video/frame_ops.hpp"
 
@@ -189,4 +191,22 @@ TEST(Synthetic, NegativeAndHugeNumbersAreSafe) {
         video::prepareFrame(f, 64, 36);
         EXPECT_NO_THROW(s.render(f, 7)) << n;
     }
+}
+
+TEST(Synthetic, CachedBackgroundGivesIdenticalFramesAndIsThreadSafe) {
+    video::SyntheticSource a(3, "a");
+    video::Frame f1, f2;
+    video::prepareFrame(f1, 192, 108);
+    video::prepareFrame(f2, 192, 108);
+    a.render(f1, 12);     // builds the cache
+    a.render(f2, 12);     // uses it
+    EXPECT_EQ(f1.data, f2.data);
+    std::vector<std::thread> ts;
+    for (int t = 0; t < 4; ++t)
+        ts.emplace_back([&, t] {
+            video::Frame f;
+            video::prepareFrame(f, 64 + t * 16, 36 + t * 9);
+            for (int i = 0; i < 50; ++i) a.render(f, static_cast<std::uint64_t>(i));
+        });
+    for (auto& t : ts) t.join();
 }
