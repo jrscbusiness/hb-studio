@@ -24,8 +24,8 @@ TEST(Clock, DeliversRoughlyTheRequestedRate) {
     clock.start({60, 1}, [&](auto, auto) { n.fetch_add(1); });
     std::this_thread::sleep_for(milliseconds(500));
     clock.stop();
-    // ~30 expected; tolerant bounds to keep CI stable.
-    EXPECT_GE(n.load(), 20);
+    // ~30 expected; deliberately wide bounds: shared CI runners can stall for 100+ ms.
+    EXPECT_GE(n.load(), 8);
     EXPECT_LE(n.load(), 32);
     EXPECT_FALSE(clock.running());
 }

@@ -35,7 +35,8 @@ void SyntheticSource::render(Frame& f, std::uint64_t index) const {
     const int W = f.width, H = f.height;
     if (W <= 0 || H <= 0 || f.data.size() < static_cast<std::size_t>(f.stride) * H) return;
 
-    const float hue = static_cast<float>((number_ - 1) * 43 % 360) + 200.f;  // blue-leaning palette
+    const int n = ((number_ % 360) + 360) % 360;
+    const float hue = static_cast<float>((n - 1 + 360) * 43 % 360) + 200.f;  // blue-leaning palette
     const Rgb top = hsv(hue, 0.45f, 0.98f), bot = hsv(hue, 0.85f, 0.42f);
 
     const float t = static_cast<float>(index) / 30.f;
@@ -45,7 +46,7 @@ void SyntheticSource::render(Frame& f, std::uint64_t index) const {
 
     const int gridX = std::max(1, W / 16), gridY = std::max(1, H / 9);
     const int s = std::max(1, H / 13);  // digit pixel size
-    const int digit = number_ % 10;
+    const int digit = ((number_ % 10) + 10) % 10;
     const int ox = W / 2 - (5 * s) / 2, oy = H / 2 - (7 * s) / 2;
     const int barY = H - std::max(2, H / 36);
     const int barW = static_cast<int>(W * ((index % 90) / 90.f));

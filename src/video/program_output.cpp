@@ -67,7 +67,7 @@ void ProgramOutput::start() {
     if (clock_.running()) return;
     origin_ = core::SteadyClock::now();
     clock_.start(format_.fps, [this](std::uint64_t i, core::SteadyClock::time_point d) { onTick(i, d); });
-    if (bus_) bus_->publish({"program.started", {}});
+    if (clock_.running() && bus_) bus_->publish({"program.started", {}});  // invalid fps => not started
 }
 
 void ProgramOutput::stop() {
@@ -77,22 +77,60 @@ void ProgramOutput::stop() {
 }
 
 ProgramOutput::ConsumerId ProgramOutput::addConsumer(Consumer consumer) {
+    auto e = std::make_shared<Entry>();
+    e->fn = std::move(consumer);
     std::lock_guard lock(mutex_);
-    const auto id = nextConsumer_++;
-    consumers_.emplace_back(id, std::move(consumer));
-    return id;
+    e->id = nextConsumer_++;
+    consumers_.push_back(e);
+    return e->id;
 }
 
 void ProgramOutput::removeConsumer(ConsumerId id) {
-    std::lock_guard lock(mutex_);
-    consumers_.erase(std::remove_if(consumers_.begin(), consumers_.end(),
-                                    [id](const auto& c) { return c.first == id; }),
-                     consumers_.end());
+    std::shared_ptr<Entry> e;
+    {
+        std::lock_guard lock(mutex_);
+        auto it = std::find_if(consumers_.begin(), consumers_.end(), [id](const auto& c) { return c->id == id; });
+        if (it == consumers_.end()) return;
+        e = *it;
+        consumers_.erase(it);
+    }
+    // In-flight callbacks were counted while holding mutex_ (see deliver()), so after this
+    // wait none is running. A consumer removing itself from its own callback must not wait.
+    std::unique_lock lock(e->m);
+    if (e->runner == std::this_thread::get_id()) return;
+    e->cv.wait(lock, [&] { return e->inflight == 0; });
 }
 
 std::shared_ptr<const Frame> ProgramOutput::latest() const {
     std::lock_guard lock(mutex_);
     return latest_;
+}
+
+void ProgramOutput::deliver(const std::shared_ptr<const Frame>& f) {
+    std::vector<std::shared_ptr<Entry>> list;
+    {
+        std::lock_guard lock(mutex_);
+        list = consumers_;
+        for (auto& e : list) {                       // count in-flight while the list is stable
+            std::lock_guard el(e->m);
+            ++e->inflight;
+        }
+    }
+    for (auto& e : list) {
+        {
+            std::lock_guard el(e->m);
+            e->runner = std::this_thread::get_id();
+        }
+        try {
+            e->fn(f);
+        } catch (...) {
+            consumerErrors_.fetch_add(1);
+        }
+        std::lock_guard el(e->m);
+        e->runner = std::thread::id();
+        --e->inflight;
+        e->cv.notify_all();
+    }
 }
 
 void ProgramOutput::onTick(std::uint64_t index, core::SteadyClock::time_point deadline) {
@@ -102,34 +140,33 @@ void ProgramOutput::onTick(std::uint64_t index, core::SteadyClock::time_point de
         renderer = renderer_;
     }
     auto frame = pool_.acquire();
+    bool failed = false;
     try {
         renderer(*frame, index);
     } catch (...) {
-        // A faulty renderer must not kill the output: repeat the last frame.
+        failed = true;
         rendererErrors_.fetch_add(1);
+    }
+    if (failed) {
+        // A faulty renderer must not starve the consumers: repeat the last good frame
+        // (not counted as produced), or send black if there is none yet.
         if (auto prev = latest()) {
-            produced_.fetch_add(1);
+            repeated_.fetch_add(1);
+            deliver(prev);
             return;
         }
+        std::fill(frame->data.begin(), frame->data.end(), std::uint8_t{0});
     }
     frame->index = index;
     frame->ptsNs = std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - origin_).count();
 
     std::shared_ptr<const Frame> published = frame;
-    std::vector<std::pair<ConsumerId, Consumer>> consumers;
     {
         std::lock_guard lock(mutex_);
         latest_ = published;
-        consumers = consumers_;
     }
     produced_.fetch_add(1);
-    for (auto& [id, fn] : consumers) {
-        try {
-            fn(published);
-        } catch (...) {
-            consumerErrors_.fetch_add(1);
-        }
-    }
+    deliver(published);
 }
 
 }  // namespace hb::video

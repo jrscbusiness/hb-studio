@@ -78,6 +78,78 @@ TEST(ProgramOutput, ThrowingRendererKeepsOutputAlive) {
     EXPECT_EQ(out.consumerErrors(), 0u);
 }
 
+// Regression (REVIEW-1 M6): consumers must KEEP receiving frames while the renderer fails.
+TEST(ProgramOutput, ConsumersKeepReceivingFramesWhenRendererThrows) {
+    video::ProgramOutput out(small());
+    std::atomic<int> calls{0}, got{0};
+    out.setRenderer([&](video::Frame& f, std::uint64_t i) {
+        if (calls.fetch_add(1) >= 3) throw std::runtime_error("bad renderer");
+        video::renderTestPattern(f, i);
+    });
+    out.addConsumer([&](const auto&) { got.fetch_add(1); });
+    out.start();
+    std::this_thread::sleep_for(milliseconds(300));
+    out.stop();
+    EXPECT_GT(out.rendererErrors(), 3u);
+    EXPECT_GT(out.repeatedFrames(), 3u);
+    EXPECT_GE(got.load(), calls.load() - 2);   // every tick reached the consumer
+}
+
+TEST(ProgramOutput, FirstFrameFailureSendsBlackNotGarbage) {
+    video::ProgramOutput out(small());
+    out.setRenderer([](video::Frame& f, std::uint64_t) { f.data.assign(f.data.size(), 0xAB); throw std::runtime_error("x"); });
+    std::shared_ptr<const video::Frame> first;
+    std::mutex m;
+    out.addConsumer([&](const auto& f) { std::lock_guard l(m); if (!first) first = f; });
+    out.start();
+    std::this_thread::sleep_for(milliseconds(100));
+    out.stop();
+    std::lock_guard l(m);
+    ASSERT_TRUE(first);
+    for (auto b : first->data) ASSERT_EQ(b, 0);
+}
+
+// Regression (REVIEW-1 A5): removeConsumer must wait for a callback that is already running.
+TEST(ProgramOutput, RemoveConsumerWaitsForInFlightCallback) {
+    video::ProgramOutput out(small());
+    std::atomic<bool> inside{false}, finished{false};
+    auto id = out.addConsumer([&](const auto&) {
+        inside = true;
+        std::this_thread::sleep_for(milliseconds(150));
+        finished = true;
+    });
+    out.start();
+    while (!inside) std::this_thread::sleep_for(milliseconds(1));
+    out.removeConsumer(id);
+    EXPECT_TRUE(finished.load());      // returned only after the running callback completed
+    const bool again = finished.exchange(false);
+    (void)again;
+    std::this_thread::sleep_for(milliseconds(100));
+    out.stop();
+    EXPECT_FALSE(finished.load());     // and it never ran again
+}
+
+TEST(ProgramOutput, ConsumerMayRemoveItselfWithoutDeadlock) {
+    video::ProgramOutput out(small());
+    std::atomic<int> calls{0};
+    video::ProgramOutput::ConsumerId id = 0;
+    id = out.addConsumer([&](const auto&) { calls.fetch_add(1); out.removeConsumer(id); });
+    out.start();
+    std::this_thread::sleep_for(milliseconds(150));
+    out.stop();
+    EXPECT_EQ(calls.load(), 1);
+}
+
+TEST(ProgramOutput, InvalidFpsDoesNotStartNorAnnounce) {
+    core::EventBus bus;
+    std::vector<std::string> topics;
+    bus.subscribe("*", [&](const core::Event& e) { topics.push_back(e.topic); });
+    video::ProgramOutput out({64, 36, {0, 1}}, &bus);
+    out.start();
+    EXPECT_FALSE(out.running());
+    EXPECT_TRUE(topics.empty());
+}
+
 TEST(ProgramOutput, PublishesLifecycleEvents) {
     core::EventBus bus;
     std::vector<std::string> topics;

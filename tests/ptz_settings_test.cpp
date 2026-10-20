@@ -73,6 +73,18 @@ TEST(PtzSettings, PresetNamesAreSanitised) {
     EXPECT_EQ(s.presetName(99, 99), "");
 }
 
+TEST(PtzSettings, NameTruncationNeverCutsAUtf8CodePoint) {
+    PtzSettings s;
+    std::string name;
+    for (int i = 0; i < 40; ++i) name += "é";          // 2 bytes per character
+    s.setPresetName(0, 0, name);
+    const auto r = s.presetName(0, 0);
+    EXPECT_EQ(r.size(), 48u);                         // 24 characters x 2 bytes, whole code points only
+    PtzSettings t;
+    EXPECT_TRUE(t.fromJson(s.toJson()));              // and the result is still valid JSON/UTF-8 text
+    EXPECT_EQ(t.presetName(0, 0), r);
+}
+
 TEST(PtzSettings, JsonRoundTrip) {
     PtzSettings a;
     PtzCameraConfig c;

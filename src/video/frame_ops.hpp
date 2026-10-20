@@ -19,6 +19,10 @@ inline void prepareFrame(Frame& f, int width, int height) {
 // out = a * (1 - k) + b * k, k in [0, 256]. All frames must share one size.
 inline void mixFrames(const Frame& a, const Frame& b, Frame& out, int k256) {
     prepareFrame(out, a.width, a.height);
+    if (b.width != a.width || b.height != a.height || a.data.size() != out.data.size() || b.data.size() != out.data.size()) {
+        out.data = a.data;  // mismatched sizes: never read/write out of bounds
+        return;
+    }
     k256 = std::clamp(k256, 0, 256);
     const int ik = 256 - k256;
     const std::size_t n = out.data.size();
@@ -31,20 +35,24 @@ inline void mixFrames(const Frame& a, const Frame& b, Frame& out, int k256) {
 
 // Box-filter downscale (any ratio, area average over the covered source pixels).
 inline void downscaleBox(const Frame& src, Frame& dst, int dw, int dh) {
+    if (dw <= 0 || dh <= 0) return;
     prepareFrame(dst, dw, dh);
+    if (src.width <= 0 || src.height <= 0 ||
+        src.data.size() < static_cast<std::size_t>(src.stride) * static_cast<std::size_t>(src.height))
+        return;
     for (int y = 0; y < dh; ++y) {
         const int y0 = y * src.height / dh;
         const int y1 = std::max(y0 + 1, (y + 1) * src.height / dh);
         for (int x = 0; x < dw; ++x) {
             const int x0 = x * src.width / dw;
             const int x1 = std::max(x0 + 1, (x + 1) * src.width / dw);
-            unsigned sum[4] = {0, 0, 0, 0};
+            std::uint64_t sum[4] = {0, 0, 0, 0};
             for (int sy = y0; sy < y1; ++sy) {
                 const std::uint8_t* row = src.data.data() + static_cast<std::size_t>(sy) * src.stride;
                 for (int sx = x0; sx < x1; ++sx)
                     for (int c = 0; c < 4; ++c) sum[c] += row[sx * 4 + c];
             }
-            const unsigned cnt = static_cast<unsigned>((y1 - y0) * (x1 - x0));
+            const std::uint64_t cnt = static_cast<std::uint64_t>(y1 - y0) * static_cast<std::uint64_t>(x1 - x0);
             std::uint8_t* o = dst.data.data() + static_cast<std::size_t>(y) * dst.stride + x * 4;
             for (int c = 0; c < 4; ++c) o[c] = static_cast<std::uint8_t>(sum[c] / cnt);
         }

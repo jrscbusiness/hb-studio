@@ -149,3 +149,44 @@ TEST(FrameOps, DownscaleBoxAveragesAndMixClamps) {
     video::mixFrames(a, b, o, 9999);  // clamped
     EXPECT_EQ(o.data, src.data);
 }
+
+// ---- Regressions from REVIEW-1 (BAIXO) ----
+TEST(FrameOps, MixWithDifferentSizesIsSafe) {
+    video::Frame a, b, o;
+    video::prepareFrame(a, 8, 8);
+    video::prepareFrame(b, 4, 4);
+    EXPECT_NO_THROW(video::mixFrames(a, b, o, 128));
+    EXPECT_EQ(o.data.size(), a.data.size());
+}
+
+TEST(FrameOps, DownscaleLargeBlocksDoNotOverflow) {
+    video::Frame src;
+    video::prepareFrame(src, 7680, 4320);
+    std::fill(src.data.begin(), src.data.end(), std::uint8_t{255});
+    video::Frame dst;
+    video::downscaleBox(src, dst, 1, 1);   // 33 Mpx block: 32-bit accumulator would wrap
+    EXPECT_EQ(dst.data[0], 255);
+    video::Frame empty, d2;
+    EXPECT_NO_THROW(video::downscaleBox(empty, d2, 4, 4));
+    EXPECT_NO_THROW(video::downscaleBox(src, d2, 0, 4));
+}
+
+TEST(Switcher, WithoutSourcesIsSafe) {
+    switcher::Switcher sw({});
+    video::Frame f;
+    video::prepareFrame(f, 8, 8);
+    EXPECT_NO_THROW(sw.renderProgram(f, 0));
+    EXPECT_NO_THROW(sw.renderPreview(f, 0));
+    EXPECT_FALSE(sw.setPreview(0));
+    EXPECT_FALSE(sw.cut());
+    EXPECT_FALSE(sw.startDissolve(100));
+}
+
+TEST(Synthetic, NegativeAndHugeNumbersAreSafe) {
+    for (int n : {-1, -17, 0, 10, 12345, -2147483647 - 1}) {
+        video::SyntheticSource s(n, "x");
+        video::Frame f;
+        video::prepareFrame(f, 64, 36);
+        EXPECT_NO_THROW(s.render(f, 7)) << n;
+    }
+}

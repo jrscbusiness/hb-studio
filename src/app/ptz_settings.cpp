@@ -166,13 +166,14 @@ const Json* get(const Json& o, const char* k) {
 std::string cleanName(const std::string& in) {
     std::string o;
     std::size_t chars = 0;
-    for (std::size_t i = 0; i < in.size() && chars < 24; ++i) {
+    for (std::size_t i = 0; i < in.size(); ++i) {
         const unsigned char c = static_cast<unsigned char>(in[i]);
         if (c < 0x20 || c == 0x7F) continue;
+        const bool lead = (c & 0xC0) != 0x80;       // not a UTF-8 continuation byte
+        if (lead && chars >= 24) break;             // never cut a code point in half
         o += static_cast<char>(c);
-        if ((c & 0xC0) != 0x80) ++chars;  // count UTF-8 code points, not bytes
+        if (lead) ++chars;
     }
-    // trim
     const auto b = o.find_first_not_of(' ');
     if (b == std::string::npos) return {};
     const auto e = o.find_last_not_of(' ');

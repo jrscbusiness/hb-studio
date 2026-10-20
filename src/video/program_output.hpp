@@ -1,10 +1,12 @@
 #pragma once
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "core/clock.hpp"
@@ -57,8 +59,11 @@ void renderTestPattern(Frame& frame, std::uint64_t index);
 //
 // Isolation: a throwing consumer is counted and ignored. Consumers are
 // invoked on the clock thread, so they must hand off quickly (copy the
-// shared_ptr into their own queue/mailbox); per-consumer mailboxes are added
-// together with the real consumers.
+// shared_ptr into their own queue/mailbox).
+// removeConsumer() is synchronous: when it returns, the callback is not running
+// and will never run again (unless it is called from inside that very callback).
+// If the renderer throws, the previous frame is re-delivered (repeatedFrames()),
+// or a black frame when there is none yet.
 class ProgramOutput {
 public:
     using ConsumerId = std::uint64_t;
@@ -80,6 +85,7 @@ public:
     std::uint64_t framesProduced() const { return produced_.load(); }
     std::uint64_t consumerErrors() const { return consumerErrors_.load(); }
     std::uint64_t rendererErrors() const { return rendererErrors_.load(); }
+    std::uint64_t repeatedFrames() const { return repeated_.load(); }
     core::ClockStats clockStats() const { return clock_.stats(); }
 
 private:
@@ -94,9 +100,18 @@ private:
     mutable std::mutex mutex_;
     Renderer renderer_;
     std::shared_ptr<const Frame> latest_;
-    std::vector<std::pair<ConsumerId, Consumer>> consumers_;
+    struct Entry {
+        ConsumerId id = 0;
+        Consumer fn;
+        int inflight = 0;                 // guarded by m
+        std::thread::id runner;           // thread currently inside fn
+        std::mutex m;
+        std::condition_variable cv;
+    };
+    void deliver(const std::shared_ptr<const Frame>& f);
+    std::vector<std::shared_ptr<Entry>> consumers_;
     ConsumerId nextConsumer_ = 1;
-    std::atomic<std::uint64_t> produced_{0}, consumerErrors_{0}, rendererErrors_{0};
+    std::atomic<std::uint64_t> produced_{0}, consumerErrors_{0}, rendererErrors_{0}, repeated_{0};
 };
 
 }  // namespace hb::video

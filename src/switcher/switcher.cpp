@@ -8,6 +8,7 @@ namespace hb::switcher {
 Switcher::Switcher(std::vector<std::shared_ptr<const video::Source>> sources, core::EventBus* bus)
     : sources_(std::move(sources)), bus_(bus) {
     if (sources_.size() < 2) pvw_ = 0;
+    sources_.erase(std::remove(sources_.begin(), sources_.end(), nullptr), sources_.end());  // never null
 }
 
 void Switcher::publish(const char* topic, int a, int b) const {
@@ -78,6 +79,7 @@ bool Switcher::startDissolve(int ms, Clock::time_point now) {
 }
 
 void Switcher::renderPreview(video::Frame& out, std::uint64_t index) const {
+    if (sources_.empty()) { std::fill(out.data.begin(), out.data.end(), std::uint8_t{0}); return; }
     int i;
     {
         std::lock_guard lock(mutex_);
@@ -87,6 +89,7 @@ void Switcher::renderPreview(video::Frame& out, std::uint64_t index) const {
 }
 
 void Switcher::renderProgram(video::Frame& out, std::uint64_t index, Clock::time_point now) {
+    if (sources_.empty()) { std::fill(out.data.begin(), out.data.end(), std::uint8_t{0}); return; }
     int pvw, pgm;
     bool transitioning;
     float progress = 0.f;
