@@ -22,7 +22,8 @@ std::string explain(HRESULT hr) {
 
 VirtualCameraController::VirtualCameraController(video::ProgramOutput& program, core::Logger& log)
     : program_(program), log_(log) {
-    CoIncrementMTAUsage(nullptr);  // keep the process MTA alive for the worker-created COM objects
+    CO_MTA_USAGE_COOKIE cookie = nullptr;       // the API requires a valid out pointer
+    CoIncrementMTAUsage(&cookie);               // keep the process MTA alive for worker-created COM objects
 }
 
 VirtualCameraController::~VirtualCameraController() { shutdown(); }

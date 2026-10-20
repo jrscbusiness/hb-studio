@@ -86,6 +86,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     engine.start();
     win::trace("engine started");
     win::VirtualCameraController vcam(engine.program(), engine.logger());
+    win::trace("vcam controller ready");
 
     std::wstring dataDir;
     {
@@ -96,6 +97,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         }
     }
 
+    win::trace("settings loading");
     win::WebViewHost host;
     std::atomic<bool> running{true};
     // ---- PTZ settings (names + per-camera configuration), persisted next to the WebView2 data ----
@@ -175,6 +177,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // ptzstop / ptzzoom / ptzfocus: silent no-ops until a provider exists.
     };
 
+    win::trace("before host.create");
     win::WebViewHost::Options opt;
     opt.userDataDir = dataDir;
     opt.title = L"HB Studio";
