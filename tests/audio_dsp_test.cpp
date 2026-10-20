@@ -193,7 +193,7 @@ TEST(DriftCompensator, ConvergesOnClockMismatchWithoutUnderruns) {
     const double mismatchPpm = 150.0;      // producer clock faster than consumer
     RingBuffer ring(16384 * 2);
     DriftCompensator dc(kRate, 2, kTarget, ResamplerQuality::Linear);
-    std::vector<float> chunk(1000 * 2, 0.1f), out(480 * 2);
+    std::vector<float> chunk(kTarget * 2 + 2000, 0.1f), out(480 * 2);  // >= prefill size (was an out-of-bounds read)
     // prefill to target
     ring.write(chunk.data(), kTarget * 2);
     double produced = 0, minFill = 1e9, maxFill = 0;
@@ -226,7 +226,7 @@ TEST(DriftCompensator, ConvergesOnClockMismatchWithoutUnderruns) {
 TEST(DriftCompensator, NegativeMismatchAndPriming) {
     RingBuffer ring(16384 * 2);
     DriftCompensator dc(48000, 2, 1200, ResamplerQuality::Linear);
-    std::vector<float> chunk(1000 * 2, 0.1f), out(480 * 2, 1.0f);
+    std::vector<float> chunk(8000 * 2, 0.1f), out(480 * 2, 1.0f);
     dc.pull(ring, out.data(), 480);  // empty ring: not primed -> silence, no underrun counted
     EXPECT_FALSE(dc.primed());
     EXPECT_EQ(out[0], 0.0f);
