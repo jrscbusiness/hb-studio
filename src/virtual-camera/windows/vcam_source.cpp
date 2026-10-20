@@ -74,11 +74,17 @@ void Log(const char* fmt, ...) {
     if (n == 0 || n >= MAX_PATH) return;
     wchar_t path[MAX_PATH];
     _snwprintf_s(path, _TRUNCATE, L"%s\\HBStudio\\vcam.log", dir);
-    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    // The folder is writable by LocalService only (see installer): still, never follow a
+    // reparse point, and stop logging once the file reaches 2 MB (no unbounded growth).
+    HANDLE f = CreateFileW(path, FILE_APPEND_DATA | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
     if (f == INVALID_HANDLE_VALUE) return;
-    DWORD written = 0;
-    WriteFile(f, line, static_cast<DWORD>(strlen(line)), &written, nullptr);
+    BY_HANDLE_FILE_INFORMATION info{};
+    if (GetFileInformationByHandle(f, &info) && !(info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
+        info.nFileSizeHigh == 0 && info.nFileSizeLow < 2u * 1024 * 1024) {
+        DWORD written = 0;
+        WriteFile(f, line, static_cast<DWORD>(strlen(line)), &written, nullptr);
+    }
     CloseHandle(f);
 }
 
@@ -93,33 +99,37 @@ void Log(const char* fmt, ...) {
 
 // ----------------------------------------------------------------- frame hub
 // Named-pipe server that receives BGRA frames from the app.
+//
+// One hub per process (shared by every source/stream via Acquire/Release): the pipe
+// name is claimed once with FILE_FLAG_FIRST_PIPE_INSTANCE and a single instance, so no
+// other process can create a competing instance, and the same instance is re-armed
+// after each producer disconnects (the name is never released in between).
+// ACL: SYSTEM, Administrators and LocalService full control; the interactive user
+// may only write data (no FILE_CREATE_PIPE_INSTANCE) - see docs/REVIEW-1.md A1.
+// A producer that sends nothing for kIdleMs is disconnected (A2).
 class FrameHub {
 public:
-    ~FrameHub() { Stop(); }
-
-    void Start() {
-        std::lock_guard lock(m_mutex);
-        if (m_thread.joinable()) return;
-        m_stop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        m_thread = std::thread([this] { Run(); });
+    static FrameHub& Instance() {
+        static FrameHub* hub = new FrameHub();  // intentionally leaked: never joins a thread during DLL unload
+        return *hub;
     }
 
-    void Stop() {
-        std::thread t;
-        {
-            std::lock_guard lock(m_mutex);
-            if (!m_thread.joinable()) return;
-            SetEvent(m_stop);
-            t = std::move(m_thread);
+    void Acquire() {
+        std::lock_guard life(m_life);
+        if (m_refs++ == 0) {
+            m_stop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+            m_thread = std::thread([this] { Run(); });
         }
-        t.join();
-        CloseHandle(m_stop);
-        m_stop = nullptr;
+    }
+
+    void Release() {
+        std::lock_guard life(m_life);
+        if (m_refs > 0 && --m_refs == 0) StopLocked();
     }
 
     // Copies the newest frame if it is fresh. Returns false => show NO SIGNAL.
     bool CopyLatest(std::vector<uint8_t>& dst) {
-        std::lock_guard lock(m_mutex);
+        std::lock_guard lock(m_data);
         if (m_latest.empty()) return false;
         if (GetTickCount64() - m_lastFrameTick > 1000) return false;
         dst = m_latest;
@@ -127,7 +137,18 @@ public:
     }
 
 private:
-    bool ReadExact(HANDLE pipe, void* buf, DWORD bytes) {
+    static constexpr DWORD kIdleMs = 3000;      // no complete frame header within this => drop producer
+    static constexpr DWORD kPayloadMs = 1500;   // stalled mid-frame
+
+    void StopLocked() {  // m_life held
+        if (!m_thread.joinable()) return;
+        SetEvent(m_stop);
+        m_thread.join();
+        CloseHandle(m_stop);
+        m_stop = nullptr;
+    }
+
+    bool ReadExact(HANDLE pipe, void* buf, DWORD bytes, DWORD timeoutMs) {
         auto* p = static_cast<uint8_t*>(buf);
         HANDLE ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         bool ok = true;
@@ -138,27 +159,19 @@ private:
             DWORD got = 0;
             BOOL r = ReadFile(pipe, p, bytes, &got, &ov);
             if (!r) {
-                if (GetLastError() != ERROR_IO_PENDING) {
-                    ok = false;
-                    break;
-                }
+                if (GetLastError() != ERROR_IO_PENDING) { ok = false; break; }
                 HANDLE waits[2] = {ev, m_stop};
-                DWORD w = WaitForMultipleObjects(2, waits, FALSE, INFINITE);
-                if (w != WAIT_OBJECT_0) {
+                DWORD w = WaitForMultipleObjects(2, waits, FALSE, timeoutMs);
+                if (w != WAIT_OBJECT_0) {  // stop requested or timeout
                     CancelIoEx(pipe, &ov);
                     GetOverlappedResult(pipe, &ov, &got, TRUE);
+                    if (w == WAIT_TIMEOUT) Log("FrameHub: producer idle/stalled, disconnecting");
                     ok = false;
                     break;
                 }
-                if (!GetOverlappedResult(pipe, &ov, &got, FALSE)) {
-                    ok = false;
-                    break;
-                }
+                if (!GetOverlappedResult(pipe, &ov, &got, FALSE)) { ok = false; break; }
             }
-            if (got == 0) {
-                ok = false;
-                break;
-            }
+            if (got == 0) { ok = false; break; }
             p += got;
             bytes -= got;
         }
@@ -170,23 +183,26 @@ private:
         Log("FrameHub: pipe server starting");
         SECURITY_ATTRIBUTES sa{};
         sa.nLength = sizeof(sa);
-        // SYSTEM + Administrators full; authenticated users may read/write.
         if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
-                L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;AU)", SDDL_REVISION_1,
+                L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)(A;;0x00100082;;;IU)", SDDL_REVISION_1,
                 &sa.lpSecurityDescriptor, nullptr)) {
             Log("FrameHub: SDDL failed %lu", GetLastError());
             return;
         }
-        std::vector<uint8_t> staging;
+        HANDLE pipe = INVALID_HANDLE_VALUE;
         while (WaitForSingleObject(m_stop, 0) != WAIT_OBJECT_0) {
-            HANDLE pipe = CreateNamedPipeW(
-                hb::vcam::kPipeName, PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
-                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-                PIPE_UNLIMITED_INSTANCES, 0, 4 * 1024 * 1024, 0, &sa);
             if (pipe == INVALID_HANDLE_VALUE) {
-                Log("FrameHub: CreateNamedPipe failed %lu", GetLastError());
-                if (WaitForSingleObject(m_stop, 1000) == WAIT_OBJECT_0) break;
-                continue;
+                pipe = CreateNamedPipeW(
+                    hb::vcam::kPipeName,
+                    PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                    PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS, 1, 0,
+                    4 * 1024 * 1024, 0, &sa);
+                if (pipe == INVALID_HANDLE_VALUE) {
+                    // Name already taken (stale instance or another process): never share it, retry later.
+                    Log("FrameHub: CreateNamedPipe failed %lu (name in use?)", GetLastError());
+                    if (WaitForSingleObject(m_stop, 2000) == WAIT_OBJECT_0) break;
+                    continue;
+                }
             }
             HANDLE ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
             OVERLAPPED ov{};
@@ -200,49 +216,52 @@ private:
                     connected = true;
                 } else if (err == ERROR_IO_PENDING) {
                     HANDLE waits[2] = {ev, m_stop};
-                    DWORD w = WaitForMultipleObjects(2, waits, FALSE, INFINITE);
-                    if (w == WAIT_OBJECT_0) {
-                        connected = true;
-                    } else {
-                        CancelIoEx(pipe, &ov);
-                    }
+                    if (WaitForMultipleObjects(2, waits, FALSE, INFINITE) == WAIT_OBJECT_0) connected = true;
+                    else CancelIoEx(pipe, &ov);
+                } else {
+                    Log("FrameHub: ConnectNamedPipe failed %lu", err);
+                    CloseHandle(pipe);
+                    pipe = INVALID_HANDLE_VALUE;
                 }
             }
             CloseHandle(ev);
 
             if (connected) {
                 Log("FrameHub: producer connected");
+                std::vector<uint8_t> staging;
                 for (;;) {
                     hb::vcam::FrameHeader h{};
-                    if (!ReadExact(pipe, &h, sizeof(h))) break;
-                    if (h.magic != hb::vcam::kMagic || h.payloadBytes == 0 ||
-                        h.payloadBytes > 64u * 1024 * 1024 ||
-                        h.payloadBytes != h.stride * h.height) {
+                    if (!ReadExact(pipe, &h, sizeof(h), kIdleMs)) break;
+                    const uint64_t expect = static_cast<uint64_t>(h.stride) * h.height;
+                    if (h.magic != hb::vcam::kMagic || h.payloadBytes == 0 || h.payloadBytes > 64u * 1024 * 1024 ||
+                        h.payloadBytes != expect) {
                         Log("FrameHub: bad header, dropping producer");
                         break;
                     }
                     staging.resize(h.payloadBytes);
-                    if (!ReadExact(pipe, staging.data(), h.payloadBytes)) break;
+                    if (!ReadExact(pipe, staging.data(), h.payloadBytes, kPayloadMs)) break;
                     if (h.width != hb::vcam::kWidth || h.height != hb::vcam::kHeight ||
                         h.stride != hb::vcam::kWidth * 4u) {
                         continue;  // size mismatch: ignore (NO SIGNAL keeps showing)
                     }
-                    std::lock_guard lock(m_mutex);
+                    std::lock_guard lock(m_data);
                     m_latest.swap(staging);
                     m_lastFrameTick = GetTickCount64();
                 }
                 Log("FrameHub: producer disconnected");
-                DisconnectNamedPipe(pipe);
+                DisconnectNamedPipe(pipe);  // same instance is re-armed by the loop
             }
-            CloseHandle(pipe);
         }
+        if (pipe != INVALID_HANDLE_VALUE) CloseHandle(pipe);
         LocalFree(sa.lpSecurityDescriptor);
         Log("FrameHub: pipe server stopped");
     }
 
-    std::mutex m_mutex;
+    std::mutex m_life;   // serialises Acquire/Release/StopAll (start/stop of the thread)
+    int m_refs = 0;
     std::thread m_thread;
     HANDLE m_stop = nullptr;
+    std::mutex m_data;   // latest frame
     std::vector<uint8_t> m_latest;
     ULONGLONG m_lastFrameTick = 0;
 };
@@ -377,7 +396,7 @@ public:
         if (m_shutdown) return MF_E_SHUTDOWN;
         if (m_state != MF_STREAM_STATE_RUNNING) return MF_E_INVALIDREQUEST;
         m_tokens.push_back(token);  // null token is allowed
-        if (m_tokens.size() > 8) m_tokens.pop_front();
+        if (m_tokens.size() > 16) m_tokens.pop_front();
         return S_OK;
     }
 
@@ -423,7 +442,7 @@ public:
             t = std::move(m_worker);
         }
         if (t.joinable()) t.join();
-        m_hub.Stop();
+        ReleaseHub();
     }
     void Shutdown() {
         std::thread t;
@@ -436,7 +455,7 @@ public:
             t = std::move(m_worker);
         }
         if (t.joinable()) t.join();
-        m_hub.Stop();
+        ReleaseHub();
         std::lock_guard lock(m_mutex);
         m_queue.Reset();
         m_parent.Reset();
@@ -463,6 +482,16 @@ public:
     IMFStreamDescriptor* Descriptor() { return m_desc.Get(); }
 
 private:
+    void ReleaseHub() {
+        bool held;
+        {
+            std::lock_guard lock(m_mutex);
+            held = m_hubHeld;
+            m_hubHeld = false;
+        }
+        if (held) FrameHub::Instance().Release();
+    }
+
     static HRESULT SetCommonAttributes(IMFAttributes* a) {
         HB_RETURN_IF_FAILED(a->SetGUID(MF_DEVICESTREAM_STREAM_CATEGORY, PINNAME_VIDEO_CAPTURE));
         HB_RETURN_IF_FAILED(a->SetUINT32(MF_DEVICESTREAM_STREAM_ID, kStreamId));
@@ -482,7 +511,10 @@ private:
         HB_RETURN_IF_FAILED(m_alloc->InitializeSampleAllocator(10, mt.Get()));
         if (sendEvent) HB_RETURN_IF_FAILED(m_queue->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr));
         m_state = MF_STREAM_STATE_RUNNING;
-        m_hub.Start();
+        if (!m_hubHeld) {
+            FrameHub::Instance().Acquire();
+            m_hubHeld = true;
+        }
         m_quit = false;
         if (!m_worker.joinable()) m_worker = std::thread([this] { Pace(); });
         Log("stream started");
@@ -518,9 +550,14 @@ private:
                 m_tokens.pop_front();
                 alloc = m_alloc;
             }
-            const bool live = m_hub.CopyLatest(bgra);
-            HRESULT hr = Deliver(alloc.Get(), token.Get(), live ? &bgra : nullptr);
-            if (FAILED(hr)) Log("Deliver failed 0x%08lX", static_cast<unsigned long>(hr));
+            const bool live = FrameHub::Instance().CopyLatest(bgra);
+            HRESULT hr = alloc ? Deliver(alloc.Get(), token.Get(), live ? &bgra : nullptr) : E_UNEXPECTED;
+            if (FAILED(hr)) {
+                Log("Deliver failed 0x%08lX", static_cast<unsigned long>(hr));
+                // Keep the outstanding request: Frame Server counts them and would stall without it.
+                std::lock_guard lock(m_mutex);
+                if (!m_shutdown && m_state == MF_STREAM_STATE_RUNNING && m_tokens.size() < 16) m_tokens.push_front(token);
+            }
         }
     }
 
@@ -537,18 +574,26 @@ private:
         DWORD length = 0;
         HB_RETURN_IF_FAILED(buf2d->Lock2DSize(MF2DBuffer_LockFlags_Write, &scanline0, &pitch, &start, &length));
         const int w = hb::vcam::kWidth, h = hb::vcam::kHeight;
-        if (pitch > 0 && length >= static_cast<DWORD>(pitch) * h * 3 / 2) {
-            uint8_t* y = scanline0;
-            uint8_t* uv = scanline0 + static_cast<size_t>(pitch) * h;  // UV plane follows Y plane
-            if (bgra) {
-                BgraToNv12(bgra->data(), w * 4, w, h, y, pitch, uv);
-            } else {
-                FillNoSignal(y, pitch, uv, w, h, m_frameNo);
-            }
+        // NV12 = pitch*h (Y) + pitch*h/2 (interleaved UV, same pitch). Refuse anything smaller:
+        // never deliver an unwritten buffer.
+        const size_t need = static_cast<size_t>(pitch > 0 ? pitch : 0) * h * 3 / 2;
+        if (pitch < w || length < need) {
+            buf2d->Unlock2D();
+            Log("Deliver: unexpected buffer layout pitch=%ld length=%lu", pitch, static_cast<unsigned long>(length));
+            return MF_E_BUFFERTOOSMALL;
+        }
+        uint8_t* y = scanline0;
+        uint8_t* uv = scanline0 + static_cast<size_t>(pitch) * h;
+        if (bgra) {
+            BgraToNv12(bgra->data(), w * 4, w, h, y, pitch, uv);
+        } else {
+            FillNoSignal(y, pitch, uv, w, h, m_frameNo);
         }
         buf2d->Unlock2D();
+        buf->SetCurrentLength(static_cast<DWORD>(need));
         ++m_frameNo;
         sample->SetSampleTime(MFGetSystemTime());
+        sample->SetUINT32(MFSampleExtension_FrameCorruption, 0);
         sample->SetSampleDuration(10'000'000LL * hb::vcam::kFpsDen / hb::vcam::kFpsNum);
         if (token) sample->SetUnknown(MFSampleExtension_Token, token);
 
@@ -568,7 +613,7 @@ private:
     ComPtr<IMFVideoSampleAllocator> m_alloc;
     std::deque<ComPtr<IUnknown>> m_tokens;
     std::thread m_worker;
-    FrameHub m_hub;
+    bool m_hubHeld = false;   // guarded by m_mutex
     uint64_t m_frameNo = 0;
 };
 

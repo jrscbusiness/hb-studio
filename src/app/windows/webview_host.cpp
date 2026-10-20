@@ -3,6 +3,7 @@
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <dwmapi.h>
+#include <cwchar>
 
 #include "app/windows/win_util.hpp"
 
@@ -102,13 +103,36 @@ void WebViewHost::initWebView() {
                             st->put_IsStatusBarEnabled(FALSE);
 
                             EventRegistrationToken tok;
+                            // The UI is a closed local page: no external navigation, no popups, so a remote
+                            // page can never reach the host command bridge.
+                            webview_->add_NavigationStarting(
+                                Callback<ICoreWebView2NavigationStartingEventHandler>(
+                                    [](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs* a) -> HRESULT {
+                                        LPWSTR u = nullptr;
+                                        bool allow = false;
+                                        if (SUCCEEDED(a->get_Uri(&u)) && u) {
+                                            allow = wcsncmp(u, L"data:", 5) == 0 || wcscmp(u, L"about:blank") == 0;
+                                            CoTaskMemFree(u);
+                                        }
+                                        if (!allow) a->put_Cancel(TRUE);
+                                        return S_OK;
+                                    }).Get(), &tok);
+                            webview_->add_NewWindowRequested(
+                                Callback<ICoreWebView2NewWindowRequestedEventHandler>(
+                                    [](ICoreWebView2*, ICoreWebView2NewWindowRequestedEventArgs* a) -> HRESULT {
+                                        a->put_Handled(TRUE);
+                                        return S_OK;
+                                    }).Get(), &tok);
                             webview_->add_WebMessageReceived(
                                 Callback<ICoreWebView2WebMessageReceivedEventHandler>(
                                     [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* a) -> HRESULT {
                                         trace("web message from UI");
                                         LPWSTR w = nullptr;
                                         if (SUCCEEDED(a->TryGetWebMessageAsString(&w)) && w) {
-                                            if (onMessage_) onMessage_(narrow(w));
+                                            try {
+                                                if (onMessage_) onMessage_(narrow(w));
+                                            } catch (...) {  // a bad command must never take the UI down
+                                            }
                                             CoTaskMemFree(w);
                                         }
                                         return S_OK;
@@ -117,8 +141,9 @@ void WebViewHost::initWebView() {
                                 Callback<ICoreWebView2NavigationCompletedEventHandler>(
                                     [this](ICoreWebView2*, ICoreWebView2NavigationCompletedEventArgs*) -> HRESULT {
                                         trace("navigation completed");
+                                        const bool first = !ready_;
                                         ready_ = true;
-                                        if (onReady_) onReady_();
+                                        if (first && onReady_) onReady_();   // once, not on every reload
                                         drain();
                                         return S_OK;
                                     }).Get(), &tok);

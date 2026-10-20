@@ -44,6 +44,11 @@ void PipeFrameSender::stop() {
     }
     program_.removeConsumer(consumerId_);
     cv_.notify_all();
+    // The writer may be blocked in WriteFile (camera process suspended): cancel it so join() returns.
+    for (int i = 0; i < 50 && thread_.joinable(); ++i) {
+        CancelSynchronousIo(thread_.native_handle());
+        if (WaitForSingleObject(thread_.native_handle(), 100) == WAIT_OBJECT_0) break;
+    }
     if (thread_.joinable()) thread_.join();
     connected_ = false;
 }
@@ -56,7 +61,8 @@ void PipeFrameSender::run() {
             std::lock_guard lock(mutex_);
             if (!running_) return;
         }
-        HANDLE pipe = CreateFileW(kPipeName, GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+        HANDLE pipe = CreateFileW(kPipeName, FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE, 0, nullptr, OPEN_EXISTING,
+                                SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, nullptr);
         if (pipe == INVALID_HANDLE_VALUE) {
             // No camera client yet (source not loaded) or all instances busy.
             std::unique_lock lock(mutex_);

@@ -75,7 +75,16 @@ bool writeResource(int id, const std::wstring& path, std::wstring& err) {
     return ok;
 }
 
-int runHidden(std::wstring cmd) {
+std::wstring system32() {
+    wchar_t b[MAX_PATH];
+    const UINT n = GetSystemDirectoryW(b, MAX_PATH);
+    return n && n < MAX_PATH ? std::wstring(b) : L"C:\\Windows\\System32";
+}
+
+// Runs a system tool by ABSOLUTE path (an elevated installer must never resolve "icacls"
+// or "cmd" from its own folder). Returns the exit code, -1 if it could not start.
+int runHidden(const std::wstring& tool, const std::wstring& args) {
+    std::wstring cmd = L"\"" + system32() + L"\\" + tool + L"\" " + args;
     STARTUPINFOW si{sizeof(si)};
     PROCESS_INFORMATION pi{};
     if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
@@ -184,6 +193,7 @@ public:
                 std::wstring err;
                 const bool ok = uninstall_ ? doUninstall(err) : doInstall(o, err);
                 done(ok, err);
+                running_ = false;   // allow "try again" after a failure
                 CoUninitialize();
             });
         } else if (cmd == "launch") {
@@ -234,10 +244,15 @@ private:
 
             step(++i, total, L"Configurando permissões");
             // Frame Server runs as LocalService: it must read the DLL; it also writes a diagnostic log.
-            runHidden(L"icacls \"" + dir + L"\\VirtualCamera\" /grant \"NT AUTHORITY\\LOCAL SERVICE:(OI)(CI)RX\" /T /C");
+            if (runHidden(L"icacls.exe", L"\"" + dir + L"\\VirtualCamera\" /grant *S-1-5-19:(OI)(CI)RX /T /C") != 0) {
+                err = L"Não foi possível aplicar as permissões da câmera virtual (icacls).";
+                step(i, total, L"Configurando permissões", "bad");
+                return false;
+            }
             const std::wstring logDir = knownFolder(FOLDERID_ProgramData) + L"\\HBStudio";
             SHCreateDirectoryExW(nullptr, logDir.c_str(), nullptr);
-            runHidden(L"icacls \"" + logDir + L"\" /grant *S-1-1-0:(OI)(CI)M /C");
+            // LocalService (the Frame Server) writes the diagnostic log; ordinary users may only read it.
+            runHidden(L"icacls.exe", L"\"" + logDir + L"\" /inheritance:r /grant:r *S-1-5-19:(OI)(CI)M *S-1-5-32-544:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /C");
 
             step(++i, total, L"Registrando a câmera virtual");
             const HRESULT hr = registerDll(dll, true);
@@ -270,14 +285,16 @@ private:
         const int total = 4;
 
         step(0, total, L"Encerrando componentes");
-        runHidden(L"taskkill /F /IM HBStudio.exe");
+        runHidden(L"taskkill.exe", L"/F /IM HBStudio.exe");
         if (win::windowsBuild() >= 22000) stopFrameServer();
 
         step(1, total, L"Removendo a câmera virtual");
-        if (GetFileAttributesW(dll.c_str()) != INVALID_FILE_ATTRIBUTES) registerDll(dll, false);
+        bool unregistered = true;
+        if (GetFileAttributesW(dll.c_str()) != INVALID_FILE_ATTRIBUTES) unregistered = SUCCEEDED(registerDll(dll, false));
 
         step(2, total, L"Removendo arquivos");
-        DeleteFileW(dll.c_str());
+        if (unregistered) DeleteFileW(dll.c_str());
+        else err = L"A câmera virtual não pôde ser desregistrada; o arquivo foi mantido para evitar um registro quebrado. Reinicie o computador e tente remover de novo.";
         RemoveDirectoryW((dir + L"\\VirtualCamera").c_str());
         DeleteFileW((dir + L"\\HBStudio.exe").c_str());
 
@@ -290,7 +307,7 @@ private:
         // This process is Uninstall.exe: it cannot delete itself while running.
         const std::wstring self = dir + L"\\Uninstall.exe";
         MoveFileExW(self.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
-        std::wstring cmd = L"cmd.exe /c ping 127.0.0.1 -n 4 >nul & del /f /q \"" + self + L"\" & rmdir /q \"" + dir + L"\"";
+        std::wstring cmd = L"\"" + system32() + L"\\cmd.exe\" /c ping 127.0.0.1 -n 4 >nul & del /f /q \"" + self + L"\" & rmdir /q \"" + dir + L"\"";
         STARTUPINFOW si{sizeof(si)};
         PROCESS_INFORMATION pi{};
         if (CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | DETACHED_PROCESS, nullptr,
@@ -299,8 +316,7 @@ private:
             CloseHandle(pi.hThread);
         }
         step(total, total, L"Removendo atalhos e registro", "ok");
-        (void)err;
-        return true;
+        return unregistered;
     }
 
     win::WebViewHost& host_;

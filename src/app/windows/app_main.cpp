@@ -8,6 +8,7 @@
 #include <shlobj.h>
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -148,7 +149,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         else if (c == "preview") engine.switcher().setPreview(idx(1));
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
-        else if (c == "dissolve") engine.switcher().startDissolve(idx(1) > 0 ? idx(1) : 500);
+        else if (c == "dissolve") engine.switcher().startDissolve(std::clamp(idx(1) > 0 ? idx(1) : 500, 50, 10000));
         else if (c == "vcam" && a.size() > 1) {
             if (a[1] == "activate") vcam.activate();
             else if (a[1] == "deactivate") vcam.deactivate();
@@ -180,6 +181,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     std::thread feeder;
     auto startFeeder = [&] {
+        if (feeder.joinable()) return;   // never start a second feeder (page reload)
         feeder = std::thread([&] {
             win::trace("feeder thread start");
             CoInitializeEx(nullptr, COINIT_MULTITHREADED);
