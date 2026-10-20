@@ -12,3 +12,4 @@ Apache-2.0 ou MPL-2.0 (decisão do mantenedor; não é aconselhamento jurídico)
 | NDI SDK (futuro) | NDI | Proprietária | **não** vai no repositório; usuário instala o Runtime; atribuição de marca obrigatória |
 | OBS Studio | referência | GPL-2.0 | **nenhum código copiado** |
 | microsoft/Windows-Camera (VirtualCamera sample) | referência de estrutura do media source | MIT | Código reescrito; estrutura de objetos inspirada no exemplo. Aviso MIT: Copyright (c) Microsoft Corporation |
+| pugixml 1.14 (zeux/pugixml) | parser XML do módulo ONVIF/Discovery (FetchContent, tag v1.14) | MIT | Copyright (c) 2006-2023 Arseny Kapoulkine |
