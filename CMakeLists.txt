@@ -89,7 +89,7 @@ if(WIN32)
     set_target_properties(hb_studio PROPERTIES OUTPUT_NAME HBStudio)
     target_include_directories(hb_studio PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
     target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX)
-    target_link_libraries(hb_studio PRIVATE hb_core hb_vcam_sender mfplat mf mfuuid mfsensorgroup ${HB_WIN_LIBS})
+    target_link_libraries(hb_studio PRIVATE hb_core hb_vcam_sender mfplat mf mfuuid ${HB_WIN_LIBS})
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")

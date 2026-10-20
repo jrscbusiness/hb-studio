@@ -110,10 +110,21 @@ void VirtualCameraController::doActivate() {
         }
         mfStarted_ = true;
     }
+    // Resolved at run time: the export only exists on Windows 11 (22000+). A static import would
+    // stop the whole application from starting on older Windows.
+    using CreateFn = HRESULT(WINAPI*)(MFVirtualCameraType, MFVirtualCameraLifetime, MFVirtualCameraAccess, PCWSTR,
+                                      PCWSTR, const GUID*, ULONG, IMFVirtualCamera**);
+    HMODULE sg = LoadLibraryW(L"mfsensorgroup.dll");
+    auto create = sg ? reinterpret_cast<CreateFn>(GetProcAddress(sg, "MFCreateVirtualCamera")) : nullptr;
+    if (!create) {
+        setMessage("Este Windows não oferece a API de câmera virtual (requer Windows 11).", true);
+        CoUninitialize();
+        return;
+    }
     IMFVirtualCamera* cam = nullptr;
-    HRESULT hr = MFCreateVirtualCamera(MFVirtualCameraType_SoftwareCameraSource, MFVirtualCameraLifetime_Session,
-                                       MFVirtualCameraAccess_CurrentUser, L"HB Studio",
-                                       hb::vcam::kMediaSourceClsidString, nullptr, 0, &cam);
+    HRESULT hr = create(MFVirtualCameraType_SoftwareCameraSource, MFVirtualCameraLifetime_Session,
+                        MFVirtualCameraAccess_CurrentUser, L"HB Studio", hb::vcam::kMediaSourceClsidString, nullptr, 0,
+                        &cam);
     if (SUCCEEDED(hr)) hr = cam->Start(nullptr);
     if (FAILED(hr)) {
         if (cam) cam->Release();
