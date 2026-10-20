@@ -78,10 +78,12 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (argv) LocalFree(argv);
     }
 
+    win::trace("wWinMain start");
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
     app::Engine engine;
     engine.start();
+    win::trace("engine started");
     win::VirtualCameraController vcam(engine.program(), engine.logger());
 
     std::wstring dataDir;
@@ -179,6 +181,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     std::thread feeder;
     auto startFeeder = [&] {
         feeder = std::thread([&] {
+            win::trace("feeder thread start");
             CoInitializeEx(nullptr, COINIT_MULTITHREADED);
             win::JpegEncoder jpeg;
             jpeg.init();
@@ -231,6 +234,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         SetTimer(host.hwnd(), 1, 250, [](HWND, UINT, UINT_PTR, DWORD) {});
     }
 
+    win::trace("entering message loop");
     int rc;
     if (shot) {
         MSG msg;
@@ -238,6 +242,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
             if (msg.message == WM_APP + 2 && !captured) {
                 captured = true;
+                win::trace("capture trigger received");
                 host.screenshot(screenshotPath, [&](bool) { host.close(); });
                 continue;
             }
@@ -249,10 +254,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         rc = host.run();
     }
 
+    win::trace("message loop ended");
     running = false;
     if (feeder.joinable()) feeder.join();
+    win::trace("feeder joined");
     vcam.shutdown();
+    win::trace("vcam shut down");
     engine.stop();
+    win::trace("engine stopped");
     CoUninitialize();
     return rc;
 }

@@ -18,4 +18,7 @@ std::string jsonEscape(const std::string& s);
 // Real Windows build number (not subject to manifest shimming); 0 if unknown.
 unsigned windowsBuild();
 
+// Appends a timestamped line to the file named by the HB_TRACE environment variable (no-op if unset).
+void trace(const char* msg);
+
 }  // namespace hb::win

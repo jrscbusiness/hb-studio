@@ -79,4 +79,19 @@ unsigned windowsBuild() {
     return fn(&vi) == 0 ? vi.dwBuildNumber : 0;
 }
 
+void trace(const char* msg) {
+    wchar_t path[MAX_PATH];
+    const DWORD n = GetEnvironmentVariableW(L"HB_TRACE", path, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) return;
+    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    char line[512];
+    const int len = snprintf(line, sizeof line, "%llu t%lu %s\r\n", static_cast<unsigned long long>(GetTickCount64()),
+                             GetCurrentThreadId(), msg);
+    DWORD w = 0;
+    WriteFile(f, line, static_cast<DWORD>(len), &w, nullptr);
+    CloseHandle(f);
+}
+
 }  // namespace hb::win

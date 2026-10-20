@@ -63,6 +63,7 @@ bool WebViewHost::create(HINSTANCE inst, const Options& opt, std::string html, M
 
     ShowWindow(hwnd_, SW_SHOW);
     UpdateWindow(hwnd_);
+    trace("window created");
     initWebView();
     return true;
 }
@@ -73,6 +74,7 @@ void WebViewHost::initWebView() {
         nullptr, dir.empty() ? nullptr : dir.c_str(), nullptr,
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this](HRESULT res, ICoreWebView2Environment* env) -> HRESULT {
+                trace(env ? "environment ready" : "environment FAILED");
                 if (FAILED(res) || !env) {
                     showRuntimeMissing(hwnd_);
                     PostMessageW(hwnd_, WM_CLOSE, 0, 0);
@@ -86,6 +88,7 @@ void WebViewHost::initWebView() {
                                 PostMessageW(hwnd_, WM_CLOSE, 0, 0);
                                 return S_OK;
                             }
+                            trace("controller ready");
                             controller_ = ctl;
                             controller_->get_CoreWebView2(&webview_);
                             RECT rc;
@@ -102,6 +105,7 @@ void WebViewHost::initWebView() {
                             webview_->add_WebMessageReceived(
                                 Callback<ICoreWebView2WebMessageReceivedEventHandler>(
                                     [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* a) -> HRESULT {
+                                        trace("web message from UI");
                                         LPWSTR w = nullptr;
                                         if (SUCCEEDED(a->TryGetWebMessageAsString(&w)) && w) {
                                             if (onMessage_) onMessage_(narrow(w));
@@ -112,6 +116,7 @@ void WebViewHost::initWebView() {
                             webview_->add_NavigationCompleted(
                                 Callback<ICoreWebView2NavigationCompletedEventHandler>(
                                     [this](ICoreWebView2*, ICoreWebView2NavigationCompletedEventArgs*) -> HRESULT {
+                                        trace("navigation completed");
                                         ready_ = true;
                                         if (onReady_) onReady_();
                                         drain();
@@ -161,9 +166,11 @@ void WebViewHost::screenshot(const std::wstring& path, std::function<void(bool)>
         done(false);
         return;
     }
+    trace("capture requested");
     webview_->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, stream.Get(),
                              Callback<ICoreWebView2CapturePreviewCompletedHandler>(
                                  [done, stream](HRESULT hr) -> HRESULT {
+                                     trace(SUCCEEDED(hr) ? "capture done" : "capture FAILED");
                                      done(SUCCEEDED(hr));
                                      return S_OK;
                                  }).Get());

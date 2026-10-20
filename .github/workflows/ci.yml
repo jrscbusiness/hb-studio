@@ -44,10 +44,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory shots | Out-Null
+          $env:HB_TRACE = "$PWD\shots\app.trace.txt"
           $p = Start-Process build/Release/HBStudio.exe -ArgumentList "--screenshot","$PWD\shots\app.png" -PassThru
-          if (-not $p.WaitForExit(90000)) { $p.Kill(); "HBStudio.exe timed out" }
+          if (-not $p.WaitForExit(45000)) { "HBStudio.exe timed out; Responding=$($p.Responding)"; $p.Kill() } else { "HBStudio.exe exit code $($p.ExitCode)" }
+          if (Test-Path $env:HB_TRACE) { Get-Content $env:HB_TRACE }
+          Remove-Item Env:HB_TRACE
           $p = Start-Process build/Release/HBStudio-Setup.exe -ArgumentList "--screenshot","$PWD\shots\setup.png" -PassThru
-          if (-not $p.WaitForExit(90000)) { $p.Kill(); "Setup timed out" }
+          if (-not $p.WaitForExit(45000)) { $p.Kill(); "Setup timed out" }
           Get-ChildItem shots
 
       - name: Upload screenshots
