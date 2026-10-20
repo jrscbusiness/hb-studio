@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "app/engine.hpp"
+#include "app/ptz_settings.hpp"
 #include "app/windows/resource_ids.h"
 #include "app/windows/vcam_controller.hpp"
 #include "app/windows/webview_host.hpp"
@@ -29,10 +30,10 @@ using namespace hb;
 
 namespace {
 
-std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, const std::string& toast) {
+std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, int toastId, const std::string& toast) {
     const auto s = engine.snapshot();
     const auto v = vcam.status();
-    char b[1024];
+    char b[2048];
     snprintf(b, sizeof b,
              "{\"t\":\"s\",\"pvw\":%d,\"pgm\":%d,\"transition\":%s,\"progress\":%.3f,\"fps\":%.2f,\"target\":%d,"
              "\"frames\":%llu,\"skipped\":%llu,\"tier\":\"%s\",\"cores\":%u,\"ramGiB\":%u,\"srcRec\":%d,\"srcMax\":%d,"
@@ -45,7 +46,9 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, c
              v.busy ? "true" : "false", v.error ? "true" : "false", static_cast<unsigned long long>(v.sent),
              win::jsonEscape(v.message).c_str());
     std::string j = b;
-    j += ",\"toast\":\"" + win::jsonEscape(toast) + "\",\"log\":[";
+    j += toastId > 0 ? ",\"toast\":{\"id\":" + std::to_string(toastId) + ",\"text\":\"" + win::jsonEscape(toast) + "\"}"
+                     : std::string(",\"toast\":null");
+    j += ",\"log\":[";
     auto tail = engine.logTail();
     const std::size_t from = tail.size() > 9 ? tail.size() - 9 : 0;
     for (std::size_t i = from; i < tail.size(); ++i) {
@@ -92,26 +95,81 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     win::WebViewHost host;
     std::atomic<bool> running{true};
-    std::string pendingToast;
+    // ---- PTZ settings (names + per-camera configuration), persisted next to the WebView2 data ----
+    app::PtzSettings ptzSettings;
+    std::string ptzPath;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            const std::wstring dir = std::wstring(p) + L"\\HBStudio";
+            CoTaskMemFree(p);
+            SHCreateDirectoryExW(nullptr, dir.c_str(), nullptr);
+            ptzPath = win::narrow(dir + L"\\ptz.json");
+        }
+        if (!ptzPath.empty() && !ptzSettings.load(ptzPath))
+            engine.logger().info("ptz", "sem configuração anterior: usando padrões");
+    }
+    std::atomic<unsigned> ptzSent{0};
     std::mutex toastMutex;
+    int toastId = 0;
+    std::string toastText;
+    auto toast = [&](const std::string& t) {
+        std::lock_guard lock(toastMutex);
+        toastText = t;
+        ++toastId;
+    };
+    auto ptzChanged = [&] {
+        if (!ptzPath.empty() && !ptzSettings.save(ptzPath)) engine.logger().warning("ptz", "não foi possível salvar a configuração");
+        ptzSent = 0;  // force the feeder to resend
+    };
+    constexpr const char* kNoPtz = "nenhuma câmera PTZ conectada (disponível nas Fases 4–5). Nada foi enviado.";
+
+    // Splits "cmd|a|b|rest": at most `maxParts` parts, the last one keeps any further '|'.
+    auto split = [](const std::string& msg, std::size_t maxParts) {
+        std::vector<std::string> a;
+        std::size_t s0 = 0;
+        for (std::size_t i = 0; i <= msg.size(); ++i)
+            if (i == msg.size() || (msg[i] == '|' && a.size() + 1 < maxParts)) { a.push_back(msg.substr(s0, i - s0)); s0 = i + 1; }
+        return a;
+    };
 
     auto onMessage = [&](const std::string& msg) {
-        // "cmd|arg|arg"
-        std::vector<std::string> a;
-        std::size_t s = 0;
-        for (std::size_t i = 0; i <= msg.size(); ++i)
-            if (i == msg.size() || msg[i] == '|') { a.push_back(msg.substr(s, i - s)); s = i + 1; }
+        const std::string c0 = msg.substr(0, msg.find('|'));
+        const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 : 8));
+        auto a = split(msg, maxParts);
         if (a.empty()) return;
         auto idx = [&](std::size_t k) { return k < a.size() ? std::atoi(a[k].c_str()) : -1; };
         const std::string& c = a[0];
-        if (c == "preview") engine.switcher().setPreview(idx(1));
+        const int cam = idx(1);
+        const std::string camLabel = "CAM " + std::to_string(cam + 1) + ": ";
+        if (c == "ready") ptzSent = 0;
+        else if (c == "preview") engine.switcher().setPreview(idx(1));
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
         else if (c == "dissolve") engine.switcher().startDissolve(idx(1) > 0 ? idx(1) : 500);
         else if (c == "vcam" && a.size() > 1) {
             if (a[1] == "activate") vcam.activate();
             else if (a[1] == "deactivate") vcam.deactivate();
+        } else if (c == "ptzname" && a.size() >= 4) {
+            if (ptzSettings.setPresetName(cam, idx(2), a[3])) ptzChanged();
+        } else if (c == "ptzcfg" && a.size() >= 3) {
+            app::PtzCameraConfig cfg;
+            if (app::PtzSettings::parseConfig(a[2], cfg) && ptzSettings.setConfig(cam, cfg)) {
+                ptzChanged();
+                toast(camLabel + "configuração PTZ guardada.");
+            }
+        } else if (c == "ptzall" && a.size() >= 2) {
+            app::PtzCameraConfig cfg;
+            if (app::PtzSettings::parseConfig(a[1], cfg)) {
+                ptzSettings.applyToAll(cfg);
+                ptzChanged();
+                toast("Configuração PTZ aplicada a todas as câmeras.");
+            }
+        } else if (c == "ptzgo" || c == "ptzsave" || c == "ptzmove") {
+            // No PTZ provider is connected yet (Phases 4-5): say so instead of pretending.
+            toast(camLabel + kNoPtz);
         }
+        // ptzstop / ptzzoom / ptzfocus: silent no-ops until a provider exists.
     };
 
     win::WebViewHost::Options opt;
@@ -140,7 +198,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 // Input tiles: half of them per tick (~7.5 fps each) to save CPU.
                 for (int i = static_cast<int>(tick % 2); i < app::Engine::kSourceCount; i += 2)
                     sendFrame(("s" + std::to_string(i)).c_str(), 70);
-                host.postQueued("state", stateJson(engine, vcam, ""));
+                {
+                    int tid; std::string ttxt;
+                    { std::lock_guard lock(toastMutex); tid = toastId; ttxt = toastText; }
+                    host.postQueued("state", stateJson(engine, vcam, tid, ttxt));
+                    const unsigned v = ptzSettings.version();
+                    if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
+                }
                 ++tick;
                 std::this_thread::sleep_until(next);
             }

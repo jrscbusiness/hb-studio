@@ -175,6 +175,57 @@ footer{display:flex;align-items:center;justify-content:space-between;padding:0 2
 footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
 #toast{position:fixed;left:50%;bottom:44px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;transition:.25s;pointer-events:none;box-shadow:0 12px 40px rgba(10,30,71,.35)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- PTZ ---------- */
+.icon{width:30px;height:30px;border-radius:9px;border:1px solid var(--line-2);background:#fff;color:var(--ink-2);font-size:14px;display:grid;place-items:center;transition:.15s}
+.icon:hover{border-color:var(--blue);color:var(--blue);background:var(--mist)}
+.ptzcams{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:8px}
+.ptzcams button{height:28px;border-radius:8px;border:1px solid var(--line);font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2);background:#fff}
+.ptzcams button:hover{border-color:var(--blue-2)}
+.ptzcams button.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 4px 12px rgba(31,107,255,.3)}
+.follow{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-2);cursor:pointer;margin-bottom:12px}
+.follow input,.chk input{display:none}
+.box{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-2);display:grid;place-items:center;background:#fff;flex:none}
+input:checked+.box{background:var(--blue);border-color:var(--blue)}
+input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.ctl{display:flex;gap:14px;align-items:center}
+.dpad{display:grid;grid-template-columns:repeat(3,34px);gap:4px}
+.dpad span{height:34px}
+.dpad button{height:34px;border-radius:10px;border:1px solid var(--line-2);background:#fff;color:var(--ink-2);font-size:12px;transition:.12s}
+.dpad button:hover{border-color:var(--blue);color:var(--blue);background:var(--mist)}
+.dpad button:active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.zf{flex:1;display:flex;flex-direction:column;gap:6px}
+.zrow{display:flex;align-items:center;gap:6px}.zrow .cap{flex:1;font-size:9.5px}
+.zrow button{width:34px;height:28px;border-radius:8px;border:1px solid var(--line-2);background:#fff;color:var(--ink-2);font-weight:700}
+.zrow button.wide{width:74px;font-size:11px}
+.zrow button:hover{border-color:var(--blue);color:var(--blue);background:var(--mist)}
+.presets{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px;max-height:210px;overflow:auto;padding:2px}
+.pre{height:50px;border-radius:10px;border:1px solid var(--line-2);background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;transition:.12s;padding:0 2px;min-width:0}
+.pre b{font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+.pre span{font-size:8.5px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em}
+.pre.named{background:var(--mist);border-color:var(--sky)}
+.pre.named b{color:var(--blue)}.pre.named span{color:var(--ink-2)}
+.pre:hover{border-color:var(--blue);box-shadow:0 4px 14px rgba(31,107,255,.18)}
+.pre:active{transform:translateY(1px)}
+.mode-save .pre{border-style:dashed;border-color:var(--blue-2)}
+.mode-edit .pre{border-color:var(--blue);background:#fff}
+.modal{position:fixed;inset:0;background:rgba(10,30,71,.32);backdrop-filter:blur(5px);display:none;place-items:center;z-index:50}
+.modal.on{display:grid;animation:in .2s ease}
+@keyframes in{from{opacity:0}}
+.sheet{width:640px;max-width:92vw;max-height:92vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 30px 90px rgba(10,30,71,.35);padding:22px 26px}
+.sheet.small{width:420px}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.sh-head h2{font-size:22px;font-weight:600;margin-top:4px}
+.sh-foot{display:flex;gap:10px;margin-top:18px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.span2{grid-column:span 2}
+.sheet label{display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:.06em;color:var(--ink-2);font-weight:600}
+.sheet label em{font-style:normal;font-weight:400;color:var(--muted);font-size:11px;letter-spacing:0;line-height:1.4}
+.sheet input[type=text],.sheet input:not([type]),.sheet input[type=number],.sheet select{height:38px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);background:#fff;outline:none;user-select:text}
+.sheet input:focus,.sheet select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,107,255,.15)}
+.sheet input[type=range]{accent-color:var(--blue);height:38px}
+.checks{display:flex;gap:18px;align-items:flex-end;padding-bottom:8px}
+.chk{flex-direction:row!important;align-items:center;gap:8px!important;cursor:pointer;font-weight:500!important}
 @media (max-height:760px){.keys .key{height:38px}.tiles{gap:8px}}
 </style>
 </head>
@@ -240,6 +291,30 @@ footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
       </div>
 
       <div class="col">
+        <div class="card" id="ptz">
+          <h3><span class="cap">PTZ</span><span class="cap" id="ptz-state" style="color:var(--blue-2)">sem câmera</span>
+            <button class="icon" id="ptz-cfg" title="Configurar PTZ desta câmera">⚙</button></h3>
+          <div class="body">
+            <div class="ptzcams" id="ptz-cams"></div>
+            <label class="follow"><input type="checkbox" id="ptz-follow" checked><span class="box"></span>Seguir o Preview</label>
+            <div class="ctl">
+              <div class="dpad">
+                <span></span><button data-d="up">▲</button><span></span>
+                <button data-d="left">◀</button><button data-d="stop" class="stopb">■</button><button data-d="right">▶</button>
+                <span></span><button data-d="down">▼</button><span></span>
+              </div>
+              <div class="zf">
+                <div class="zrow"><span class="cap">Zoom</span><button data-z="out">−</button><button data-z="in">+</button></div>
+                <div class="zrow"><span class="cap">Foco</span><button data-f="near">−</button><button data-f="far">+</button></div>
+                <div class="zrow"><span class="cap">Auto</span><button data-f="auto" class="wide">AF</button></div>
+              </div>
+            </div>
+            <div class="cap" style="margin:14px 0 6px">Presets</div>
+            <div class="seg" id="ptz-mode"><button data-m="go" class="on">IR PARA</button><button data-m="save">SALVAR</button><button data-m="edit">EDITAR</button></div>
+            <div class="presets" id="presets"></div>
+            <p class="note" id="ptz-note" style="margin-top:10px"></p>
+          </div>
+        </div>
         <div class="card">
           <h3><span class="cap">Saída · Câmera virtual</span></h3>
           <div class="body">
@@ -261,13 +336,6 @@ footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
             <div class="meter"><i id="s-meter"></i></div>
             <div class="row" style="margin-top:6px"><span class="k">Quadros pulados</span><span class="v" id="s-skip">0</span></div>
             <div class="row"><span class="k">Câmera virtual</span><span class="v" id="s-vsent">0 quadros</span></div>
-          </div>
-        </div>
-        <div class="card">
-          <h3><span class="cap">PTZ</span><span class="cap" style="color:var(--blue-2)">aguardando câmera</span></h3>
-          <div class="body">
-            <div class="ptzrow"><div class="ptz"><span></span><span>▲</span><span></span><span>◀</span><span>■</span><span>▶</span><span></span><span>▼</span><span></span></div>
-            <p class="note">Disponível quando uma câmera ONVIF for conectada (Fases 4–5).</p></div>
           </div>
         </div>
         <div class="card">
@@ -321,6 +389,38 @@ footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
     <span>HB STUDIO <b id="ver">0.2</b> · fontes de vídeo: <b>TESTE</b></span>
   </footer>
 </div>
+<div id="modal" class="modal"><div class="sheet" id="cfg-sheet">
+  <div class="sh-head"><div><span class="cap">Configurar PTZ</span><h2 id="cfg-title">CAM 1</h2></div><button class="icon" id="cfg-x">✕</button></div>
+  <div class="grid2">
+    <label>Protocolo de controle
+      <select id="f-proto">
+        <option value="onvif">ONVIF (recomendado)</option>
+        <option value="visca-ip">VISCA sobre IP (UDP)</option>
+        <option value="visca-serial">VISCA serial (conversor serial↔IP)</option>
+        <option value="pelco-d">Pelco-D (conversor serial↔IP)</option>
+        <option value="pelco-p">Pelco-P (conversor serial↔IP)</option>
+      </select></label>
+    <label>Endereço IP da câmera<input id="f-host" placeholder="192.168.15.100" spellcheck="false"></label>
+    <label>Porta<input id="f-port" type="number" min="0" max="65535"><em id="f-portnote"></em></label>
+    <label>Endereço (VISCA 1–7 · Pelco 1–255)<input id="f-addr" type="number" min="1" max="255"></label>
+    <label>Quantidade de presets
+      <select id="f-slots"><option>10</option><option>16</option><option>32</option><option>64</option></select></label>
+    <label>Numeração na câmera
+      <select id="f-base"><option value="1">Começa em 1 (padrão)</option><option value="0">Começa em 0</option></select></label>
+    <label class="span2">Onde guardar a posição
+      <select id="f-store"><option value="camera">Na memória da câmera (recomendado)</option><option value="software">No HB Studio (câmeras sem memória confiável)</option></select>
+      <em>“No HB Studio” grava a posição (pan/tilt/zoom) no programa e a reaplica ao chamar o preset; exige que a câmera informe a posição atual.</em></label>
+    <label>Velocidade padrão <b id="f-speedv" class="mono"></b><input id="f-speed" type="range" min="1" max="100"></label>
+    <div class="checks"><label class="chk"><input type="checkbox" id="f-ipan"><span class="box"></span>Inverter Pan</label><label class="chk"><input type="checkbox" id="f-itilt"><span class="box"></span>Inverter Tilt</label></div>
+  </div>
+  <p class="note" style="margin-top:12px">Credenciais (usuário/senha) serão guardadas no Cofre do Windows quando a conexão PTZ real for ativada (Fases 4–5) — nunca neste arquivo.</p>
+  <div class="sh-foot"><button class="btn sm" id="cfg-all">APLICAR A TODAS AS CÂMERAS</button><span style="flex:1"></span><button class="btn sm" id="cfg-cancel">CANCELAR</button><button class="btn primary sm" id="cfg-save" style="flex:none">SALVAR</button></div>
+</div></div>
+<div id="modal2" class="modal"><div class="sheet small">
+  <div class="sh-head"><div><span class="cap" id="nm-cap">Preset</span><h2 id="nm-title">1</h2></div><button class="icon" id="nm-x">✕</button></div>
+  <label>Nome do preset<input id="nm-input" maxlength="24" placeholder="Ex.: Altar, Púlpito, Louvor" spellcheck="false"></label>
+  <div class="sh-foot"><button class="btn sm" id="nm-clear">LIMPAR</button><span style="flex:1"></span><button class="btn sm" id="nm-cancel">CANCELAR</button><button class="btn primary sm" id="nm-ok" style="flex:none">OK</button></div>
+</div></div>
 <div id="toast"></div>
 
 <script>
@@ -361,11 +461,111 @@ footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
   }));
   addEventListener('keydown', e => {
     if (e.repeat) return;
+    if (document.querySelector('.modal.on') || /INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) {
+      if (e.key === 'Escape') closeModals();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && /^Digit[0-9]$/.test(e.code || '')) {   // Ctrl+1..0 = PTZ preset 1..10
+      e.preventDefault();
+      const slot = e.code === 'Digit0' ? 9 : +e.code.slice(5) - 1;
+      send(e.shiftKey || mode === 'save' ? 'ptzsave' : 'ptzgo', ptzCam, slot);
+      return;
+    }
     if (e.key >= '1' && e.key <= '8') { send(e.shiftKey ? 'program' : 'preview', +e.key - 1); }
     else if (e.code && /^Digit[1-8]$/.test(e.code)) { send(e.shiftKey ? 'program' : 'preview', +e.code.slice(5) - 1); }
     else if (e.code === 'Space') { e.preventDefault(); send('cut'); }
     else if (e.code === 'Enter') { send('dissolve', duration); }
   });
+
+
+  // ---------- PTZ + presets ----------
+  let ptz = null, ptzCam = 0, mode = 'go', lastPvw = -1;
+  const DEF_PORT = {onvif: 80, 'visca-ip': 52381};
+  const camsEl = $('#ptz-cams');
+  for (let i = 0; i < N; i++) {
+    const b = document.createElement('button'); b.textContent = i + 1;
+    b.onclick = () => { $('#ptz-follow').checked = false; ptzCam = i; renderPtz(); };
+    camsEl.appendChild(b);
+  }
+  $('#ptz-follow').onchange = () => { if ($('#ptz-follow').checked && lastPvw >= 0) { ptzCam = lastPvw; renderPtz(); } };
+  $$('#ptz-mode button').forEach(b => b.onclick = () => {
+    mode = b.dataset.m; $$('#ptz-mode button').forEach(x => x.classList.toggle('on', x === b)); renderPtz();
+  });
+  const camCfg = () => ptz && ptz.cams[ptzCam];
+  function renderPtz() {
+    const c = camCfg(); if (!c) return;
+    $$('#ptz-cams button').forEach((b, i) => b.classList.toggle('on', i === ptzCam));
+    $('#ptz-state').textContent = c.connected ? 'CONECTADA' : 'SEM CÂMERA PTZ';
+    const box = $('#presets'); box.className = 'presets mode-' + mode; box.innerHTML = '';
+    c.names.forEach((nm, i) => {
+      const b = document.createElement('button'); b.className = 'pre' + (nm ? ' named' : '');
+      const n = document.createElement('b'); n.textContent = i + c.base;
+      const l = document.createElement('span'); l.textContent = nm || '—';
+      b.append(n, l); b.title = (nm || 'Preset ' + (i + c.base)) + (i < 10 ? '  ·  Ctrl+' + ((i + 1) % 10) : '');
+      b.onclick = () => presetClick(i);
+      box.appendChild(b);
+    });
+    const hint = {go: 'Clique chama o preset (Ctrl+1…0).', save: 'Clique grava a posição atual da câmera no preset (Ctrl+Shift+1…0).', edit: 'Clique para dar nome ou limpar o preset.'}[mode];
+    $('#ptz-note').textContent = hint + (c.connected ? '' : ' Sem câmera PTZ conectada (Fases 4–5): nomes e configurações já ficam salvos.');
+  }
+  function presetClick(i) {
+    if (mode === 'go') send('ptzgo', ptzCam, i);
+    else if (mode === 'save') send('ptzsave', ptzCam, i);
+    else openName(i);
+  }
+  const hold = (el, down, up) => {
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); down(); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, () => { if (el._on) { el._on = false; up(); } }));
+    el.addEventListener('pointerdown', () => { el._on = true; });
+  };
+  $$('.dpad button').forEach(b => {
+    if (b.dataset.d === 'stop') { b.onclick = () => send('ptzstop', ptzCam); return; }
+    hold(b, () => send('ptzmove', ptzCam, b.dataset.d), () => send('ptzstop', ptzCam));
+  });
+  $$('.zrow button[data-z]').forEach(b => hold(b, () => send('ptzzoom', ptzCam, b.dataset.z), () => send('ptzzoom', ptzCam, 'stop')));
+  $$('.zrow button[data-f]').forEach(b => {
+    if (b.dataset.f === 'auto') b.onclick = () => send('ptzfocus', ptzCam, 'auto');
+    else hold(b, () => send('ptzfocus', ptzCam, b.dataset.f), () => send('ptzfocus', ptzCam, 'stop'));
+  });
+
+  // config sheet
+  const closeModals = () => $$('.modal').forEach(m => m.classList.remove('on'));
+  const portNote = () => { const p = $('#f-proto').value; const d = DEF_PORT[p];
+    $('#f-port').placeholder = d ? String(d) : 'porta do conversor';
+    $('#f-portnote').textContent = d ? 'Vazio ou 0 = padrão (' + d + ')' : 'Informe a porta TCP do conversor serial↔IP'; };
+  $('#f-proto').onchange = portNote;
+  $('#f-speed').oninput = () => $('#f-speedv').textContent = $('#f-speed').value;
+  $('#ptz-cfg').onclick = () => {
+    const c = camCfg(); if (!c) return;
+    $('#cfg-title').textContent = 'CAM ' + (ptzCam + 1);
+    $('#f-proto').value = c.protocol; $('#f-host').value = c.host; $('#f-port').value = c.port || '';
+    $('#f-addr').value = c.address; $('#f-slots').value = String(c.slots); $('#f-base').value = String(c.base);
+    $('#f-store').value = c.storage; $('#f-speed').value = c.speed; $('#f-speedv').textContent = c.speed;
+    $('#f-ipan').checked = c.invPan; $('#f-itilt').checked = c.invTilt;
+    portNote(); $('#modal').classList.add('on');
+  };
+  const readCfg = () => JSON.stringify({protocol: $('#f-proto').value, host: $('#f-host').value.trim(), port: +$('#f-port').value || 0,
+    address: +$('#f-addr').value || 1, slots: +$('#f-slots').value, base: +$('#f-base').value, storage: $('#f-store').value,
+    speed: +$('#f-speed').value, invPan: $('#f-ipan').checked, invTilt: $('#f-itilt').checked});
+  $('#cfg-save').onclick = () => { send('ptzcfg', ptzCam, readCfg()); closeModals(); };
+  $('#cfg-all').onclick = () => { send('ptzall', readCfg()); closeModals(); };
+  $('#cfg-cancel').onclick = $('#cfg-x').onclick = closeModals;
+
+  // preset name sheet
+  let nameSlot = 0;
+  function openName(i) {
+    const c = camCfg(); nameSlot = i;
+    $('#nm-cap').textContent = 'CAM ' + (ptzCam + 1) + ' · Preset';
+    $('#nm-title').textContent = String(i + c.base);
+    $('#nm-input').value = c.names[i] || ''; $('#modal2').classList.add('on');
+    setTimeout(() => $('#nm-input').focus(), 30);
+  }
+  const saveName = v => { send('ptzname', ptzCam, nameSlot, v); closeModals(); };
+  $('#nm-ok').onclick = () => saveName($('#nm-input').value);
+  $('#nm-clear').onclick = () => saveName('');
+  $('#nm-cancel').onclick = $('#nm-x').onclick = closeModals;
+  $('#nm-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveName($('#nm-input').value); });
+  $$('.modal').forEach(m => m.addEventListener('mousedown', e => { if (e.target === m) closeModals(); }));
 
   // ---------- frames ----------
   const imgs = {};
@@ -379,8 +579,10 @@ footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
   // ---------- state ----------
   const pad = n => String(n).padStart(2, '0');
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 3200); }
-  let lastMsg = '';
+  let lastMsg = -1;
   function render(s) {
+    lastPvw = s.pvw;
+    if ($('#ptz-follow').checked && ptzCam !== s.pvw) { ptzCam = s.pvw; renderPtz(); }
     $$('.tile').forEach(t => { const i = +t.dataset.i; t.classList.toggle('pgm', i === s.pgm); t.classList.toggle('pvw', i === s.pvw); t.querySelector('.tally').textContent = i === s.pgm ? 'PGM' : 'PVW'; });
     $$('#bus-pgm .key').forEach(k => k.classList.toggle('pgm', +k.dataset.i === s.pgm));
     $$('#bus-pvw .key').forEach(k => k.classList.toggle('pvw', +k.dataset.i === s.pvw));
@@ -423,12 +625,12 @@ footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
 
     const lg = $('#log'); lg.innerHTML = '';
     (s.log || []).slice(-9).forEach(l => { const d = document.createElement('div'); d.textContent = l.t; if (l.l === 'WARNING') d.className = 'w'; if (l.l === 'ERROR' || l.l === 'CRITICAL') d.className = 'e'; lg.appendChild(d); });
-    if (s.toast && s.toast !== lastMsg) { lastMsg = s.toast; toast(s.toast); }
+    if (s.toast && s.toast.id !== lastMsg) { lastMsg = s.toast.id; toast(s.toast.text); }
   }
 
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
-    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d);
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
   window.__hbMessage = onMsg;   // used by the design preview harness

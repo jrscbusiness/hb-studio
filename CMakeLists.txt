@@ -11,6 +11,7 @@ option(HB_BUILD_TOOLS "Build command line tools" ON)
 # Static MSVC runtime everywhere: the virtual camera DLL is loaded by a system
 # service and must not depend on a VC++ redistributable being installed.
 if(MSVC)
+  add_compile_options(/utf-8)   # sources contain UTF-8 (pt-BR) literals
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
@@ -26,6 +27,7 @@ add_library(hb_core STATIC
   src/video/synthetic_source.cpp
   src/switcher/switcher.cpp
   src/app/engine.cpp
+  src/app/ptz_settings.cpp
 )
 target_include_directories(hb_core PUBLIC src)
 target_link_libraries(hb_core PUBLIC Threads::Threads)
@@ -123,7 +125,8 @@ if(HB_BUILD_TESTS)
     tests/hardware_profile_test.cpp
     tests/program_output_test.cpp
     tests/switcher_test.cpp
-    tests/engine_test.cpp)
+    tests/engine_test.cpp
+    tests/ptz_settings_test.cpp)
   target_link_libraries(hb_tests PRIVATE hb_core GTest::gtest_main)
   include(GoogleTest)
   gtest_discover_tests(hb_tests)

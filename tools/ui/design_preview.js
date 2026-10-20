@@ -21,7 +21,11 @@ const [,, html, out, view] = process.argv;
       tier: 'MEDIUM', cores: 8, ramGiB: 16, srcRec: 8, srcMax: 10,
       vcam: { supported: true, installed: true, active: true, connected: true, busy: false, sent: 4210, message: '' },
       log: [{ t: '16:20:01 [INFO] [engine] perfil MEDIUM, 8 núcleos', l: 'INFO' }, { t: '16:20:01 [INFO] [program] program.started', l: 'INFO' }, { t: '16:20:09 [INFO] [switcher] switcher.programChanged pvw=0 pgm=1', l: 'INFO' }] });
-    if (view) document.querySelector(`#tabs button[data-v=${view}]`).click();
+    const names = ['Altar','Púlpito','Louvor','Banda','Plateia','','Batismo','','Coral','Entrada'];
+    window.__hbMessage({ t: 'ptz', cams: Array.from({length: 8}, (_, i) => ({ protocol: 'onvif', host: '192.168.15.10' + i, port: 0, address: 1, slots: 10, base: 1, storage: 'camera', speed: 50, invPan: false, invTilt: false, defPort: 80, connected: false, names }))});
+    if (view === 'modal') document.querySelector('#ptz-cfg').click();
+    else if (view === 'edit') { document.querySelector('#ptz-mode button[data-m=edit]').click(); }
+    else if (view) document.querySelector(`#tabs button[data-v=${view}]`).click();
   }, view);
   await p.waitForTimeout(400);
   await p.screenshot({ path: out });
