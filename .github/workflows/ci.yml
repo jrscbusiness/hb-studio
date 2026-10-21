@@ -31,6 +31,13 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: UI interaction tests (real browser, clicks + 15 Hz state feed)
+        if: runner.os == 'Linux'
+        working-directory: tools/ui
+        run: |
+          npm install playwright-core@1.49.1 --no-save --no-audit --no-fund
+          CHROME="$(command -v google-chrome || command -v chromium-browser || command -v chromium)" node ui_test.js ../../ui/index.html
+
       - name: Virtual camera self-test (loads the DLL in-process)
         if: runner.os == 'Windows'
         shell: pwsh

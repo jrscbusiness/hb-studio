@@ -168,9 +168,10 @@ kbd{font-family:var(--mono);font-size:9.5px;background:rgba(255,255,255,.22);bor
 .empty p{color:var(--ink-2);line-height:1.6}
 .phase{display:inline-block;margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--blue);background:var(--mist);padding:4px 12px;border-radius:999px}
 #v-cfg{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-content:start}
-table.pre{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
-table.pre td{padding:6px 4px;border-bottom:1px dashed var(--line)}
-table.pre td:last-child{text-align:right;color:var(--blue);font-weight:600}
+table.fmt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
+table.fmt td{padding:6px 4px;border-bottom:1px dashed var(--line)}
+table.fmt tr:last-child td{border-bottom:0}
+table.fmt td:last-child{text-align:right;color:var(--blue);font-weight:600}
 
 footer{display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-top:1px solid var(--line);color:var(--muted);font-size:10.5px;letter-spacing:.08em;background:rgba(255,255,255,.6)}
 footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
@@ -422,7 +423,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
           <div class="row"><span class="k">Fontes recomendadas / máximo</span><span class="v" id="g-src">—</span></div>
         </div></div>
       <div class="card"><h3><span class="cap">Formatos de saída comuns</span></h3>
-        <div class="body"><table class="pre">
+        <div class="body"><table class="fmt">
           <tr><td>720p30</td><td>1280×720 · 30</td></tr><tr><td>720p60</td><td>1280×720 · 60</td></tr>
           <tr><td>1080p25</td><td>1920×1080 · 25</td></tr><tr><td><b>1080p30</b> (ativo)</td><td>1920×1080 · 30</td></tr>
           <tr><td>1080p60</td><td>1920×1080 · 60</td></tr><tr><td>2160p30 (4K)</td><td>3840×2160 · 30</td></tr>
@@ -652,7 +653,22 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
       box.appendChild(r);
     }
   }
-  $('#dev-refresh').onclick = () => { devs = null; renderDevices(); send('devrefresh'); };
+  // Redraw only when the data really changed, and never between mouse-down and mouse-up: replacing
+  // a button while it is being clicked cancels the click (this is what made "assign to CAM n" fail).
+  let listSig = '', pointerDown = false, listPending = false;
+  const drawLists = () => { renderSlots(); renderDevices(); };
+  function renderLists(force) {
+    const sig = JSON.stringify([slots.map(x => x && [x.k, x.st, x.name, x.id, x.w, x.h, Math.round(x.fps || 0), x.msg]), devs]);
+    if (!force && sig === listSig) return;
+    if (pointerDown) { listPending = true; return; }
+    listSig = sig; listPending = false; drawLists();
+  }
+  const releasePointer = () => { pointerDown = false; if (listPending) renderLists(true); };
+  addEventListener('pointerdown', () => { pointerDown = true; }, true);
+  addEventListener('pointerup', () => setTimeout(releasePointer, 0), true);
+  addEventListener('pointercancel', releasePointer, true);
+  addEventListener('blur', releasePointer);
+  $('#dev-refresh').onclick = () => { devs = null; renderLists(true); send('devrefresh'); };
   $$('#tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.v === 'cam') { send('devrefresh'); } }));
 
   // ---------- frames ----------
@@ -684,7 +700,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
       $('#pgm-res').textContent = hud(s.pgm) + ' → 1920×1080 · ' + s.target + ' fps';
       const nd = s.slots.filter(x => x.k === 'dev').length;
       $('#foot-src').textContent = nd ? nd + ' dispositivo(s) · ' + (8 - nd) + ' teste' : 'TESTE';
-      renderSlots(); renderDevices();
+      renderLists();
     }
     lastPvw = s.pvw;
     if ($('#ptz-follow').checked && ptzCam !== s.pvw) { ptzCam = s.pvw; renderPtz(); }
@@ -738,7 +754,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid #fff;bord
 
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
-    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderDevices(); }
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
   window.__hbMessage = onMsg;   // used by the design preview harness
