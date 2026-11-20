@@ -22,6 +22,10 @@ add_library(hb_core STATIC
   src/core/redact.cpp
   src/core/logger.cpp
   src/core/clock.cpp
+  src/core/json.cpp
+  src/core/sha256.cpp
+  src/audio/effect.cpp
+  src/recording/writer_registry.cpp
   src/core/hardware_profile.cpp
   src/video/program_output.cpp
   src/video/synthetic_source.cpp
@@ -124,6 +128,7 @@ if(HB_BUILD_TESTS)
     tests/redact_test.cpp
     tests/logger_test.cpp
     tests/clock_test.cpp
+    tests/json_sha_test.cpp
     tests/hardware_profile_test.cpp
     tests/program_output_test.cpp
     tests/switcher_test.cpp

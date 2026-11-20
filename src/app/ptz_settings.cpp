@@ -1,5 +1,7 @@
 #include "app/ptz_settings.hpp"
 
+#include "core/json.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -14,154 +16,9 @@ namespace hb::app {
 
 namespace {
 
-// ------------------------------------------------------------------ mini JSON
-struct Json {
-    enum class T { Null, Bool, Num, Str, Arr, Obj } t = T::Null;
-    bool b = false;
-    double n = 0;
-    std::string s;
-    std::vector<Json> a;
-    std::map<std::string, Json> o;
-};
-
-class Parser {
-public:
-    explicit Parser(const std::string& s) : s_(s) {}
-    bool parse(Json& out) {
-        ws();
-        if (!value(out, 0)) return false;
-        ws();
-        return i_ == s_.size();
-    }
-
-private:
-    void ws() { while (i_ < s_.size() && (s_[i_] == ' ' || s_[i_] == '\t' || s_[i_] == '\n' || s_[i_] == '\r')) ++i_; }
-    bool lit(const char* w) {
-        const std::size_t n = std::char_traits<char>::length(w);
-        if (s_.compare(i_, n, w) != 0) return false;
-        i_ += n;
-        return true;
-    }
-    static void utf8(std::string& o, unsigned cp) {
-        if (cp < 0x80) o += static_cast<char>(cp);
-        else if (cp < 0x800) { o += static_cast<char>(0xC0 | (cp >> 6)); o += static_cast<char>(0x80 | (cp & 0x3F)); }
-        else { o += static_cast<char>(0xE0 | (cp >> 12)); o += static_cast<char>(0x80 | ((cp >> 6) & 0x3F)); o += static_cast<char>(0x80 | (cp & 0x3F)); }
-    }
-    bool str(std::string& out) {
-        if (i_ >= s_.size() || s_[i_] != '"') return false;
-        ++i_;
-        while (i_ < s_.size()) {
-            char c = s_[i_++];
-            if (c == '"') return true;
-            if (c != '\\') { out += c; continue; }
-            if (i_ >= s_.size()) return false;
-            char e = s_[i_++];
-            switch (e) {
-                case '"': out += '"'; break;
-                case '\\': out += '\\'; break;
-                case '/': out += '/'; break;
-                case 'n': out += '\n'; break;
-                case 'r': out += '\r'; break;
-                case 't': out += '\t'; break;
-                case 'b': out += '\b'; break;
-                case 'f': out += '\f'; break;
-                case 'u': {
-                    if (i_ + 4 > s_.size()) return false;
-                    unsigned cp = 0;
-                    for (int k = 0; k < 4; ++k) {
-                        const char h = s_[i_++];
-                        cp <<= 4;
-                        if (h >= '0' && h <= '9') cp |= static_cast<unsigned>(h - '0');
-                        else if (h >= 'a' && h <= 'f') cp |= static_cast<unsigned>(h - 'a' + 10);
-                        else if (h >= 'A' && h <= 'F') cp |= static_cast<unsigned>(h - 'A' + 10);
-                        else return false;
-                    }
-                    utf8(out, cp);
-                    break;
-                }
-                default: return false;
-            }
-        }
-        return false;
-    }
-    bool value(Json& v, int depth) {
-        if (depth > 16 || i_ >= s_.size()) return false;  // bounded recursion: hostile input safe
-        const char c = s_[i_];
-        if (c == '{') {
-            ++i_; v.t = Json::T::Obj; ws();
-            if (i_ < s_.size() && s_[i_] == '}') { ++i_; return true; }
-            for (;;) {
-                ws();
-                std::string k;
-                if (!str(k)) return false;
-                ws();
-                if (i_ >= s_.size() || s_[i_++] != ':') return false;
-                ws();
-                Json c2;
-                if (!value(c2, depth + 1)) return false;
-                v.o[k] = std::move(c2);
-                ws();
-                if (i_ >= s_.size()) return false;
-                if (s_[i_] == ',') { ++i_; continue; }
-                if (s_[i_] == '}') { ++i_; return true; }
-                return false;
-            }
-        }
-        if (c == '[') {
-            ++i_; v.t = Json::T::Arr; ws();
-            if (i_ < s_.size() && s_[i_] == ']') { ++i_; return true; }
-            for (;;) {
-                ws();
-                Json c2;
-                if (!value(c2, depth + 1)) return false;
-                v.a.push_back(std::move(c2));
-                if (v.a.size() > 4096) return false;
-                ws();
-                if (i_ >= s_.size()) return false;
-                if (s_[i_] == ',') { ++i_; continue; }
-                if (s_[i_] == ']') { ++i_; return true; }
-                return false;
-            }
-        }
-        if (c == '"') { v.t = Json::T::Str; return str(v.s); }
-        if (lit("true")) { v.t = Json::T::Bool; v.b = true; return true; }
-        if (lit("false")) { v.t = Json::T::Bool; v.b = false; return true; }
-        if (lit("null")) { v.t = Json::T::Null; return true; }
-        // number
-        const std::size_t st = i_;
-        if (s_[i_] == '-') ++i_;
-        while (i_ < s_.size() && (std::isdigit(static_cast<unsigned char>(s_[i_])) || s_[i_] == '.' || s_[i_] == 'e' || s_[i_] == 'E' || s_[i_] == '+' || s_[i_] == '-')) ++i_;
-        if (i_ == st) return false;
-        char* end = nullptr;
-        v.n = std::strtod(s_.substr(st, i_ - st).c_str(), &end);
-        v.t = Json::T::Num;
-        return true;
-    }
-    const std::string& s_;
-    std::size_t i_ = 0;
-};
-
-std::string esc(const std::string& s) {
-    std::string o;
-    for (unsigned char c : s) {
-        switch (c) {
-            case '"': o += "\\\""; break;
-            case '\\': o += "\\\\"; break;
-            case '\n': o += "\\n"; break;
-            case '\r': o += "\\r"; break;
-            case '\t': o += "\\t"; break;
-            default:
-                if (c < 0x20) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); o += b; }
-                else o += static_cast<char>(c);
-        }
-    }
-    return o;
-}
-
-const Json* get(const Json& o, const char* k) {
-    auto it = o.o.find(k);
-    return it == o.o.end() ? nullptr : &it->second;
-}
+using Json = hb::core::json::Value;
+std::string esc(const std::string& s) { return hb::core::json::escape(s); }
+const Json* get(const Json& o, const char* k) { return o.get(k); }
 
 std::string cleanName(const std::string& in) {
     std::string o;
@@ -286,7 +143,7 @@ std::string PtzSettings::toJson() const {
 
 bool PtzSettings::fromJson(const std::string& json) {
     Json root;
-    if (!Parser(json).parse(root) || root.t != Json::T::Obj) return false;
+    if (!hb::core::json::parse(json, root) || root.t != Json::T::Obj) return false;
     auto* cams = get(root, "cameras");
     if (!cams || cams->t != Json::T::Arr) return false;
     std::array<PtzCameraConfig, kCameras> cfg{};
@@ -309,7 +166,7 @@ bool PtzSettings::fromJson(const std::string& json) {
 
 bool PtzSettings::parseConfig(const std::string& json, PtzCameraConfig& out) {
     Json root;
-    if (!Parser(json).parse(root) || root.t != Json::T::Obj) return false;
+    if (!hb::core::json::parse(json, root) || root.t != Json::T::Obj) return false;
     PtzCameraConfig c;
     readConfig(root, c);
     out = sanitize(c);
