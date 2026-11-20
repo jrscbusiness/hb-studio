@@ -61,6 +61,56 @@ bool hasEncoder(const GUID& category, const GUID& majorType, const GUID& subtype
     return SUCCEEDED(hr) && n > 0;
 }
 
+// Finds the exact PCM input type a standalone instance of the encoder that produces
+// `desiredOutput` actually wants, by asking the encoder itself — instead of a SinkWriter stream,
+// which only exposes its internal transform (IMFSinkWriterEx::GetTransformForStream) from inside
+// a WriteSample call, long after the input type must already have been chosen. Configures a throw-
+// away MFT instance with SetOutputType(desiredOutput) (so it picks the matching input layout for
+// our rate/bitrate/channels) and reads back its GetInputAvailableType(0, 0, ...); the rate/channel
+// count are reapplied in case the encoder's answer is generic. Returns false (leaving `error` with
+// every step's HRESULT) if no encoder, activation, output negotiation, or input type is available.
+bool discoverPcmInputType(const GUID& category, IMFMediaType* desiredOutput, UINT32 rate, UINT32 ch,
+                          ComPtr<IMFMediaType>& outType, std::string& error) {
+    GUID subtype{};
+    desiredOutput->GetGUID(MF_MT_SUBTYPE, &subtype);
+    MFT_REGISTER_TYPE_INFO outInfo{MFMediaType_Audio, subtype};
+    IMFActivate** acts = nullptr;
+    UINT32 n = 0;
+    HRESULT hr = MFTEnumEx(category, MFT_ENUM_FLAG_ALL, nullptr, &outInfo, &acts, &n);
+    if (FAILED(hr) || n == 0) {
+        error = "nenhum codificador encontrado na enumeração";
+        if (acts) CoTaskMemFree(acts);
+        return false;
+    }
+    bool ok = false;
+    for (UINT32 i = 0; i < n && !ok; ++i) {
+        ComPtr<IMFTransform> mft;
+        hr = acts[i]->ActivateObject(IID_PPV_ARGS(&mft));
+        if (SUCCEEDED(hr)) {
+            hr = mft->SetOutputType(0, desiredOutput, 0);
+            if (SUCCEEDED(hr)) {
+                ComPtr<IMFMediaType> in;
+                hr = mft->GetInputAvailableType(0, 0, &in);
+                if (SUCCEEDED(hr)) {
+                    in->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
+                    in->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
+                    outType = in;
+                    ok = true;
+                }
+            }
+        }
+        if (!ok) {
+            char b[64];
+            std::snprintf(b, sizeof b, "ativar/configurar MFT #%u falhou: 0x%08lX", i, static_cast<unsigned long>(hr));
+            if (!error.empty()) error += "; ";
+            error += b;
+        }
+        acts[i]->Release();
+    }
+    CoTaskMemFree(acts);
+    return ok;
+}
+
 // The Windows AAC encoder only accepts these average byte rates for 44.1/48 kHz stereo.
 UINT32 aacBytesPerSecond(int kbps) {
     static const int allowed[] = {96, 128, 160, 192};
@@ -270,12 +320,16 @@ private:
         HRESULT hr = sw_->AddStream(out.Get(), &aStream_);
         if (FAILED(hr)) { error = hrText("codificador de áudio indisponível neste computador", hr); return false; }
 
-        // Ask the encoder itself what PCM input it wants, instead of guessing: SinkWriter picked a
-        // concrete encoder MFT when AddStream() succeeded above, and (Win8+) IMFSinkWriterEx can
-        // hand us that very IMFTransform. Its own GetInputAvailableType() is the one shape every
-        // encoder is guaranteed to accept (with our rate/channels set on it) — some in-box
-        // encoders (the MP3 one wraps a legacy ACM codec) reject an otherwise-reasonable, hand
-        // built PCM type that the AAC encoder accepts without complaint.
+        // Ask the encoder itself what PCM input it wants, instead of guessing. IMFSinkWriterEx::
+        // GetTransformForStream looked like the sanctioned way to reach the actual encoder
+        // IMFTransform AddStream() picked, but it turns out to only be usable from *inside* a
+        // WriteSample call (confirmed on CI: it fails immediately here, before BeginWriting, with
+        // MF_E_ATTRIBUTENOTFOUND-adjacent 0xC00D36BF) — it is meant for introspecting an already-
+        // configured stream, not for discovering the input type in the first place. So activate a
+        // throwaway instance of the SAME encoder MFT ourselves (discoverPcmInputType), configure
+        // its output to exactly what we are asking the SinkWriter for, and read back the input
+        // type it then reports. This is the standard, documented way to learn an MFT's accepted
+        // input for a given output, and does not depend on the SinkWriter's internal state at all.
         HRESULT last = E_FAIL;
         std::string diag;   // every attempt's outcome, so a failure is diagnosable from CI logs alone
         auto note = [&](const char* what, HRESULT h) {
@@ -283,33 +337,19 @@ private:
             std::snprintf(b, sizeof b, "%s=0x%08lX ", what, static_cast<unsigned long>(h));
             diag += b;
         };
-        ComPtr<IMFSinkWriterEx> swEx;
-        const HRESULT hrAs = sw_.As(&swEx);
-        note("AsEx", hrAs);
-        if (SUCCEEDED(hrAs)) {
-            ComPtr<IMFTransform> mft;
-            GUID category{};
-            const HRESULT hrXform = swEx->GetTransformForStream(aStream_, 0, &category, &mft);
-            note("GetTransform", hrXform);
-            if (SUCCEEDED(hrXform)) {
-                DWORD idx = 0;
-                for (; idx < 16; ++idx) {
-                    ComPtr<IMFMediaType> t;
-                    const HRESULT hrAvail = mft->GetInputAvailableType(0, idx, &t);
-                    if (FAILED(hrAvail)) { note("AvailEnd", hrAvail); break; }
-                    GUID major{};
-                    t->GetGUID(MF_MT_MAJOR_TYPE, &major);
-                    if (major != MFMediaType_Audio) continue;
-                    t->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
-                    t->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
-                    last = sw_->SetInputMediaType(aStream_, t.Get(), nullptr);
-                    note(("Xform" + std::to_string(idx)).c_str(), last);
-                    if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
-                }
+        {
+            ComPtr<IMFMediaType> discovered;
+            std::string derr;
+            if (discoverPcmInputType(MFT_CATEGORY_AUDIO_ENCODER, out.Get(), rate, ch, discovered, derr)) {
+                last = sw_->SetInputMediaType(aStream_, discovered.Get(), nullptr);
+                note("Discovered", last);
+                if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
+            } else {
+                diag += "Discover=[" + derr + "] ";
             }
         }
-        // Fallback for anything that doesn't support IMFSinkWriterEx / GetTransformForStream, or
-        // whose enumerated type the loop above could not adapt: a few hand-built PCM shapes.
+        // Fallback for anything the probe above could not discover or that the SinkWriter still
+        // rejects: a few hand-built PCM shapes.
         {
             auto makeIn = [&](bool blockAlign, bool preferWfx) {
                 ComPtr<IMFMediaType> t;
