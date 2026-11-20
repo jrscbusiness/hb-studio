@@ -20,6 +20,24 @@
 //     per-symbol GetProcAddress/dlsym loading strategy used here (as an alternative to NDI's own
 //     documented single `NDIlib_vX_load()` entry point, which returns a table of the very same
 //     function pointers) and the `NDI_RUNTIME_DIR_V6` / `NDI_RUNTIME_DIR_V5` environment variables.
+//   - https://docs.ndi.video/all/developing-with-ndi/sdk/sending-video-and-metadata (sending side:
+//     confirms `NDIlib_send_create`/`NDIlib_send_send_video_v2`/`NDIlib_send_destroy` as the
+//     documented minimal send path, that NDI has native BGRA support, that
+//     `NDIlib_send_send_video_v2` is synchronous -- it is documented to only return once NDI is
+//     done with the frame's buffer, which is exactly the lifetime this backend needs since the
+//     caller, `NdiSender::feed()` in sender.cpp, only guarantees the buffer is valid for the
+//     duration of that one call -- and the `picture_aspect_ratio == 0` / `timecode ==
+//     NDIlib_send_timecode_synthesize` conventions used below). The documented alternative,
+//     `NDIlib_send_send_video_async_v2`, is NOT used here: its contract requires the buffer to stay
+//     valid until the *next* send call (or an explicit sync), which `NdiSender`'s caller (the
+//     Program Output's own render/consumer thread, per ndi.hpp's doc comment on `NdiSender`) cannot
+//     promise -- using it would risk a use-after-free on whatever buffer the next Program frame
+//     reuses. The synchronous call is the only one whose buffer-lifetime contract matches what
+//     `sendVideo()` actually receives.
+//   - https://docs.rs/ndi-sys (see above): cross-checked the `NDIlib_send_create_t` field order
+//     (`p_ndi_name`, `p_groups`, `clock_video`, `clock_audio`) and the
+//     `NDIlib_frame_format_type_progressive == 1` / `NDIlib_send_timecode_synthesize == INT64_MAX`
+//     constants used below.
 //
 // No code or comments from any of the above were copied; only the (factual, non-copyrightable) ABI
 // shapes -- field names/order/types and exported symbol names -- were reconstructed from them.
@@ -40,6 +58,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <mutex>
 
 #include "ndi/unavailable_backend.hpp"
@@ -72,6 +91,14 @@ struct NDIlib_recv_create_v3_t {
 };
 
 // Field order confirmed against bindgen-generated bindings of the real SDK header (see file header).
+struct NDIlib_send_create_t {
+    const char* p_ndi_name;
+    const char* p_groups;
+    bool clock_video;
+    bool clock_audio;
+};
+
+// Field order confirmed against bindgen-generated bindings of the real SDK header (see file header).
 struct NDIlib_video_frame_v2_t {
     std::int32_t xres;
     std::int32_t yres;
@@ -92,6 +119,12 @@ constexpr std::int32_t kBandwidthHighest = 100;   // NDIlib_recv_bandwidth_highe
 
 constexpr std::int32_t kFrameTypeNone = 0;
 constexpr std::int32_t kFrameTypeVideo = 1;
+
+constexpr std::int32_t kFrameFormatProgressive = 1;  // NDIlib_frame_format_type_progressive
+// "Please synthesize a timecode for me from the local clock" -- the documented value is INT64_MAX;
+// we never have a meaningful source timecode to propagate for the Program Output, so this is the
+// documented way to say "don't know/don't care, NDI should pick one".
+constexpr std::int64_t kSendTimecodeSynthesize = (std::numeric_limits<std::int64_t>::max)();
 
 constexpr std::uint32_t fourCc(char a, char b, char c, char d) {
     return static_cast<std::uint32_t>(static_cast<unsigned char>(a)) |
@@ -121,6 +154,11 @@ using RecvDestroy_fn = void (*)(void*);
 // never need the audio/metadata struct layouts at all.
 using RecvCaptureV2_fn = std::int32_t (*)(void*, NDIlib_video_frame_v2_t*, void*, void*, std::uint32_t);
 using RecvFreeVideoV2_fn = void (*)(void*, NDIlib_video_frame_v2_t*);
+using SendCreate_fn = void* (*)(const NDIlib_send_create_t*);
+using SendDestroy_fn = void (*)(void*);
+// p_audio_data/p_metadata (unused, always nullptr) frame types are irrelevant here, same reasoning
+// as RecvCaptureV2_fn above: we only ever send video.
+using SendVideoV2_fn = void (*)(void*, const NDIlib_video_frame_v2_t*);
 
 }  // namespace ndi_abi
 
@@ -333,14 +371,63 @@ public:
         return converted;
     }
 
-    // TODO(ndi-output): real NDI sending (NDIlib_send_create_v2 / NDIlib_send_send_video_v2) is not
-    // implemented yet on this backend — Program output over NDI is not available until this lands.
-    // Deliberately safe no-ops in the meantime (never a crash, never a dangling handle): sendCreate
-    // always reports failure, so NdiSender::active() stays false and the UI shows this as "not
-    // available" rather than silently pretending to send.
-    void* sendCreate(const std::string&) override { return nullptr; }
-    void sendDestroy(void*) override {}
-    void sendVideo(void*, const std::uint8_t*, int, int, int, int, int) override {}
+    // Sender: publishes this process as an NDI source. `sendOk_` is tracked separately from `ok_`
+    // (recv/find availability) on purpose -- see the comment on `sendOk_` below for why -- so a
+    // Runtime that (hypothetically) exports receiving but not sending symbols, or vice versa,
+    // degrades only the half that's actually missing instead of taking both down.
+    void* sendCreate(const std::string& ndiName) override {
+        if (!sendOk_ || ndiName.empty()) return nullptr;
+        ndi_abi::NDIlib_send_create_t cfg{};
+        cfg.p_ndi_name = ndiName.c_str();
+        cfg.p_groups = nullptr;
+        // clock_video=false: we do NOT want NDI's own send-side frame-rate clocking/pacing (it would
+        // sleep inside NDIlib_send_send_video_v2 to match frame_rate_N/D if frames arrive faster than
+        // that). ndi.hpp's contract says sendVideo() "must not block on network I/O beyond whatever
+        // buffering NDI's own async send already does internally" -- deliberate pacing sleeps are not
+        // that, they're an extra wait this backend should not introduce on its own. The Program
+        // Output's own render loop is already the thing deciding how often `feed()` is called.
+        cfg.clock_video = false;
+        cfg.clock_audio = false;  // no audio sent (sendVideo only)
+        try {
+            return pSendCreate_(&cfg);
+        } catch (...) {
+            return nullptr;
+        }
+    }
+    void sendDestroy(void* handle) override {
+        if (sendOk_ && handle) {
+            try {
+                pSendDestroy_(handle);
+            } catch (...) {
+            }
+        }
+    }
+    void sendVideo(void* handle, const std::uint8_t* bgra, int width, int height, int stride, int fpsNum,
+                    int fpsDen) override {
+        if (!sendOk_ || !handle || !bgra || width <= 0 || height <= 0) return;
+        if (stride < width * 4) return;  // can't be a valid top-down BGRA8 buffer of this width
+        ndi_abi::NDIlib_video_frame_v2_t vf{};
+        vf.xres = width;
+        vf.yres = height;
+        vf.FourCC = ndi_abi::kFourCcBGRA;  // NDI has native BGRA support (see file header)
+        vf.frame_rate_N = fpsNum > 0 ? fpsNum : 30000;
+        vf.frame_rate_D = fpsDen > 0 ? fpsDen : 1001;
+        vf.picture_aspect_ratio = 0.0f;  // documented as "derive it from xres/yres" when 0
+        vf.frame_format_type = ndi_abi::kFrameFormatProgressive;
+        vf.timecode = ndi_abi::kSendTimecodeSynthesize;
+        // Const-cast is safe here: NDIlib_send_send_video_v2 is documented as synchronous (see file
+        // header) -- it never retains `p_data` past this call, so it never writes through it either.
+        vf.p_data = const_cast<std::uint8_t*>(bgra);
+        vf.line_stride_or_data_size_in_bytes = stride;
+        vf.p_metadata = nullptr;
+        vf.timestamp = 0;  // meaningful only to recv; not consulted when sending
+        try {
+            pSendVideo_(handle, &vf);
+        } catch (...) {
+            // Best-effort by contract (ndi.hpp): a send failure is silent, there's no per-frame
+            // error to report.
+        }
+    }
 
 private:
     void resolve() {
@@ -354,20 +441,40 @@ private:
         pRecvDestroy_ = reinterpret_cast<ndi_abi::RecvDestroy_fn>(sym("NDIlib_recv_destroy"));
         pRecvCapture_ = reinterpret_cast<ndi_abi::RecvCaptureV2_fn>(sym("NDIlib_recv_capture_v2"));
         pRecvFreeVideo_ = reinterpret_cast<ndi_abi::RecvFreeVideoV2_fn>(sym("NDIlib_recv_free_video_v2"));
+        pSendCreate_ = reinterpret_cast<ndi_abi::SendCreate_fn>(sym("NDIlib_send_create"));
+        pSendDestroy_ = reinterpret_cast<ndi_abi::SendDestroy_fn>(sym("NDIlib_send_destroy"));
+        pSendVideo_ = reinterpret_cast<ndi_abi::SendVideoV2_fn>(sym("NDIlib_send_send_video_v2"));
 
-        ok_ = pFindCreate_ && pFindDestroy_ && pFindGetCurrentSources_ && pRecvCreate_ && pRecvDestroy_ && pRecvCapture_ &&
-              pRecvFreeVideo_;
-        if (ok_ && pInitialize_) {
+        // NDIlib_initialize() must be called once before any other NDI entry point, receiving or
+        // sending alike (per NDI's own documented initialization model), so it's resolved/called
+        // here regardless of which of the two sides below end up available.
+        bool initOk = true;
+        if (pInitialize_) {
             try {
-                ok_ = pInitialize_();  // false means "this CPU doesn't support what NDI needs" (rare, old CPUs)
+                initOk = pInitialize_();  // false means "this CPU doesn't support what NDI needs" (rare, old CPUs)
             } catch (...) {
-                ok_ = false;
+                initOk = false;
             }
         }
+
+        ok_ = initOk && pFindCreate_ && pFindDestroy_ && pFindGetCurrentSources_ && pRecvCreate_ && pRecvDestroy_ &&
+              pRecvCapture_ && pRecvFreeVideo_;
+        // Deliberately independent of `ok_`: the public NDI Runtime always exports both the recv and
+        // send symbol sets together in practice, but ndi.hpp's `NdiBackend` interface doesn't promise
+        // that, and treating them as separate availability flags costs nothing and is strictly safer
+        // -- a hypothetical Runtime/future SDK revision missing one side still leaves the other fully
+        // working, instead of a single combined flag taking both down over a problem in just one.
+        // `available()` (used by NdiDiscovery/NdiSource, and checked by NdiSender::feed() before
+        // calling sendCreate) still only reports `ok_`, i.e. "receiving is usable" -- NdiSender itself
+        // never claims more than "sendCreate() didn't return null" via its own active(), so a false
+        // `sendOk_` with a true `ok_` just makes sendCreate() return nullptr, which is already the
+        // documented safe failure mode (see ndi.hpp: "Returns null on failure").
+        sendOk_ = initOk && pSendCreate_ && pSendDestroy_ && pSendVideo_;
     }
 
     HMODULE lib_;
     bool ok_ = false;
+    bool sendOk_ = false;
     ndi_abi::Initialize_fn pInitialize_ = nullptr;
     ndi_abi::Version_fn pVersion_ = nullptr;
     ndi_abi::FindCreateV2_fn pFindCreate_ = nullptr;
@@ -377,6 +484,9 @@ private:
     ndi_abi::RecvDestroy_fn pRecvDestroy_ = nullptr;
     ndi_abi::RecvCaptureV2_fn pRecvCapture_ = nullptr;
     ndi_abi::RecvFreeVideoV2_fn pRecvFreeVideo_ = nullptr;
+    ndi_abi::SendCreate_fn pSendCreate_ = nullptr;
+    ndi_abi::SendDestroy_fn pSendDestroy_ = nullptr;
+    ndi_abi::SendVideoV2_fn pSendVideo_ = nullptr;
 };
 
 }  // namespace
