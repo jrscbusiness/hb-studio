@@ -33,6 +33,7 @@
 #include "app/windows/webview_host.hpp"
 #include "app/windows/wic_jpeg.hpp"
 #include "app/windows/win_util.hpp"
+#include "ndi/ndi.hpp"
 #include "plugins/service.hpp"
 
 using namespace hb;
@@ -211,13 +212,36 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     std::mutex devMutex;
     std::map<int, std::shared_ptr<win::DShowSource>> devices;   // slot -> running capture (keeps it alive)
+    std::map<int, std::shared_ptr<hb::ndi::NdiSource>> ndiDevices;  // slot -> running NDI receiver
     std::map<std::string, std::string> knownNames;          // id -> friendly name from the last scan
+    hb::ndi::NdiDiscovery ndiDiscovery;                      // lists NDI sources currently on the network
     std::atomic<bool> scanning{false};
     // Declared AFTER everything its jobs touch: destroyed first, so queued jobs finish while those still exist.
     win::TaskQueue tasks;                                   // slow jobs: enumeration, closing capture graphs
 
     auto retire = [&](std::shared_ptr<win::DShowSource> d) {
         if (d) tasks.post([d] { d->stop(); });              // never block UI/Program thread on a driver
+    };
+    auto retireNdi = [&](std::shared_ptr<hb::ndi::NdiSource> d) {
+        if (d) tasks.post([d] { d->stop(); });
+    };
+    // "ndi:<endereço>" -> NdiSourceInfo (reconstructed; the endereço is opaque, only meaningful to
+    // the NDI backend, and is exactly what defaultBackend()'s findCurrentSources() returned).
+    auto parseNdiId = [](const std::string& id) { return id.rfind("ndi:", 0) == 0 ? id.substr(4) : std::string(); };
+    auto attachNdi = [&](int slot, const std::string& id, const std::string& name) {
+        hb::ndi::NdiSourceInfo info;
+        info.name = name;
+        info.urlAddress = parseNdiId(id);
+        auto src = std::make_shared<hb::ndi::NdiSource>(info);
+        src->start();
+        std::shared_ptr<hb::ndi::NdiSource> old;
+        {
+            std::lock_guard lock(devMutex);
+            old = ndiDevices[slot];
+            ndiDevices[slot] = src;
+        }
+        engine.assignSlot(slot, src, id, name);
+        retireNdi(old);
     };
     auto attachPlugin = [&](int slot, const std::string& id, const std::string& name, std::string& err) {
         auto src = plugins.runtime().open(id, err);
@@ -246,13 +270,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     };
     auto detach = [&](int slot) {
         std::shared_ptr<win::DShowSource> old;
+        std::shared_ptr<hb::ndi::NdiSource> oldNdi;
         {
             std::lock_guard lock(devMutex);
             auto it = devices.find(slot);
             if (it != devices.end()) { old = it->second; devices.erase(it); }
+            auto itN = ndiDevices.find(slot);
+            if (itN != ndiDevices.end()) { oldNdi = itN->second; ndiDevices.erase(itN); }
         }
         engine.clearSlot(slot);
         retire(old);
+        retireNdi(oldNdi);
     };
     auto scan = [&] {
         if (scanning.exchange(true)) return;
@@ -279,7 +307,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     firstDev = false;
                 }
             }
-            j += "]}";
+            {
+                std::lock_guard lock(devMutex);
+                for (const auto& ns : ndiDiscovery.sources()) {
+                    const std::string id = "ndi:" + ns.urlAddress;
+                    knownNames[id] = ns.name;
+                    j += std::string(firstDev ? "" : ",") + "{\"id\":\"" + win::jsonEscape(id) + "\",\"name\":\"" +
+                         win::jsonEscape(ns.name) + "\",\"virt\":false,\"ndi\":true}";
+                    firstDev = false;
+                }
+            }
+            j += "],\"ndiMsg\":\"" + win::jsonEscape(ndiDiscovery.available() ? "" : ndiDiscovery.unavailableMessage()) + "\"}";
             host.postQueued("devices", j);
             scanning = false;
         });
@@ -384,6 +422,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                         }
                         if (!assignPath.empty()) assignments.save(assignPath);
                     });
+                } else if (id.rfind("ndi:", 0) == 0) {
+                    attachNdi(slot, id, name);
+                    if (!assignPath.empty()) assignments.save(assignPath);
+                    toast("CAM " + std::to_string(slot + 1) + ": " + name + " (NDI) conectando…");
                 } else {
                     attach(slot, id, name);
                     if (!assignPath.empty()) assignments.save(assignPath);
@@ -478,7 +520,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // Restore the inputs used last time and list the devices for the CÂMERAS tab.
         for (int i = 0; i < app::Engine::kSourceCount; ++i) {
             const auto e = assignments.get(i);
-            if (!e.empty() && e.id.rfind("plugin:", 0) != 0) attach(i, e.id, e.name);
+            if (e.empty() || e.id.rfind("plugin:", 0) == 0) continue;
+            if (e.id.rfind("ndi:", 0) == 0) attachNdi(i, e.id, e.name);
+            else attach(i, e.id, e.name);
         }
         tasks.post([&] {   // plugins: scan the folder, load enabled libraries (hash re-checked), restore their inputs
             plugins.start();
@@ -575,6 +619,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     {
         std::lock_guard lock(devMutex);
         for (auto& kv : devices) kv.second->stop();   // close capture graphs before the engine goes away
+        for (auto& kv : ndiDevices) kv.second->stop();
     }
     if (feeder.joinable()) feeder.join();
     win::trace("feeder joined");

@@ -511,7 +511,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
           <h3><span class="cap">Câmeras e dispositivos de vídeo neste computador</span>
             <button class="btn sm" id="dev-refresh">ATUALIZAR LISTA</button></h3>
           <div class="body">
-            <p class="note" style="margin-bottom:10px">Webcams, placas de captura e <b>câmeras virtuais</b> (como a “OBS Virtual Camera”). Escolha em qual entrada (CAM 1–8) cada uma deve aparecer.</p>
+            <p class="note" style="margin-bottom:10px">Webcams, placas de captura, <b>câmeras virtuais</b> (como a “OBS Virtual Camera”) e <b>câmeras NDI</b> na rede. Escolha em qual entrada (CAM 1–8) cada uma deve aparecer.</p>
+            <p class="note" id="ndi-note" style="margin-bottom:10px;display:none"></p>
             <div id="dev-list"></div>
           </div>
         </div>
@@ -828,7 +829,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     devs.forEach(d => {
       const row = document.createElement('div'); row.className = 'dev';
       const cur = slots.findIndex(x => x && x.k === 'dev' && x.id === d.id);
-      row.innerHTML = '<div class="ico">' + camSvg + '</div><div class="nm"><b></b><em></em></div><span class="badge' + (d.virt ? ' v' : '') + '">' + (d.virt ? 'VIRTUAL' : 'CÂMERA') + '</span><div class="assign"></div>';
+      const badgeTxt = d.ndi ? 'NDI' : (d.virt ? 'VIRTUAL' : 'CÂMERA');
+      row.innerHTML = '<div class="ico">' + camSvg + '</div><div class="nm"><b></b><em></em></div><span class="badge' + (d.virt || d.ndi ? ' v' : '') + '">' + badgeTxt + '</span><div class="assign"></div>';
       row.querySelector('b').textContent = d.name;
       row.querySelector('em').textContent = cur >= 0 ? 'Em uso na CAM ' + (cur + 1) : 'Disponível';
       const as = row.querySelector('.assign');
@@ -1223,7 +1225,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
-    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); }
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }

@@ -153,6 +153,24 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'devices', busy: false, list: [] }));
   await page.waitForTimeout(100);
   ok((await page.locator('#dev-list').innerText()).includes('Nenhum dispositivo'), 'empty list shows a helpful empty state');
+
+  console.log('\n[4a] CÂMERAS: fontes NDI na rede');
+  await page.evaluate(a => window.__hbMessage(a), { t: 'devices', busy: false, ndiMsg: '', list: [
+    { id: 'ndi:169.254.1.1:5961', name: 'PC-1 (Camera 1)', virt: false, ndi: true },
+    { id: 'cam', name: 'Logitech C920 HD Pro Webcam', virt: false }] });
+  await page.waitForTimeout(100);
+  ok(await page.locator('#dev-list .dev').count() === 2, 'NDI source is listed alongside a regular webcam');
+  ok((await page.locator('#dev-list').innerText()).includes('PC-1 (Camera 1)'), 'NDI source name is shown');
+  ok((await page.locator('#dev-list .dev:nth-child(1) .badge').textContent()) === 'NDI', 'NDI source gets its own badge, not "CÂMERA"');
+  await clearSent();
+  await humanClick('#dev-list .dev:nth-child(1) .assign button', 3);
+  ok((await sent()).includes('devassign|3|ndi:169.254.1.1:5961'), 'assigning an NDI source sends its "ndi:" id');
+  await page.evaluate(a => window.__hbMessage(a), { t: 'devices', busy: false, ndiMsg: 'Instale o NDI Runtime (ndi.video/tools) para detectar câmeras NDI na rede.', list: [] });
+  await page.waitForTimeout(100);
+  ok((await page.locator('#ndi-note').textContent()).includes('NDI Runtime'), 'missing NDI Runtime shows a clear install hint');
+  await page.evaluate(a => window.__hbMessage(a), { t: 'devices', busy: false, ndiMsg: '', list: [] });
+  await page.waitForTimeout(100);
+  ok(await page.locator('#ndi-note').isHidden(), 'the hint disappears once the Runtime note is cleared');
   await setState({});
 
   console.log('\n[4b] PLUGINS');
