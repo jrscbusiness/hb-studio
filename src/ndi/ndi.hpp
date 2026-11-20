@@ -7,9 +7,12 @@
 // redistributing the Runtime DLL, and the stable public struct layout this header's real backend
 // binds against is reconstructed from NDI's own published ABI documentation, not copied from their
 // source). Instead, on Windows, the real backend dynamically loads whatever NDI Runtime the user
-// has installed (free download from ndi.video) via its documented `NDIlib_v4_load` dynamic-loading
-// entry point. If no Runtime is installed, `available()` is false and a clear pt-BR message
-// explains how to get one; nothing else in the app is affected.
+// has installed (free download from ndi.video). The real backend resolves each function it needs
+// individually by name (GetProcAddress), rather than via the SDK's big `NDIlib_v5_load` struct
+// loader, so it never depends on that struct's exact field layout/order matching what this repo
+// reconstructed from public documentation — see src/ndi/ndi_backend_win.cpp for the details and
+// the documentation sources checked. If no Runtime is installed, `available()` is false and a
+// clear pt-BR message explains how to get one; nothing else in the app is affected.
 #include <cstdint>
 #include <memory>
 #include <string>
