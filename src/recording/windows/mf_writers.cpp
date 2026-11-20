@@ -110,8 +110,21 @@ bool discoverEncoderTypes(const GUID& category, const GUID& subtype, UINT32 rate
                 error += b;
                 continue;
             }
+            // Overriding only these two would leave MF_MT_AUDIO_BLOCK_ALIGNMENT and
+            // MF_MT_AUDIO_AVG_BYTES_PER_SECOND stale (computed by the encoder for whatever
+            // rate/channels it enumerated by default) — an internally inconsistent PCM type that
+            // a real SinkWriter stream's stricter validation can reject even though the lenient
+            // GetInputAvailableType() call above did not. Recompute both from the (possibly
+            // template-default) bits-per-sample together with our actual rate/channels.
+            UINT32 bits = 16;
+            in->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits);
+            if (bits == 0) bits = 16;
+            const UINT32 blockAlign = ch * (bits / 8);
             in->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
             in->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
+            in->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, bits);
+            in->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, blockAlign);
+            in->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, rate * blockAlign);
             outType = cand;
             inType = in;
             ok = true;
@@ -415,7 +428,19 @@ EncoderAvailability probeEncoders() {
     a.h264 = hasEncoder(MFT_CATEGORY_VIDEO_ENCODER, MFMediaType_Video, MFVideoFormat_H264);
     a.hevc = hasEncoder(MFT_CATEGORY_VIDEO_ENCODER, MFMediaType_Video, MFVideoFormat_HEVC);
     a.aac = hasEncoder(MFT_CATEGORY_AUDIO_ENCODER, MFMediaType_Audio, MFAudioFormat_AAC);
-    a.mp3 = hasEncoder(MFT_CATEGORY_AUDIO_ENCODER, MFMediaType_Audio, MFAudioFormat_MP3);
+    // MP3 needs more than "a CLSID is registered" (hasEncoder()): confirmed on CI, the in-box
+    // encoder can enumerate yet still refuse every real negotiation (output type, PCM input type,
+    // and even its own just-negotiated input type when fed back to a real SinkWriter stream — all
+    // three independently tried and all three refused identically). A real end-to-end negotiation
+    // at the settings addAudioStream() will actually use is the only way to know MP3 genuinely
+    // works here; if it doesn't, the profile is left unregistered (never offered) rather than
+    // claiming a format that will always fail to open.
+    {
+        ComPtr<IMFMediaType> outT, inT;
+        std::string derr;
+        a.mp3 = discoverEncoderTypes(MFT_CATEGORY_AUDIO_ENCODER, MFAudioFormat_MP3, 48000, 2, mp3BytesPerSecond(192),
+                                     outT, inT, derr);
+    }
     return a;
 }
 
