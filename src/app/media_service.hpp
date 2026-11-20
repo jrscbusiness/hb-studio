@@ -51,6 +51,11 @@ public:
     // Effect plugins: (re)registers the effects of all enabled+loaded plugins in the EffectRegistry.
     void syncPluginEffects(plugins::PluginService& plugins);
 
+    // Scans for VST3 effect plugins (src/vst3/) and (re)registers them in the EffectRegistry, same
+    // idea as syncPluginEffects() for native .hbplugin effects. Safe to call more than once (e.g.
+    // on an operator-triggered rescan); extraFolders is forwarded to vst3::scanPlugins() as-is.
+    void syncVst3Effects(const std::vector<std::string>& extraFolders = {});
+
     audio_io::AudioEngine& audio() { return audio_; }
     bool recording() const;
     RecordingSettings settings() const;
@@ -79,6 +84,7 @@ private:
     audio_io::AudioEngine::ConsumerId aConsumer_ = 0;
     bool haveV_ = false, haveA_ = false;
     std::set<std::string> pluginFxSources_;
+    std::set<std::string> vst3FxSources_;
     std::string lastRecError_, lastFile_;
 
     unsigned audioVersionSent_ = ~0u, recSettingsSent_ = ~0u;

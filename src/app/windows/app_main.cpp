@@ -35,6 +35,7 @@
 #include "app/windows/win_util.hpp"
 #include "ndi/ndi.hpp"
 #include "plugins/service.hpp"
+#include "vst3/vst3.hpp"
 
 using namespace hb;
 
@@ -392,6 +393,29 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 if (!t.empty()) toast(t);
             }
         }
+        else if (c == "fxeditor" && a.size() >= 4) {
+            // Opens/closes a VST3 effect's own native GUI editor window. Any other effect type
+            // (built-in, native plugin) just doesn't implement IVst3Editor, so the dynamic_cast
+            // below is null and this is a harmless, silent no-op for it.
+            const int strip = idx(1);
+            int effIdx = -1;
+            if (a.size() > 2) effIdx = std::atoi(a[2].c_str());
+            auto fx = media.audio().effectInstance(strip, effIdx);
+            auto* editor = dynamic_cast<vst3::IVst3Editor*>(fx.get());
+            if (!editor) {
+                // Not a VST3 effect (or the strip/idx no longer points at one): silent no-op.
+            } else if (a[3] == "open") {
+                if (!editor->hasEditor()) {
+                    toast("Este plugin VST3 não tem interface gráfica própria.");
+                } else {
+                    std::string err;
+                    const std::string title = "CANAL " + std::to_string(strip + 1) + " · efeito " + std::to_string(effIdx + 1);
+                    if (!editor->openEditor(title, err)) toast("Não foi possível abrir o editor: " + err);
+                }
+            } else if (a[3] == "close") {
+                editor->closeEditor();
+            }
+        }
         else if (c == "preview") engine.switcher().setPreview(idx(1));
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
@@ -528,6 +552,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             plugins.start();
             pluginsReady = true;
             media.syncPluginEffects(plugins);
+            media.syncVst3Effects();  // scans the standard VST3 folders once at startup (no install/enable step)
             for (int i = 0; i < app::Engine::kSourceCount; ++i) {
                 const auto e = assignments.get(i);
                 std::string err;

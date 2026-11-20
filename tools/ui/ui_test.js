@@ -254,7 +254,8 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
       fx: i === 0 ? [{ type: 'hb.compressor', name: 'Compressor', bypass: false, missing: false, params: [
         { id: 'threshold_db', label: 'Limiar', unit: 'dB', min: -60, max: 0, def: -18, log: false, choices: [], value: -20 },
         { id: 'attack_ms', label: 'Ataque', unit: 'ms', min: 0.1, max: 200, def: 10, log: true, choices: [], value: 10 },
-        { id: 'detect', label: 'Detecção', unit: '', min: 0, max: 1, def: 0, log: false, choices: ['RMS', 'Pico'], value: 0 }] }] : [] })),
+        { id: 'detect', label: 'Detecção', unit: '', min: 0, max: 1, def: 0, log: false, choices: ['RMS', 'Pico'], value: 0 }] },
+      { type: 'vst3:abc123', name: 'ValhallaRoom (fixture)', bypass: false, missing: false, params: [] }] : [] })),
     master: { faderDb: 0, limiter: true, ceilingDb: -1 }, monitor: { deviceId: '', level: 0.75, mute: false, state: 'off', msg: '' },
     devices: [{ id: 'cap1', name: 'Microfone USB', kind: 'capture', isDefault: true }, { id: 'lb1', name: 'Alto-falantes', kind: 'loopback', isDefault: true }, { id: 'pb1', name: 'Fones', kind: 'playback', isDefault: true }],
     effects: [{ typeId: 'hb.compressor', name: 'Compressor', category: 'Dinâmica', source: 'builtin' }, { typeId: 'hb.highpass', name: 'Filtro passa-alta', category: 'Equalização', source: 'builtin' }] });
@@ -273,14 +274,18 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|input|2|device|lb1'), 'AUDIO: input select sends device id (loopback offered)');
   await page.locator('.strip[data-i="0"]').click({ position: { x: 68, y: 20 } });
   await page.locator('.strip[data-i="0"] .st').click();
-  ok(await page.locator('#fx-list .fxcard').count() === 1, 'AUDIO: effect chain of the selected channel is listed');
+  ok(await page.locator('#fx-list .fxcard').count() === 2, 'AUDIO: effect chain of the selected channel is listed (compressor + VST3 fixture)');
   await page.locator('#fx-list .fxcard .prm input[type=range]').first().evaluate(el => { el.value = 300; el.dispatchEvent(new Event('input', { bubbles: true })); });
   ok((await page.evaluate(n => window.__sent.slice(n), sent0)).some(m => m.startsWith('aud|fxparam|0|0|threshold_db|')), 'AUDIO: effect slider sends aud|fxparam');
-  await page.locator('#fx-list .fxcard [data-a=byp]').click();
+  await page.locator('#fx-list .fxcard').nth(1).locator('[data-a=editor]').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('fxeditor|0|1|open'), 'AUDIO: VST3 effect EDITOR button opens its native window');
+  ok((await page.locator('#fx-list .fxcard').nth(1).textContent()).includes('própria interface do plugin'), 'AUDIO: VST3 card explains controls live in its own editor');
+  ok(await page.locator('#fx-list .fxcard').first().locator('[data-a=editor]').count() === 0, 'AUDIO: a built-in effect does not get an EDITOR button');
+  await page.locator('#fx-list .fxcard').first().locator('[data-a=byp]').click();
   ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|fxbyp|0|0|1'), 'AUDIO: effect bypass toggle');
   await page.locator('#fx-add').selectOption('hb.highpass'); await page.locator('#fx-addbtn').click();
   ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|fxadd|0|hb.highpass'), 'AUDIO: adding an effect from the list');
-  await page.locator('#fx-list .fxcard [data-a=del]').click();
+  await page.locator('#fx-list .fxcard').first().locator('[data-a=del]').click();
   ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|fxdel|0|0'), 'AUDIO: removing an effect');
   // meters move with levels
   await page.evaluate(() => window.__hbMessage({ t: 'audiolv', strips: Array.from({ length: 8 }, () => ({ pk: -12, hold: -6, rms: -20, ls: -23, gr: [4.2] })), master: { pk: -3, hold: -3, rms: -18, lm: -20, ls: -16.4, tp: -2, gr: 0 }, xr: 0 }));

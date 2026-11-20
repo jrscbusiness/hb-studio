@@ -12,6 +12,7 @@
 #include "core/json.hpp"
 #include "recording/media_writer.hpp"
 #include "plugins/native_source.hpp"
+#include "vst3/vst3.hpp"
 #ifdef _WIN32
 #include "recording/windows/mf_writers.hpp"
 #endif
@@ -444,6 +445,24 @@ void MediaService::syncPluginEffects(plugins::PluginService& svc) {
         pluginFxSources_.insert(id);
     }
     audioVersionSent_ = ~0u;   // refresh the "add effect" menu in the UI
+}
+
+void MediaService::syncVst3Effects(const std::vector<std::string>& extraFolders) {
+    auto& reg = audio::EffectRegistry::instance();
+    for (const auto& s : vst3FxSources_) reg.removeBySource(s);
+    vst3FxSources_.clear();
+    for (const auto& plugin : vst3::scanPlugins(extraFolders)) {
+        const std::string typeId = vst3::typeIdFor(plugin);
+        if (reg.contains(typeId)) continue;  // same classId found again (rescan): keep the first
+        audio::EffectRegistry::Info info{typeId, plugin.name, "VST3", "vst3:" + plugin.path};
+        reg.add(info, [plugin] {
+            std::string err;  // createEffect() failures just mean addEffect()/the engine's
+                               // "missing" handling applies, same as a vanished native plugin
+            return vst3::createEffect(plugin, err);
+        });
+        vst3FxSources_.insert(info.source);
+    }
+    audioVersionSent_ = ~0u;
 }
 
 }  // namespace hb::app

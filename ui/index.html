@@ -1138,9 +1138,12 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     if (!st.fx.length) list.innerHTML = '<p class="note" style="margin-bottom:10px">Nenhum efeito neste canal. Adicione abaixo (ex.: <b>Filtro passa-alta</b> para tirar ruído grave, <b>Compressor</b> para nivelar a voz, <b>Limitador</b>).</p>';
     st.fx.forEach((fx, k) => {
       const c = document.createElement('div'); c.className = 'fxcard' + (fx.bypass ? ' byp' : '');
+      const isVst3 = typeof fx.type === 'string' && fx.type.startsWith('vst3:');
       c.innerHTML = `<div class="hd"><b>${k + 1}. ${esc(fx.name)}${fx.missing ? ' <span class="warn">AUSENTE</span>' : ''}</b><span class="gr" data-gr="${k}"></span>
+        ${isVst3 ? '<button data-a="editor" title="Abrir a interface própria do plugin">EDITOR</button>' : ''}
         <button data-a="up" title="Subir"${k === 0 ? ' disabled' : ''}>↑</button><button data-a="dn" title="Descer"${k === st.fx.length - 1 ? ' disabled' : ''}>↓</button>
         <button data-a="byp" class="${fx.bypass ? '' : 'on'}" title="${fx.bypass ? 'Desligado (clique para ligar)' : 'Ligado (clique para desligar)'}">⏻</button><button data-a="del" title="Remover">✕</button></div>`;
+      if (isVst3) c.querySelector('[data-a=editor]').onclick = () => send('fxeditor', audSel, k, 'open');
       fx.params.forEach(p => {
         const r = document.createElement('div'); r.className = 'prm';
         if (p.choices && p.choices.length) {
@@ -1156,6 +1159,11 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         }
         c.appendChild(r);
       });
+      if (isVst3 && !fx.params.length) {
+        const r = document.createElement('p'); r.className = 'note'; r.style.marginTop = '4px';
+        r.textContent = 'Os controles ficam na própria interface do plugin — clique em EDITOR acima.';
+        c.appendChild(r);
+      }
       c.querySelector('[data-a=up]').onclick = () => A('fxmove', audSel, k, k - 1);
       c.querySelector('[data-a=dn]').onclick = () => A('fxmove', audSel, k, k + 1);
       c.querySelector('[data-a=byp]').onclick = () => A('fxbyp', audSel, k, fx.bypass ? 0 : 1);
