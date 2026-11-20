@@ -46,7 +46,15 @@ void scanFolder(const std::string& root, std::vector<Vst3PluginInfo>& out) {
 
     for (const auto& modulePath : modulePaths) {
         std::string error;
-        auto module = VST3::Hosting::Module::create(modulePath.string(), error);
+        // generic_string() (always forward slashes, even on Windows) rather than string() (native
+        // separators): recursive_directory_iterator joins path segments with the platform's native
+        // separator regardless of which separator the caller's root path used, so string() could
+        // mix '/' and '\' within the same path depending on where the split happened. A stable,
+        // single-separator form matters here because this path is also the identity scanPlugins()
+        // returns to callers (and what tests compare against); VST3::Hosting::Module::create()
+        // (ultimately LoadLibraryW on Windows) accepts forward slashes exactly as well as backslashes.
+        const std::string modulePathStr = modulePath.generic_string();
+        auto module = VST3::Hosting::Module::create(modulePathStr, error);
         if (!module) continue;  // not a loadable VST3 module: skip, never fatal to the scan
 
         try {
@@ -55,7 +63,7 @@ void scanFolder(const std::string& root, std::vector<Vst3PluginInfo>& out) {
             for (const auto& classInfo : factory.classInfos()) {
                 if (classInfo.category() != kVstAudioEffectClass) continue;
                 Vst3PluginInfo pi;
-                pi.path = modulePath.string();
+                pi.path = modulePathStr;
                 pi.classId = detail::lowerHex(classInfo.ID());
                 pi.name = classInfo.name();
                 pi.vendor = info.vendor();
