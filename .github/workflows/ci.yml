@@ -84,13 +84,23 @@ jobs:
           New-Item -ItemType Directory dist | Out-Null
           Copy-Item build/Release/HBStudio-Setup.exe dist/
           Get-Item dist/HBStudio-Setup.exe | Select-Object Name, Length
+          # Example plugins (source + theme), packaged and signed (sha256) by hb_pack, for anyone who
+          # wants to see how a .hbplugin is built or just try installing one.
+          New-Item -ItemType Directory stage/colorbars -Force | Out-Null
+          Copy-Item plugins/examples/colorbars/manifest.json stage/colorbars/
+          Copy-Item build/Release/hb_plugin_example.dll stage/colorbars/
+          build/Release/hb_pack.exe stage/colorbars dist/HBStudio-Plugin-Fontes-Exemplo.hbplugin
+          build/Release/hb_pack.exe plugins/examples/theme-midnight dist/HBStudio-Tema-Meia-Noite.hbplugin
+          Get-ChildItem dist/*.hbplugin | Select-Object Name, Length
 
       - name: Upload installer artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: HBStudio-Setup
-          path: dist/HBStudio-Setup.exe
+          path: |
+            dist/HBStudio-Setup.exe
+            dist/*.hbplugin
 
       - name: Publish "latest" pre-release
         if: runner.os == 'Windows' && github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -99,6 +109,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag 2>$null
-          gh release create latest dist/HBStudio-Setup.exe --prerelease --target ${{ github.sha }} `
+          gh release create latest dist/HBStudio-Setup.exe dist/*.hbplugin --prerelease --target ${{ github.sha }} `
             --title "HB Studio - ultima versao" `
-            --notes "Instalador automatico (commit ${{ github.sha }}). Baixe HBStudio-Setup.exe, de dois cliques e siga a janela."
+            --notes "Instalador automatico (commit ${{ github.sha }}). Baixe HBStudio-Setup.exe, de dois cliques e siga a janela. Os arquivos .hbplugin sao plugins de exemplo (Plugins > Instalar plugin)."

@@ -8,5 +8,5 @@
   "license": "MIT",
   "type": "source",
   "apiVersion": 1,
-  "library": { "windows-x64": "hb_plugin_example.dll", "linux-x64": "libhb_plugin_example.so" }
+  "library": { "windows-x64": "hb_plugin_example.dll" }
 }
