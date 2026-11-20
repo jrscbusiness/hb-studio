@@ -228,6 +228,83 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   for (let i = 1; i < rows.length; i++) if (rows[i][0] < rows[i - 1][1] - 1) overlap = true;
   ok(rows.length >= 6 && !overlap, 'CONFIG: formats table rows are stacked without overlapping');
 
+
+  console.log('\n[5b] ÁUDIO: canais, efeitos, gravação');
+  const AUDIO = () => ({ t: 'audio', ver: 1, strips: Array.from({ length: 8 }, (_, i) => ({ i, name: ['MIC 1', 'MIC 2', 'LINHA', 'SISTEMA', 'FAIXA 5', 'FAIXA 6', 'FAIXA 7', 'FAIXA 8'][i],
+      input: { kind: i === 0 ? 'device' : 'none', id: i === 0 ? 'cap1' : '', name: i === 0 ? 'Microfone USB' : '', state: i === 0 ? 'online' : 'off', msg: '' },
+      trimDb: 0, faderDb: 0, mute: false, solo: false, pan: 0, phase: false, mono: false, delayMs: 0, quality: 'medium', toProgram: true, toMonitor: false,
+      fx: i === 0 ? [{ type: 'hb.compressor', name: 'Compressor', bypass: false, missing: false, params: [
+        { id: 'threshold_db', label: 'Limiar', unit: 'dB', min: -60, max: 0, def: -18, log: false, choices: [], value: -20 },
+        { id: 'attack_ms', label: 'Ataque', unit: 'ms', min: 0.1, max: 200, def: 10, log: true, choices: [], value: 10 },
+        { id: 'detect', label: 'Detecção', unit: '', min: 0, max: 1, def: 0, log: false, choices: ['RMS', 'Pico'], value: 0 }] }] : [] })),
+    master: { faderDb: 0, limiter: true, ceilingDb: -1 }, monitor: { deviceId: '', level: 0.75, mute: false, state: 'off', msg: '' },
+    devices: [{ id: 'cap1', name: 'Microfone USB', kind: 'capture', isDefault: true }, { id: 'lb1', name: 'Alto-falantes', kind: 'loopback', isDefault: true }, { id: 'pb1', name: 'Fones', kind: 'playback', isDefault: true }],
+    effects: [{ typeId: 'hb.compressor', name: 'Compressor', category: 'Dinâmica', source: 'builtin' }, { typeId: 'hb.highpass', name: 'Filtro passa-alta', category: 'Equalização', source: 'builtin' }] });
+  await page.evaluate(a => window.__hbMessage(a), AUDIO());
+  await tab('aud'); await page.waitForTimeout(100);
+  ok(await page.locator('#strips .strip[data-i]').count() === 8, 'AUDIO: 8 channel strips are shown');
+  ok(await page.locator('#strips .strip.master').count() === 1, 'AUDIO: the Program master strip is shown');
+  const sent0 = await page.evaluate(() => window.__sent.length);
+  await page.locator('.strip[data-i="1"] .tg button.m').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|strip|1|mute|1'), 'AUDIO: MUTE button sends aud|strip|1|mute|1');
+  await page.locator('.strip[data-i="1"] .tg button.s').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|strip|1|solo|1'), 'AUDIO: SOLO button sends the command');
+  await page.locator('.strip[data-i="0"] .fader').evaluate(el => { el.value = -12; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|strip|0|faderDb|-12'), 'AUDIO: fader sends dB value');
+  await page.locator('.strip[data-i="2"] select[data-k=input]').selectOption('device|lb1');
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|input|2|device|lb1'), 'AUDIO: input select sends device id (loopback offered)');
+  await page.locator('.strip[data-i="0"]').click({ position: { x: 68, y: 20 } });
+  await page.locator('.strip[data-i="0"] .st').click();
+  ok(await page.locator('#fx-list .fxcard').count() === 1, 'AUDIO: effect chain of the selected channel is listed');
+  await page.locator('#fx-list .fxcard .prm input[type=range]').first().evaluate(el => { el.value = 300; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).some(m => m.startsWith('aud|fxparam|0|0|threshold_db|')), 'AUDIO: effect slider sends aud|fxparam');
+  await page.locator('#fx-list .fxcard [data-a=byp]').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|fxbyp|0|0|1'), 'AUDIO: effect bypass toggle');
+  await page.locator('#fx-add').selectOption('hb.highpass'); await page.locator('#fx-addbtn').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|fxadd|0|hb.highpass'), 'AUDIO: adding an effect from the list');
+  await page.locator('#fx-list .fxcard [data-a=del]').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent0)).includes('aud|fxdel|0|0'), 'AUDIO: removing an effect');
+  // meters move with levels
+  await page.evaluate(() => window.__hbMessage({ t: 'audiolv', strips: Array.from({ length: 8 }, () => ({ pk: -12, hold: -6, rms: -20, ls: -23, gr: [4.2] })), master: { pk: -3, hold: -3, rms: -18, lm: -20, ls: -16.4, tp: -2, gr: 0 }, xr: 0 }));
+  const mh = await page.locator('.strip[data-i="0"] .meter i').first().evaluate(el => parseFloat(el.style.height));
+  ok(mh > 70 && mh < 90, 'AUDIO: level meter height follows the peak (' + mh.toFixed(0) + '%)');
+  ok((await page.locator('#m-lufs').textContent()).includes('-16,4'), 'AUDIO: master shows LUFS');
+  // a config update while dragging must not rebuild the strips
+  await page.evaluate(() => { window.__marker = document.querySelector('.strip[data-i="3"]'); });
+  await page.locator('.strip[data-i="3"] .fader').dispatchEvent('pointerdown');
+  await page.evaluate(a => window.__hbMessage(a), AUDIO());
+  ok(await page.evaluate(() => window.__marker === document.querySelector('.strip[data-i="3"]')), 'AUDIO: strips are not rebuilt while the operator drags a fader');
+  await page.evaluate(() => document.dispatchEvent(new Event('pointerup'))); await page.waitForTimeout(50);
+
+  const REC = () => ({ t: 'recprofiles', ver: 1, profiles: [
+      { id: 'mp4-h264-aac', label: 'MP4 — H.264 + AAC (recomendado)', desc: 'Compatível com tudo.', ext: 'mp4', kind: 'video', video: true, audio: true },
+      { id: 'avi-mjpeg', label: 'AVI — Motion JPEG', desc: 'Edição fácil.', ext: 'avi', kind: 'video', video: true, audio: true },
+      { id: 'wav', label: 'WAV 24 bits', desc: 'Sem perdas.', ext: 'wav', kind: 'audio', video: false, audio: true },
+      { id: 'flac', label: 'FLAC', desc: 'Sem perdas, menor.', ext: 'flac', kind: 'audio', video: false, audio: true }],
+    cfg: { profile: 'mp4-h264-aac', folder: 'C:\\Users\\x\\Videos\\HB Studio', template: 'HBStudio_{date}_{time}', videoKbps: 8000, videoQuality: 85, audioKbps: 192, audioRate: 48000, audioBits: 24, keyframeSec: 2, splitMin: 0, splitMB: 0, minFreeMB: 500 },
+    video: { w: 1920, h: 1080, fps: 30 } });
+  await page.evaluate(a => window.__hbMessage(a), REC());
+  await tab('rec'); await page.waitForTimeout(100);
+  ok(await page.locator('#v-rec .fmt').count() === 4, 'REC: lists every available format');
+  ok(await page.locator('#v-rec .fmt.on').count() === 1, 'REC: the current format is highlighted');
+  ok(await page.locator('label[data-for=vk]').isVisible() && !(await page.locator('label[data-for=vq]').isVisible()), 'REC: MP4 shows bitrate, hides JPEG quality');
+  const sent1 = await page.evaluate(() => window.__sent.length);
+  await page.locator('#v-rec .fmt', { hasText: 'FLAC' }).click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent1)).includes('rec|cfg|profile|flac'), 'REC: choosing a format sends rec|cfg|profile');
+  await page.locator('#rc-audioKbps').selectOption('128');
+  ok((await page.evaluate(n => window.__sent.slice(n), sent1)).includes('rec|cfg|audioKbps|128'), 'REC: audio bitrate setting');
+  await page.locator('#rc-pick').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent1)).includes('rec|pickfolder'), 'REC: folder picker requested');
+  await page.locator('#rec-btn').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent1)).includes('rec|start'), 'REC: header button starts recording');
+  await page.evaluate(() => window.__hbMessage({ t: 'rec', state: 'recording', file: 'C:\\v\\HBStudio_1.mp4', seconds: 75, bytes: 52428800, freeBytes: 5e10, segment: 1, droppedVideo: 0, repeatedVideo: 2, droppedAudio: 0, error: '' }));
+  ok((await page.locator('#rec-btn span').textContent()) === '1:15', 'REC: header shows elapsed time');
+  ok((await page.locator('#rec-stat').textContent()).includes('50,0 MB'), 'REC: status shows file size');
+  await page.locator('#rec-btn').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sent1)).includes('rec|stop'), 'REC: button stops while recording');
+  await page.evaluate(() => window.__hbMessage({ t: 'rec', state: 'idle', error: 'Disco cheio', last: 'C:\\v\\a.mp4' }));
+  ok((await page.locator('#rec-err').textContent()).includes('Disco cheio'), 'REC: errors are shown');
+
   console.log('\n[6] Layout em janelas diferentes');
   // production screen must fit without clipping the inputs strip on common laptop sizes
   for (const [w, h] of [[1280, 800], [1366, 768], [1920, 1080]]) {
@@ -239,7 +316,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
-    for (const v of ['prod', 'cam', 'aud', 'plg', 'cfg']) {
+    for (const v of ['prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {
       await tab(v);
       const hs = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       ok(hs, `${w}x${h} ${v}: no horizontal overflow`);

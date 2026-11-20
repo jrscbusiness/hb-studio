@@ -1,0 +1,12 @@
+# Application layer for audio + recording (portable).
+add_library(hb_media STATIC src/app/media_service.cpp)
+target_include_directories(hb_media PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(hb_media PUBLIC hb_core hb_audio_io hb_recording hb_effects hb_plugins)
+if(WIN32)
+  target_link_libraries(hb_media PUBLIC hb_rec_win)
+endif()
+if(HB_BUILD_TESTS)
+  add_executable(hb_media_tests tests/media_service_test.cpp)
+  target_link_libraries(hb_media_tests PRIVATE hb_media GTest::gtest_main)
+  gtest_discover_tests(hb_media_tests)
+endif()

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "app/engine.hpp"
+#include "app/media_service.hpp"
 #include "app/ptz_settings.hpp"
 #include "app/source_assignments.hpp"
 #include "app/windows/dshow_capture.hpp"
@@ -175,6 +176,23 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
     plugins::PluginService plugins(pluginsDir, "windows-x64");
     std::atomic<bool> pluginsReady{false};
+    // ---- audio mixer + recording ----
+    std::string mediaDir, videosDir;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            mediaDir = win::narrow(std::wstring(p) + L"\\HBStudio");
+            CoTaskMemFree(p);
+        }
+        PWSTR v = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Videos, 0, nullptr, &v))) {
+            videosDir = win::narrow(std::wstring(v) + L"\\HB Studio");
+            CoTaskMemFree(v);
+        }
+    }
+    app::MediaService media(engine.program(), &engine.bus(), &engine.logger(), mediaDir, videosDir);
+    media.start();
+    win::trace("media service started");
 
     std::mutex devMutex;
     std::map<int, std::shared_ptr<win::DShowSource>> devices;   // slot -> running capture (keeps it alive)
@@ -287,9 +305,27 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         const std::string camLabel = "CAM " + std::to_string(cam + 1) + ": ";
         if (c == "ready") {
             ptzSent = 0;
+            media.forceResend();
             if (pluginsReady) {
                 host.postQueued("plugins", plugins.listJson());
                 host.postQueued("theme", plugins.themeJson());
+            }
+        }
+        else if (c == "aud" || c == "rec") {
+            if (c == "rec" && a.size() >= 2 && a[1] == "pickfolder") {
+                // Native folder dialog (UI thread).
+                BROWSEINFOW bi{};
+                bi.hwndOwner = host.hwnd();
+                bi.lpszTitle = L"Escolha a pasta das gravações";
+                bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
+                if (PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi)) {
+                    wchar_t path[MAX_PATH * 2] = {0};
+                    if (SHGetPathFromIDListW(pidl, path)) media.setFolder(win::narrow(path));
+                    CoTaskMemFree(pidl);
+                }
+            } else {
+                const std::string t = media.handle(msg);
+                if (!t.empty()) toast(t);
             }
         }
         else if (c == "preview") engine.switcher().setPreview(idx(1));
@@ -375,6 +411,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     }
                     if (!assignPath.empty()) assignments.save(assignPath);
                 }
+                media.syncPluginEffects(plugins);
                 toast(r.message);
                 host.postQueued("plugins", plugins.listJson());
                 host.postQueued("theme", plugins.themeJson());
@@ -418,6 +455,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         tasks.post([&] {   // plugins: scan the folder, load enabled libraries (hash re-checked), restore their inputs
             plugins.start();
             pluginsReady = true;
+            media.syncPluginEffects(plugins);
             for (int i = 0; i < app::Engine::kSourceCount; ++i) {
                 const auto e = assignments.get(i);
                 std::string err;
@@ -454,6 +492,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     int tid; std::string ttxt;
                     { std::lock_guard lock(toastMutex); tid = toastId; ttxt = toastText; }
                     host.postQueued("state", stateJson(engine, vcam, tid, ttxt));
+                    media.tick(tick, [&](const char* key, const std::string& json) { host.postQueued(key, json); });
                     const unsigned v = ptzSettings.version();
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
                 }
@@ -511,6 +550,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
     if (feeder.joinable()) feeder.join();
     win::trace("feeder joined");
+    media.stop();     // finishes an ongoing recording (valid file) and saves the mixer settings
+    win::trace("media stopped");
     vcam.shutdown();
     win::trace("vcam shut down");
     engine.stop();
