@@ -12,6 +12,12 @@ option(HB_BUILD_TOOLS "Build command line tools" ON)
 # service and must not depend on a VC++ redistributable being installed.
 if(MSVC)
   add_compile_options(/utf-8)   # sources contain UTF-8 (pt-BR) literals
+  # MSVC does not update the __cplusplus macro to reflect /std:c++20 unless told to (a long-standing
+  # MSVC-only quirk, kept for backward compat): without this, any code - ours or a fetched
+  # dependency's, e.g. the VST3 SDK's own `#if __cplusplus >= 202002L` guards - that checks
+  # __cplusplus to detect C++20 sees the pre-C++11 default value (199711L) and silently takes the
+  # wrong branch, which is exactly what broke the VST3 SDK's module_win32.cpp on this project.
+  add_compile_options(/Zc:__cplusplus)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
