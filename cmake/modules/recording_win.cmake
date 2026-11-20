@@ -1,0 +1,13 @@
+# Windows-only recording writers built on the Media Foundation Sink Writer (MP4 H.264/HEVC + AAC, M4A, MP3).
+if(WIN32)
+  add_library(hb_rec_win STATIC src/recording/windows/mf_writers.cpp)
+  target_include_directories(hb_rec_win PUBLIC ${CMAKE_SOURCE_DIR}/src)
+  target_link_libraries(hb_rec_win PUBLIC hb_core mfplat mf mfreadwrite mfuuid propsys ole32 strmiids)
+  target_compile_definitions(hb_rec_win PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+  if(HB_BUILD_TESTS)
+    add_executable(hb_rec_win_tests tests/rec_win_test.cpp)
+    target_link_libraries(hb_rec_win_tests PRIVATE hb_rec_win GTest::gtest_main)
+    target_compile_definitions(hb_rec_win_tests PRIVATE UNICODE _UNICODE NOMINMAX)
+    gtest_discover_tests(hb_rec_win_tests)
+  endif()
+endif()
