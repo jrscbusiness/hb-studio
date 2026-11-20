@@ -38,6 +38,14 @@ public:
     bool setProgram(int i);
     bool cut();
     bool startDissolve(int ms, Clock::time_point now = Clock::now());
+    // Manual T-bar: sets the PGM/PVW cross-fade mix directly to `pos` (0 = PGM only, 1 = PVW
+    // only), for an operator dragging a fader instead of using CUT/DISSOLVE. Starts a transition
+    // if none is running yet (same precondition as startDissolve: pvw != pgm); returns false
+    // without effect if a *timed* dissolve already owns the mix. Reaching 1 completes the
+    // transition exactly like a finished timed dissolve (swap + the same events); dragging back
+    // to 0 cleanly cancels it (no swap, back to the normal non-transitioning state) rather than
+    // leaving a transition "parked" mid-way.
+    bool setTBarPosition(float pos);
 
     void renderProgram(video::Frame& out, std::uint64_t index, Clock::time_point now = Clock::now());
     void renderPreview(video::Frame& out, std::uint64_t index) const;
@@ -50,6 +58,8 @@ private:
     mutable std::mutex mutex_;
     int pvw_ = 1, pgm_ = 0;
     bool transitioning_ = false;
+    bool manual_ = false;            // true: progress comes from setTBarPosition(), not the clock
+    float manualProgress_ = 0.f;
     Clock::time_point start_{};
     std::chrono::milliseconds duration_{500};
     video::Frame scratchA_, scratchB_;

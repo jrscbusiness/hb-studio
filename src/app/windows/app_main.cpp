@@ -420,6 +420,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
         else if (c == "dissolve") engine.switcher().startDissolve(std::clamp(idx(1) > 0 ? idx(1) : 500, 50, 10000));
+        else if (c == "tbar" && a.size() >= 2) engine.switcher().setTBarPosition(static_cast<float>(std::atof(a[1].c_str())));
         else if (c == "vcam" && a.size() > 1) {
             if (a[1] == "activate") vcam.activate();
             else if (a[1] == "deactivate") vcam.deactivate();

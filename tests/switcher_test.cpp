@@ -129,6 +129,91 @@ TEST(Switcher, DissolveBlendsThenCompletes) {
     EXPECT_EQ(topics, (std::vector<std::string>{"transition.started", "transition.finished"}));
 }
 
+TEST(Switcher, TBarBlendsProportionallyToPosition) {
+    core::EventBus bus;
+    std::vector<std::string> topics;
+    bus.subscribe("transition.*", [&](const core::Event& e) { topics.push_back(e.topic); });
+    auto srcs = make();
+    switcher::Switcher sw(srcs, &bus);
+    ASSERT_TRUE(sw.setTBarPosition(0.5f));
+    EXPECT_TRUE(sw.state().transitioning);
+    EXPECT_NEAR(sw.state().progress, 0.5f, 1e-6f);
+    EXPECT_FALSE(sw.cut());             // a timed op is still locked out during a manual transition
+    EXPECT_FALSE(sw.startDissolve(500));
+
+    auto a = frame(), b = frame(), mid = frame();
+    srcs[0]->render(a, 3);
+    srcs[1]->render(b, 3);
+    sw.renderProgram(mid, 3);
+    bool strictlyBetween = false;
+    for (size_t i = 0; i < mid.data.size(); ++i)
+        if (a.data[i] != b.data[i] && mid.data[i] != a.data[i] && mid.data[i] != b.data[i]) strictlyBetween = true;
+    EXPECT_TRUE(strictlyBetween);
+
+    // Dragging further updates the mix live, still without completing.
+    ASSERT_TRUE(sw.setTBarPosition(0.9f));
+    EXPECT_TRUE(sw.state().transitioning);
+    EXPECT_NEAR(sw.state().progress, 0.9f, 1e-6f);
+    EXPECT_EQ(sw.state().pvw, 1);
+    EXPECT_EQ(sw.state().pgm, 0);
+    EXPECT_EQ(topics, (std::vector<std::string>{"transition.started"}));
+}
+
+TEST(Switcher, TBarReachingOneCompletesLikeADissolve) {
+    core::EventBus bus;
+    std::vector<std::string> topics;
+    bus.subscribe("transition.*", [&](const core::Event& e) { topics.push_back(e.topic); });
+    switcher::Switcher sw(make(), &bus);
+    ASSERT_TRUE(sw.setTBarPosition(0.5f));
+    ASSERT_TRUE(sw.setTBarPosition(1.0f));
+    auto s = sw.state();
+    EXPECT_FALSE(s.transitioning);
+    EXPECT_EQ(s.pgm, 1);
+    EXPECT_EQ(s.pvw, 0);
+    EXPECT_EQ(topics, (std::vector<std::string>{"transition.started", "transition.finished"}));
+    // A fresh CUT/DISSOLVE works normally right after.
+    EXPECT_TRUE(sw.cut());
+}
+
+TEST(Switcher, TBarBackToZeroCancelsWithoutSwapping) {
+    switcher::Switcher sw(make());
+    ASSERT_TRUE(sw.setTBarPosition(0.7f));
+    ASSERT_TRUE(sw.setTBarPosition(0.f));
+    auto s = sw.state();
+    EXPECT_FALSE(s.transitioning);
+    EXPECT_EQ(s.pgm, 0);   // unchanged: cancelled, not completed
+    EXPECT_EQ(s.pvw, 1);
+    EXPECT_TRUE(sw.cut());  // not locked out afterwards
+}
+
+TEST(Switcher, TBarOutOfRangeIsClampedAndNothingToCrossFadeIsRejected) {
+    switcher::Switcher sw(make());
+    EXPECT_TRUE(sw.setTBarPosition(-5.f));   // clamped to 0: starts, then immediately cancels
+    EXPECT_FALSE(sw.state().transitioning);
+    EXPECT_EQ(sw.state().pgm, 0);            // unchanged (cancelled, not completed)
+    EXPECT_TRUE(sw.setTBarPosition(50.f));   // clamped to 1: starts, then immediately completes
+    EXPECT_FALSE(sw.state().transitioning);
+    EXPECT_EQ(sw.state().pgm, 1);
+
+    switcher::Switcher single(std::vector<std::shared_ptr<const video::Source>>{
+        std::make_shared<video::SyntheticSource>(1, "CAM")});
+    EXPECT_FALSE(single.setTBarPosition(0.5f));  // pvw == pgm: nothing to cross-fade
+}
+
+TEST(Switcher, TimedDissolveLocksOutTheTBarAndViceVersa) {
+    switcher::Switcher sw(make());
+    const auto t0 = Clock::now();
+    ASSERT_TRUE(sw.startDissolve(1000, t0));
+    EXPECT_FALSE(sw.setTBarPosition(0.5f));   // a timed dissolve owns the mix
+    auto mid = sw.state(t0 + milliseconds(500));
+    EXPECT_NEAR(mid.progress, 0.5f, 0.01f);
+    auto doneFrame = frame();
+    sw.renderProgram(doneFrame, 1, t0 + seconds(2));  // let it finish
+
+    ASSERT_TRUE(sw.setTBarPosition(0.3f));
+    EXPECT_FALSE(sw.startDissolve(100));       // a manual transition owns the mix
+}
+
 TEST(Switcher, ZeroDurationDissolveIsACut) {
     switcher::Switcher sw(make());
     EXPECT_TRUE(sw.startDissolve(0));

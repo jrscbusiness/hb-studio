@@ -161,8 +161,9 @@ kbd{font-family:var(--mono);font-size:9.5px;background:rgba(255,255,255,.22);bor
 .seg{display:flex;background:var(--mist);border-radius:10px;padding:3px;flex:1}
 .seg button{flex:1;height:28px;border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
 .seg button.on{background:var(--surface);color:var(--blue);box-shadow:0 1px 4px rgba(20,60,160,.18);font-weight:700}
-.tbar{height:6px;border-radius:6px;background:var(--mist);overflow:hidden}
-.tbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue-2),var(--blue));border-radius:6px}
+.tbarrow{display:flex;align-items:center;gap:6px}
+.tbarrow input[type=range]{flex:1;width:100%;accent-color:var(--blue);height:26px;cursor:grab}
+.tbarrow input[type=range]:active{cursor:grabbing}
 
 /* ---------- right cards ---------- */
 .row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
@@ -439,7 +440,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
             <div class="dur"><span class="cap" style="width:62px">Duração</span>
               <div class="seg" id="dur"><button data-ms="250">250</button><button data-ms="500" class="on">500</button><button data-ms="1000">1000</button><button data-ms="2000">2000</button></div>
             </div>
-            <div class="tbar"><i id="tbar"></i></div>
+            <div class="tbarrow"><span class="cap" style="width:62px">T-bar</span><input type="range" id="tbar" min="0" max="1000" step="1" value="0" aria-label="Misturar manualmente entre PREVIEW e PROGRAM"></div>
           </div>
         </div>
 
@@ -705,6 +706,13 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   }));
   $('#b-cut').addEventListener('click', () => send('cut'));
   $('#b-dis').addEventListener('click', () => send('dissolve', duration));
+  // T-bar: manual fader alongside CUT/DISSOLVE. While the operator is dragging it, the periodic
+  // state feed must not fight the drag (same guard style as the ÁUDIO faders).
+  let tbarDown = false;
+  const tbarEl = $('#tbar');
+  tbarEl.addEventListener('pointerdown', () => { tbarDown = true; });
+  addEventListener('pointerup', () => { tbarDown = false; });
+  tbarEl.addEventListener('input', () => send('tbar', (+tbarEl.value / 1000).toFixed(4)));
   $$('#tabs button').forEach(b => b.addEventListener('click', () => {
     $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
     $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.v));
@@ -1005,7 +1013,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     $$('#bus-pgm .key').forEach(k => k.classList.toggle('pgm', +k.dataset.i === s.pgm));
     $$('#bus-pvw .key').forEach(k => k.classList.toggle('pvw', +k.dataset.i === s.pvw));
     if (!s.slots) { $('#pgm-name').textContent = 'CAM ' + (s.pgm + 1); $('#pvw-name').textContent = 'CAM ' + (s.pvw + 1); }
-    $('#tbar').style.width = (s.transition ? Math.round(s.progress * 100) : 0) + '%';
+    if (!tbarDown) $('#tbar').value = Math.round((s.transition ? s.progress : 0) * 1000);
     $('#b-cut').disabled = $('#b-dis').disabled = !!s.transition;
     $('#c-fps').textContent = s.fps.toFixed(1) + ' fps';
     $('#c-tier').textContent = s.tier;

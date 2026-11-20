@@ -79,6 +79,25 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   const keys = await sent();
   ok(keys.includes('preview|2') && keys.includes('program|3') && keys.includes('cut') && keys.some(k => k.startsWith('dissolve|')), 'keyboard: 3, Shift+4, Space, Enter');
 
+  console.log('\n[1b] PRODUÇÃO - T-bar manual');
+  ok(await page.locator('#tbar').count() === 1, 'T-bar fader is present alongside CUT/DISSOLVE');
+  ok(+(await page.locator('#tbar').inputValue()) === 0, 'T-bar starts at rest (0)');
+  await clearSent();
+  await page.locator('#tbar').evaluate(el => { el.value = 500; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  ok((await sent()).includes('tbar|0.5000'), 'dragging the T-bar to the middle sends tbar|0.5');
+  await page.locator('#tbar').evaluate(el => { el.value = 1000; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  ok((await sent()).includes('tbar|1.0000'), 'dragging the T-bar to the end sends tbar|1');
+  // While actively dragging (pointerdown), the periodic state feed must not override the T-bar's value.
+  await page.locator('#tbar').dispatchEvent('pointerdown');
+  await setState({ transition: false, progress: 0 });
+  await page.waitForTimeout(50);
+  ok(+(await page.locator('#tbar').inputValue()) === 1000, 'T-bar keeps the operator\'s position while pointer is down, ignoring the state feed');
+  await page.evaluate(() => window.dispatchEvent(new Event('pointerup')));
+  await setState({ transition: true, progress: 0.3 });
+  await page.waitForTimeout(100);
+  ok(+(await page.locator('#tbar').inputValue()) === 300, 'once released, the T-bar follows the engine\'s own transition progress');
+  await setState({});
+
   console.log('\n[2] PRODUÇÃO - câmera virtual');
   await clearSent();
   await humanClick('#v-main');

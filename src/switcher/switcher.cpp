@@ -20,9 +20,13 @@ Switcher::State Switcher::state(Clock::time_point now) const {
     std::lock_guard lock(mutex_);
     State s{pvw_, pgm_, transitioning_, 0.f};
     if (transitioning_) {
-        const float p = std::chrono::duration<float, std::milli>(now - start_).count() /
-                        static_cast<float>(duration_.count());
-        s.progress = std::clamp(p, 0.f, 1.f);
+        if (manual_) {
+            s.progress = manualProgress_;
+        } else {
+            const float p = std::chrono::duration<float, std::milli>(now - start_).count() /
+                            static_cast<float>(duration_.count());
+            s.progress = std::clamp(p, 0.f, 1.f);
+        }
     }
     return s;
 }
@@ -69,12 +73,47 @@ bool Switcher::startDissolve(int ms, Clock::time_point now) {
         std::lock_guard lock(mutex_);
         if (transitioning_ || pvw_ == pgm_) return false;
         transitioning_ = true;
+        manual_ = false;
         start_ = now;
         duration_ = std::chrono::milliseconds(ms);
         pvw = pvw_;
         pgm = pgm_;
     }
     publish("transition.started", pvw, pgm);
+    return true;
+}
+
+bool Switcher::setTBarPosition(float pos) {
+    pos = std::clamp(pos, 0.f, 1.f);
+    int pvw, pgm;
+    bool started = false, finished = false;
+    {
+        std::lock_guard lock(mutex_);
+        if (transitioning_ && !manual_) return false;  // a timed dissolve owns the mix right now
+        if (!transitioning_) {
+            if (pvw_ == pgm_) return false;             // nothing to cross-fade
+            transitioning_ = true;
+            manual_ = true;
+            started = true;
+        }
+        pvw = pvw_;
+        pgm = pgm_;
+        manualProgress_ = pos;
+        if (pos <= 0.f) {
+            transitioning_ = false;
+            manual_ = false;
+        } else if (pos >= 1.f) {
+            std::swap(pvw_, pgm_);
+            transitioning_ = false;
+            manual_ = false;
+            finished = true;
+        }
+    }
+    if (started) publish("transition.started", pvw, pgm);
+    if (finished) {
+        publish("transition.finished", pgm, pvw);
+        publish("switcher.programChanged", pgm, pvw);
+    }
     return true;
 }
 
@@ -98,9 +137,11 @@ void Switcher::renderProgram(video::Frame& out, std::uint64_t index, Clock::time
         pvw = pvw_;
         pgm = pgm_;
         transitioning = transitioning_;
-        if (transitioning)
-            progress = std::clamp(std::chrono::duration<float, std::milli>(now - start_).count() /
-                                      static_cast<float>(duration_.count()), 0.f, 1.f);
+        if (transitioning) {
+            progress = manual_ ? manualProgress_
+                               : std::clamp(std::chrono::duration<float, std::milli>(now - start_).count() /
+                                               static_cast<float>(duration_.count()), 0.f, 1.f);
+        }
     }
     if (!transitioning) {
         sources_[static_cast<std::size_t>(pgm)]->render(out, index);
