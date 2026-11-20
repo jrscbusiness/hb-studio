@@ -421,6 +421,33 @@ private:
 
 }  // namespace
 
+// Real end-to-end confirmation that MP3 recording actually works on this machine. Three
+// successively deeper checks — a CLSID being registered (hasEncoder), and a standalone MFT
+// instance accepting a negotiated (output, input) type pair (discoverEncoderTypes) — were each
+// confirmed on CI to NOT predict whether a real SinkWriter stream will accept that same type
+// (it kept refusing it with the identical HRESULT regardless). Rather than add a fourth guess,
+// just run the real thing: open an actual MfWriter(Kind::Mp3) against a throwaway temp file,
+// through the exact code path recording will use, and see if it genuinely works.
+bool mp3ReallyWorks() {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const auto path = fs::temp_directory_path(ec) / L"hb_mp3_probe_tmp.mp3";
+    if (ec) return false;
+    fs::remove(path, ec);
+    bool ok;
+    {
+        MfWriter w(Kind::Mp3);
+        RecordingProfile prof;
+        prof.audioBitrateKbps = 192;
+        std::string err;
+        ok = w.open(path.string(), prof, VideoFormat{}, AudioFormat{48000, 2}, err);
+        std::string ignore;
+        w.close(ignore);
+    }
+    fs::remove(path, ec);
+    return ok;
+}
+
 EncoderAvailability probeEncoders() {
     EncoderAvailability a;
     MfScope scope;
@@ -428,19 +455,7 @@ EncoderAvailability probeEncoders() {
     a.h264 = hasEncoder(MFT_CATEGORY_VIDEO_ENCODER, MFMediaType_Video, MFVideoFormat_H264);
     a.hevc = hasEncoder(MFT_CATEGORY_VIDEO_ENCODER, MFMediaType_Video, MFVideoFormat_HEVC);
     a.aac = hasEncoder(MFT_CATEGORY_AUDIO_ENCODER, MFMediaType_Audio, MFAudioFormat_AAC);
-    // MP3 needs more than "a CLSID is registered" (hasEncoder()): confirmed on CI, the in-box
-    // encoder can enumerate yet still refuse every real negotiation (output type, PCM input type,
-    // and even its own just-negotiated input type when fed back to a real SinkWriter stream — all
-    // three independently tried and all three refused identically). A real end-to-end negotiation
-    // at the settings addAudioStream() will actually use is the only way to know MP3 genuinely
-    // works here; if it doesn't, the profile is left unregistered (never offered) rather than
-    // claiming a format that will always fail to open.
-    {
-        ComPtr<IMFMediaType> outT, inT;
-        std::string derr;
-        a.mp3 = discoverEncoderTypes(MFT_CATEGORY_AUDIO_ENCODER, MFAudioFormat_MP3, 48000, 2, mp3BytesPerSecond(192),
-                                     outT, inT, derr);
-    }
+    a.mp3 = mp3ReallyWorks();
     return a;
 }
 
