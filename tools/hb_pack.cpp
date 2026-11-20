@@ -95,10 +95,12 @@ int main(int argc, char** argv) {
         out.write(static_cast<const char*>(buf), static_cast<std::streamsize>(size));
         if (!out) {
             std::cerr << "erro: não foi possível gravar " << argv[2] << "\n";
+            mz_free(buf);
             mz_zip_writer_end(&z);
             return 1;
         }
     }
+    mz_free(buf);
     mz_zip_writer_end(&z);
 
 #ifdef _WIN32

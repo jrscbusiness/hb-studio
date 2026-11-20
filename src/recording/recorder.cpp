@@ -160,9 +160,9 @@ bool Recorder::start(std::string& error) {
             std::lock_guard lk(statusMu_);
             status_.error = msg;
         }
-        state_ = kError;
         log(core::Level::Error, "Nao foi possivel iniciar a gravacao: " + msg);
-        publish("recording.error", {{"message", msg}});
+        publish("recording.error", {{"message", msg}});   // published before the state change is visible (see fail())
+        state_ = kError;
         return false;
     };
 
@@ -375,9 +375,12 @@ void Recorder::fail(const std::string& message) {
         std::lock_guard lk(statusMu_);
         status_.error = message;
     }
-    state_ = kError;
     log(core::Level::Error, "Gravacao interrompida: " + message);
+    // Publish before flipping the publicly visible state: a caller that polls status() and
+    // observes State::Error as soon as it changes must already be able to see this event (and the
+    // log line above) — otherwise a fast poller can race ahead of the event it is looking for.
     publish("recording.error", {{"message", message}, {"file", baseName(status().file)}});
+    state_ = kError;
 }
 
 bool Recorder::checkDisk(bool force) {
@@ -659,14 +662,16 @@ void Recorder::run() {
             fail(e);
         else {
             updateStatus();
-            state_ = kIdle;
             const Status s = status();
             log(core::Level::Info, "Gravacao finalizada: " + baseName(s.file));
+            // Published before state_ flips to Idle, same reasoning as fail(): a caller polling
+            // status() must never observe the new state before this event.
             publish("recording.stopped", {{"path", s.file},
                                           {"file", baseName(s.file)},
                                           {"seconds", std::to_string(s.seconds)},
                                           {"bytes", std::to_string(s.bytes)},
                                           {"segments", std::to_string(s.segment)}});
+            state_ = kIdle;
         }
     }
     updateStatus();

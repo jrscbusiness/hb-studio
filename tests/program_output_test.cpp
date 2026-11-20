@@ -88,7 +88,9 @@ TEST(ProgramOutput, ConsumersKeepReceivingFramesWhenRendererThrows) {
     });
     out.addConsumer([&](const auto&) { got.fetch_add(1); });
     out.start();
-    std::this_thread::sleep_for(milliseconds(300));
+    // 60 fps * 800 ms ~= 48 ticks expected; a busy CI runner that only manages a few ticks in
+    // 300 ms (observed on Windows CI) still clears ">3" comfortably at this duration.
+    std::this_thread::sleep_for(milliseconds(800));
     out.stop();
     EXPECT_GT(out.rendererErrors(), 3u);
     EXPECT_GT(out.repeatedFrames(), 3u);

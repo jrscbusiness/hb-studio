@@ -33,6 +33,7 @@ inline std::vector<std::uint8_t> makeZip(const Entries& entries, bool compress =
     size_t size = 0;
     mz_zip_writer_finalize_heap_archive(&z, &buf, &size);
     std::vector<std::uint8_t> out(static_cast<std::uint8_t*>(buf), static_cast<std::uint8_t*>(buf) + size);
+    mz_free(buf);
     mz_zip_writer_end(&z);
     return out;
 }

@@ -269,16 +269,32 @@ private:
         HRESULT hr = sw_->AddStream(out.Get(), &aStream_);
         if (FAILED(hr)) { error = hrText("codificador de áudio indisponível neste computador", hr); return false; }
 
-        ComPtr<IMFMediaType> in;
-        MFCreateMediaType(&in);
-        in->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-        in->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-        in->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-        in->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
-        in->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
-        in->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, ch * 2);
-        in->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, rate * ch * 2);
-        hr = sw_->SetInputMediaType(aStream_, in.Get(), nullptr);
+        // Build the PCM input type the encoder should accept. Some in-box encoders (the MP3 one
+        // wraps a legacy ACM codec) are pickier than the AAC one about exactly which fields a PCM
+        // type may carry, so try progressively plainer variants instead of betting on one shape.
+        auto makeIn = [&](bool blockAlign, bool preferWfx) {
+            ComPtr<IMFMediaType> t;
+            MFCreateMediaType(&t);
+            t->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+            t->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+            t->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+            t->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
+            t->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
+            if (blockAlign) {
+                t->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, ch * 2);
+                t->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, rate * ch * 2);
+            }
+            if (preferWfx) t->SetUINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1);
+            return t;
+        };
+        HRESULT last = E_FAIL;
+        for (const bool preferWfx : {false, true})
+            for (const bool blockAlign : {true, false}) {
+                last = sw_->SetInputMediaType(aStream_, makeIn(blockAlign, preferWfx).Get(), nullptr);
+                if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
+            }
+        hr = last;
+    inputTypeSet:
         if (FAILED(hr)) { error = hrText("formato de entrada de áudio recusado", hr); return false; }
         return true;
     }

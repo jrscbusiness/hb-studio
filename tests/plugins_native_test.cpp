@@ -297,7 +297,7 @@ TEST(NativeExample, FullFlowPackageInstallEnableLoadOpen) {
     EXPECT_EQ(sid, "src-1");
     for (const char* bad : {"", "plugin:", "plugin:x", "plugin:com.a.b:", "plugin:com.a.b:a/b", "dshow:x", "plugin:Con:x", "plugin:..:x"})
         EXPECT_FALSE(PluginRuntime::parseFullId(bad, pid, sid)) << bad;
-    fs::remove_all(work);
+    { std::error_code ec; fs::remove_all(work, ec); }   // best-effort: on Windows a loaded plugin library stays locked until the process exits (by design, see docs/PLUGINS.md)
 }
 
 TEST(NativeExample, TamperedLibraryIsNeverLoadedAtStartup) {
@@ -327,5 +327,5 @@ TEST(NativeExample, TamperedLibraryIsNeverLoadedAtStartup) {
     EXPECT_FALSE(ip.loaded);
     EXPECT_FALSE(ip.enabled);                                 // switched off with an error shown to the user
     EXPECT_FALSE(ip.error.empty());
-    fs::remove_all(work);
+    { std::error_code ec; fs::remove_all(work, ec); }   // best-effort: on Windows a loaded plugin library stays locked until the process exits (by design, see docs/PLUGINS.md)
 }

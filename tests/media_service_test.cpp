@@ -19,6 +19,13 @@ struct Rig {
         fs::create_directories(dir);
         audio_io::EngineOptions o;
         o.lister = [](audio_io::Backend, std::string&) { return std::vector<audio_io::DeviceInfo>{}; };
+        // Never touch a real audio backend (PulseAudio/WASAPI/...): these tests exercise command
+        // handling and the JSON contract, not real hardware, and a real backend can leak/hang in
+        // a container with no audio server.
+        o.opener = [](const audio_io::OpenRequest&, std::string& err) -> std::unique_ptr<audio_io::RawDevice> {
+            err = "dispositivo simulado indisponível (teste).";
+            return nullptr;
+        };
         svc = std::make_unique<app::MediaService>(program, nullptr, nullptr, (dir / "data").string(), (dir / "rec").string(), o);
         svc->start();
         program.start();
@@ -94,6 +101,13 @@ TEST(MediaService, UnknownProfileRefusedAndSettingsPersist) {
         video::ProgramOutput p2{{320, 180, {30, 1}}};
         audio_io::EngineOptions o;
         o.lister = [](audio_io::Backend, std::string&) { return std::vector<audio_io::DeviceInfo>{}; };
+        // Never touch a real audio backend (PulseAudio/WASAPI/...): these tests exercise command
+        // handling and the JSON contract, not real hardware, and a real backend can leak/hang in
+        // a container with no audio server.
+        o.opener = [](const audio_io::OpenRequest&, std::string& err) -> std::unique_ptr<audio_io::RawDevice> {
+            err = "dispositivo simulado indisponível (teste).";
+            return nullptr;
+        };
         app::MediaService s2(p2, nullptr, nullptr, (r.dir / "data").string(), (r.dir / "rec").string(), o);
         s2.start();
         EXPECT_EQ(s2.settings().audioBitrateKbps, 128);
