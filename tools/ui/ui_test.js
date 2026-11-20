@@ -272,6 +272,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   // a config update while dragging must not rebuild the strips
   await page.evaluate(() => { window.__marker = document.querySelector('.strip[data-i="3"]'); });
   await page.locator('.strip[data-i="3"] .fader').dispatchEvent('pointerdown');
+  await page.waitForTimeout(30);   // let the pointerdown listener settle before the race we're testing
   await page.evaluate(a => window.__hbMessage(a), AUDIO());
   ok(await page.evaluate(() => window.__marker === document.querySelector('.strip[data-i="3"]')), 'AUDIO: strips are not rebuilt while the operator drags a fader');
   await page.evaluate(() => document.dispatchEvent(new Event('pointerup'))); await page.waitForTimeout(50);
