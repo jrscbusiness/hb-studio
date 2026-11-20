@@ -305,6 +305,23 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'rec', state: 'idle', error: 'Disco cheio', last: 'C:\\v\\a.mp4' }));
   ok((await page.locator('#rec-err').textContent()).includes('Disco cheio'), 'REC: errors are shown');
 
+
+  console.log('\n[5c] Tema claro/escuro nativo (sem plugin)');
+  await tab('cfg');
+  ok(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme !== undefined), 'CONFIG: tema nativo presente (sem plugin algum instalado)');
+  ok((await page.locator('#theme-seg button.on').getAttribute('data-th')) === 'system', 'TEMA: começa em "Sistema" (segue o Windows)');
+  const sentT0 = await page.evaluate(() => window.__sent.length);
+  const bgBefore = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await page.locator('#theme-seg button[data-th=dark]').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sentT0)).includes('uitheme|dark'), 'TEMA: escolher ESCURO avisa o host (uitheme|dark)');
+  ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'dark', 'TEMA: atributo data-theme="dark" aplicado');
+  const bgAfter = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  ok(bgAfter !== bgBefore, 'TEMA: a cor de fundo realmente muda ao ligar o modo escuro');
+  await page.locator('#theme-seg button[data-th=light]').click();
+  ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'light', 'TEMA: escolher CLARO volta ao claro');
+  await page.locator('#theme-seg button[data-th=system]').click();
+  ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === null, 'TEMA: "Sistema" remove o atributo (volta a seguir o SO)');
+
   console.log('\n[6] Layout em janelas diferentes');
   // production screen must fit without clipping the inputs strip on common laptop sizes
   for (const [w, h] of [[1280, 800], [1366, 768], [1920, 1080]]) {

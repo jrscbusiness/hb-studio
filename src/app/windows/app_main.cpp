@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -194,6 +195,20 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     media.start();
     win::trace("media service started");
 
+    // ---- native dark/light mode (built into the app; no plugin needed) ----
+    const std::string themePath = mediaDir.empty() ? std::string() : mediaDir + "\\theme.txt";
+    auto effectiveDark = [](const std::string& pref) {
+        if (pref == "dark") return true;
+        if (pref == "light") return false;
+        return win::systemPrefersDark();  // "system" (default)
+    };
+    std::string themePref = "system";
+    if (!themePath.empty()) {
+        std::ifstream f(themePath, std::ios::binary);
+        std::string v;
+        if (f && std::getline(f, v) && (v == "dark" || v == "light" || v == "system")) themePref = v;
+    }
+
     std::mutex devMutex;
     std::map<int, std::shared_ptr<win::DShowSource>> devices;   // slot -> running capture (keeps it alive)
     std::map<std::string, std::string> knownNames;          // id -> friendly name from the last scan
@@ -309,6 +324,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             if (pluginsReady) {
                 host.postQueued("plugins", plugins.listJson());
                 host.postQueued("theme", plugins.themeJson());
+            }
+        }
+        else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "system")) {
+            // Native dark/light mode: built into the app, no plugin needed. The web page applies
+            // its own colours (CSS + localStorage, see ui/index.html); this just keeps the native
+            // window chrome (title bar) in sync and remembers the choice for the next launch.
+            themePref = a[1];
+            host.setTheme(effectiveDark(themePref));
+            if (!themePath.empty()) {
+                std::ofstream f(themePath, std::ios::binary | std::ios::trunc);
+                f << themePref;
             }
         }
         else if (c == "aud" || c == "rec") {
@@ -444,6 +470,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     opt.userDataDir = dataDir;
     opt.title = L"HB Studio";
     if (!mediaDir.empty()) opt.placementFile = win::widen(mediaDir) + L"\\window.txt";
+    opt.initialDark = effectiveDark(themePref);
 
     std::thread feeder;
     auto startFeeder = [&] {

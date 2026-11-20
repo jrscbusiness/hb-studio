@@ -61,6 +61,7 @@ void showRuntimeMissing(HWND owner) {
 
 WebViewHost::~WebViewHost() {
     if (controller_) controller_->Close();
+    if (bgBrush_) DeleteObject(bgBrush_);
 }
 
 bool WebViewHost::create(HINSTANCE inst, const Options& opt, std::string html, MessageHandler onMessage,
@@ -103,12 +104,7 @@ bool WebViewHost::create(HINSTANCE inst, const Options& opt, std::string html, M
                             nullptr, inst, this);
     if (!hwnd_) return false;
 
-    // Light caption bar matching the UI (Windows 11; ignored elsewhere).
-    COLORREF cap = opt.background, txt = RGB(0x0A, 0x1E, 0x47);
-    DwmSetWindowAttribute(hwnd_, 35 /*DWMWA_CAPTION_COLOR*/, &cap, sizeof(cap));
-    DwmSetWindowAttribute(hwnd_, 36 /*DWMWA_TEXT_COLOR*/, &txt, sizeof(txt));
-    BOOL dark = FALSE;
-    DwmSetWindowAttribute(hwnd_, 20 /*DWMWA_USE_IMMERSIVE_DARK_MODE*/, &dark, sizeof(dark));
+    setTheme(opt.initialDark);  // caption bar + class background matching the UI (Windows 11; ignored elsewhere)
 
     ShowWindow(hwnd_, savedMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
     UpdateWindow(hwnd_);
@@ -230,6 +226,26 @@ void WebViewHost::drain() {
         q.swap(queue_);
     }
     for (auto& m : q) post(m.second);
+}
+
+void WebViewHost::setTheme(bool dark) {
+    const COLORREF bg = dark ? RGB(0x0A, 0x12, 0x26) : opt_.background;
+    const COLORREF cap = bg, txt = dark ? RGB(0xE8, 0xEE, 0xFF) : RGB(0x0A, 0x1E, 0x47);
+    BOOL immersive = dark ? TRUE : FALSE;
+    if (hwnd_) {
+        DwmSetWindowAttribute(hwnd_, 35 /*DWMWA_CAPTION_COLOR*/, &cap, sizeof(cap));
+        DwmSetWindowAttribute(hwnd_, 36 /*DWMWA_TEXT_COLOR*/, &txt, sizeof(txt));
+        DwmSetWindowAttribute(hwnd_, 20 /*DWMWA_USE_IMMERSIVE_DARK_MODE*/, &immersive, sizeof(immersive));
+        HBRUSH old = bgBrush_;
+        bgBrush_ = CreateSolidBrush(bg);
+        SetClassLongPtrW(hwnd_, GCLP_HBRBACKGROUND, reinterpret_cast<LONG_PTR>(bgBrush_));
+        if (old) DeleteObject(old);
+        // Nudges Windows into repainting the non-client area (caption) immediately; otherwise the
+        // new colours often only show up after the next resize/move.
+        SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        InvalidateRect(hwnd_, nullptr, TRUE);
+    }
 }
 
 void WebViewHost::screenshot(const std::wstring& path, std::function<void(bool)> done) {

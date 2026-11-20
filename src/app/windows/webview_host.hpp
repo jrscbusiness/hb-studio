@@ -31,6 +31,10 @@ public:
         // persist (always centered at width x height). Best-effort: a missing/corrupt/stale file
         // (e.g. the saved spot is off every connected monitor) is ignored and the default is used.
         std::wstring placementFile;
+        // Native window chrome (title bar) at first paint: dark caption/text + DWM immersive dark
+        // mode. The web content's own colour scheme is independent (CSS); this only keeps the
+        // frame Windows draws around it consistent with whatever the page is about to show.
+        bool initialDark = false;
     };
     using MessageHandler = std::function<void(const std::string&)>;
 
@@ -47,6 +51,10 @@ public:
     // Saves a PNG of the web content, then calls done on the UI thread.
     void screenshot(const std::wstring& path, std::function<void(bool)> done);
 
+    // Switches the native window chrome (caption colour/text + DWM immersive dark mode) to match.
+    // UI thread only; safe to call any time after create().
+    void setTheme(bool dark);
+
     int run();
     void close();
     HWND hwnd() const { return hwnd_; }
@@ -58,6 +66,7 @@ private:
     void drain();
 
     HWND hwnd_ = nullptr;
+    HBRUSH bgBrush_ = nullptr;
     Options opt_;
     std::string html_;
     MessageHandler onMessage_;

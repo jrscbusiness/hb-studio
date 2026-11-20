@@ -79,6 +79,17 @@ unsigned windowsBuild() {
     return fn(&vi) == 0 ? vi.dwBuildNumber : 0;
 }
 
+bool systemPrefersDark() {
+    HKEY key = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 0,
+                      KEY_READ, &key) != ERROR_SUCCESS)
+        return false;
+    DWORD value = 1, size = sizeof(value), type = 0;
+    const LSTATUS r = RegQueryValueExW(key, L"AppsUseLightTheme", nullptr, &type, reinterpret_cast<BYTE*>(&value), &size);
+    RegCloseKey(key);
+    return r == ERROR_SUCCESS && type == REG_DWORD && value == 0;
+}
+
 void trace(const char* msg) {
     wchar_t path[MAX_PATH];
     const DWORD n = GetEnvironmentVariableW(L"HB_TRACE", path, MAX_PATH);

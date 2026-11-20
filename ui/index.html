@@ -17,6 +17,25 @@
   --mono:"Cascadia Mono","JetBrains Mono",Consolas,"DejaVu Sans Mono",monospace;
   --sans:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
 }
+/* Native dark mode (built in, no plugin needed): "Sistema" follows the OS via the media query
+   below; an explicit choice (data-theme) always wins over it. A plugin theme, if one is active,
+   overrides these with inline styles (applyTheme()), which take precedence over any of this. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1226; --panel:#111B33; --line:#243459; --line-2:#30446F;
+    --ink:#E8EEFF; --ink-2:#B2C1E6; --muted:#7F92BE;
+    --blue:#4F8DFF; --blue-2:#7FAEFF; --sky:#2D4C87; --mist:#1B2D52;
+    --navy:#E8EEFF; --surface:#16233F; --surface-2:#1C2C4D; --glass:rgba(17,27,51,.78); --on-accent:#FFFFFF;
+    --warn-ink:#F5C65A; --warn-bg:#3A2E12; --warn-line:#6B5522;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1226; --panel:#111B33; --line:#243459; --line-2:#30446F;
+  --ink:#E8EEFF; --ink-2:#B2C1E6; --muted:#7F92BE;
+  --blue:#4F8DFF; --blue-2:#7FAEFF; --sky:#2D4C87; --mist:#1B2D52;
+  --navy:#E8EEFF; --surface:#16233F; --surface-2:#1C2C4D; --glass:rgba(17,27,51,.78); --on-accent:#FFFFFF;
+  --warn-ink:#F5C65A; --warn-bg:#3A2E12; --warn-line:#6B5522;
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{
@@ -578,6 +597,14 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 
     <!-- ===================== CONFIG ===================== -->
     <section class="view" id="v-cfg">
+      <div class="card"><h3><span class="cap">Aparência</span></h3>
+        <div class="body">
+          <div class="dur"><span class="cap" style="width:62px">Tema</span>
+            <div class="seg" id="theme-seg"><button data-th="light">CLARO</button><button data-th="dark">ESCURO</button><button data-th="system" class="on">SISTEMA</button></div>
+          </div>
+          <p class="note" style="margin-top:10px">“Sistema” segue a preferência de tema claro/escuro do Windows. O tema escuro é nativo do HB Studio — não precisa instalar nenhum plugin.</p>
+        </div>
+      </div>
       <div class="card"><h3><span class="cap">Computador detectado</span></h3>
         <div class="body">
           <div class="row"><span class="k">Perfil sugerido</span><span class="tier" id="g-tier">—</span></div>
@@ -919,6 +946,24 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 
   // remember the chosen transition time between runs
   try { const d = +localStorage.getItem('hb.duration'); if ([250, 500, 1000, 2000].includes(d)) { duration = d; $$('#dur button').forEach(x => x.classList.toggle('on', +x.dataset.ms === d)); } } catch (e) {}
+
+  // ---------- native dark/light mode (built in; no plugin needed) ----------
+  (() => {
+    let pref = 'system';
+    try { const s = localStorage.getItem('hb.theme'); if (s === 'light' || s === 'dark' || s === 'system') pref = s; } catch (e) {}
+    const apply = p => {
+      if (p === 'system') document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme', p);
+      $$('#theme-seg button').forEach(b => b.classList.toggle('on', b.dataset.th === p));
+    };
+    apply(pref);
+    $$('#theme-seg button').forEach(b => b.addEventListener('click', () => {
+      pref = b.dataset.th;
+      apply(pref);
+      try { localStorage.setItem('hb.theme', pref); } catch (e) {}
+      send('uitheme', pref);   // keeps the native title bar in sync and remembers it for next launch
+    }));
+  })();
 
   // ---------- frames ----------
   const imgs = {};
