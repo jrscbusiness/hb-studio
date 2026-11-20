@@ -42,7 +42,12 @@ TEST(Sha256, ResetAndBoundaryLengths) {
 
 TEST(Json, ParsesAllTypesAndEscapes) {
     json::Value v;
-    ASSERT_TRUE(json::parse(R"({"a":1.5e2,"b":[true,false,null],"c":"x\ny\u00e9\ud83d\ude00","d":{"e":-3}})", v));
+    // Not a raw string here: MSVC's lexer treats a literal "\u" followed by 4 hex digits as a
+    // universal-character-name even inside a raw string, and rejects \ud83d/\ude00 (surrogate
+    // halves are not valid UCN values). Doubling each backslash ("\\n", "\\u00e9", ...) makes the
+    // lexer consume it as the single-backslash escape "\\" first, so the following letter/digits
+    // are never looked at as the start of a UCN; the JSON text the parser sees is unchanged.
+    ASSERT_TRUE(json::parse("{\"a\":1.5e2,\"b\":[true,false,null],\"c\":\"x\\ny\\u00e9\\ud83d\\ude00\",\"d\":{\"e\":-3}}", v));
     EXPECT_EQ(v.get("a")->n, 150.0);
     EXPECT_EQ(v.get("b")->a.size(), 3u);
     EXPECT_TRUE(v.get("b")->a[0].b);
