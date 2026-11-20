@@ -6,6 +6,7 @@
 #include <mferror.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
+#include <mftransform.h>
 #include <wrl/client.h>
 
 #include <algorithm>
@@ -269,30 +270,55 @@ private:
         HRESULT hr = sw_->AddStream(out.Get(), &aStream_);
         if (FAILED(hr)) { error = hrText("codificador de áudio indisponível neste computador", hr); return false; }
 
-        // Build the PCM input type the encoder should accept. Some in-box encoders (the MP3 one
-        // wraps a legacy ACM codec) are pickier than the AAC one about exactly which fields a PCM
-        // type may carry, so try progressively plainer variants instead of betting on one shape.
-        auto makeIn = [&](bool blockAlign, bool preferWfx) {
-            ComPtr<IMFMediaType> t;
-            MFCreateMediaType(&t);
-            t->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-            t->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-            t->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-            t->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
-            t->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
-            if (blockAlign) {
-                t->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, ch * 2);
-                t->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, rate * ch * 2);
-            }
-            if (preferWfx) t->SetUINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1);
-            return t;
-        };
+        // Ask the encoder itself what PCM input it wants, instead of guessing: SinkWriter picked a
+        // concrete encoder MFT when AddStream() succeeded above, and (Win8+) IMFSinkWriterEx can
+        // hand us that very IMFTransform. Its own GetInputAvailableType() is the one shape every
+        // encoder is guaranteed to accept (with our rate/channels set on it) — some in-box
+        // encoders (the MP3 one wraps a legacy ACM codec) reject an otherwise-reasonable, hand
+        // built PCM type that the AAC encoder accepts without complaint.
         HRESULT last = E_FAIL;
-        for (const bool preferWfx : {false, true})
-            for (const bool blockAlign : {true, false}) {
-                last = sw_->SetInputMediaType(aStream_, makeIn(blockAlign, preferWfx).Get(), nullptr);
-                if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
+        ComPtr<IMFSinkWriterEx> swEx;
+        if (SUCCEEDED(sw_.As(&swEx))) {
+            ComPtr<IMFTransform> mft;
+            GUID category{};
+            if (SUCCEEDED(swEx->GetTransformForStream(aStream_, 0, &category, &mft))) {
+                for (DWORD idx = 0; idx < 16; ++idx) {
+                    ComPtr<IMFMediaType> t;
+                    if (FAILED(mft->GetInputAvailableType(0, idx, &t))) break;
+                    GUID major{};
+                    t->GetGUID(MF_MT_MAJOR_TYPE, &major);
+                    if (major != MFMediaType_Audio) continue;
+                    t->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
+                    t->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
+                    last = sw_->SetInputMediaType(aStream_, t.Get(), nullptr);
+                    if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
+                }
             }
+        }
+        // Fallback for anything that doesn't support IMFSinkWriterEx / GetTransformForStream, or
+        // whose enumerated type the loop above could not adapt: a few hand-built PCM shapes.
+        {
+            auto makeIn = [&](bool blockAlign, bool preferWfx) {
+                ComPtr<IMFMediaType> t;
+                MFCreateMediaType(&t);
+                t->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+                t->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+                t->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+                t->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
+                t->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
+                if (blockAlign) {
+                    t->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, ch * 2);
+                    t->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, rate * ch * 2);
+                }
+                if (preferWfx) t->SetUINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1);
+                return t;
+            };
+            for (const bool preferWfx : {false, true})
+                for (const bool blockAlign : {true, false}) {
+                    last = sw_->SetInputMediaType(aStream_, makeIn(blockAlign, preferWfx).Get(), nullptr);
+                    if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
+                }
+        }
         hr = last;
     inputTypeSet:
         if (FAILED(hr)) { error = hrText("formato de entrada de áudio recusado", hr); return false; }
