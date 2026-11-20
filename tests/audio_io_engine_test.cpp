@@ -206,6 +206,26 @@ TEST(AudioEngineEffects, ChainProcessesInOrderBypassMoveRemove) {
     EXPECT_NEAR(r.lastL(), -0.4f, kTol);
 }
 
+TEST(AudioEngineEffects, EffectInstanceAccessor) {
+    Rig r;
+    EXPECT_EQ(r.engine->effectInstance(0, 0), nullptr);   // nothing there yet
+    EXPECT_EQ(r.engine->effectInstance(-1, 0), nullptr);  // out of range strip
+    EXPECT_EQ(r.engine->effectInstance(99, 0), nullptr);
+    ASSERT_TRUE(r.engine->addEffect(0, "test.gain"));
+    ASSERT_TRUE(r.engine->addEffect(0, "test.invert"));
+    auto gain = r.engine->effectInstance(0, 0);
+    ASSERT_NE(gain, nullptr);
+    EXPECT_STREQ(gain->typeId(), "test.gain");
+    EXPECT_EQ(r.engine->effectInstance(0, 1)->typeId(), std::string("test.invert"));
+    EXPECT_EQ(r.engine->effectInstance(0, 2), nullptr);   // past the end
+    EXPECT_EQ(r.engine->effectInstance(0, -1), nullptr);
+    // The same underlying instance keeps processing through the accessor's shared_ptr even after
+    // it's removed from the chain (it's a live real-time object, not a snapshot/copy).
+    ASSERT_TRUE(r.engine->removeEffect(0, 0));
+    EXPECT_STREQ(gain->typeId(), "test.gain");
+    EXPECT_EQ(r.engine->effectInstance(0, 0)->typeId(), std::string("test.invert"));
+}
+
 TEST(AudioEngineEffects, ValidationAndLimits) {
     Rig r;
     EXPECT_FALSE(r.engine->addEffect(0, "nao.existe"));

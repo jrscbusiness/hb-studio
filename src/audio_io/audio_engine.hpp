@@ -169,6 +169,16 @@ public:
     std::string lastError() const;
     int stripCount() const;
 
+    // Non-owning access to the live effect instance at (strip, idx), or nullptr if out of range,
+    // the slot is empty/missing, or the index moved from under the caller. For capabilities that
+    // don't fit the portable Effect interface — e.g. a VST3 effect's own native GUI editor window
+    // (src/vst3/), which only the Windows application layer knows how to drive — the caller
+    // dynamic_cast's the result to the concrete type it expects. The returned shared_ptr keeps the
+    // instance alive even if removeEffect()/the chain changes concurrently; it is still a LIVE
+    // real-time object (never call into it from more than one thread at a time beyond what the
+    // concrete type itself documents as safe).
+    std::shared_ptr<hb::audio::Effect> effectInstance(int strip, int idx) const;
+
     // ---- persistence ---------------------------------------------------------------------------
     // JSON, schema 1, written atomically (temp file + rename). loadSettings never throws and never
     // crashes on corrupt/hostile files: unreadable or invalid files leave the current state as it

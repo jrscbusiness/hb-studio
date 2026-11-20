@@ -777,6 +777,15 @@ std::string AudioEngine::lastError() const {
 }
 int AudioEngine::stripCount() const { return p_->n; }
 
+std::shared_ptr<hb::audio::Effect> AudioEngine::effectInstance(int strip, int idx) const {
+    Impl& P = *p_;
+    std::lock_guard lock(P.ctl);
+    if (!P.checkStrip(strip) || idx < 0) return nullptr;
+    const StripCtl& c = P.strips[static_cast<std::size_t>(strip)];
+    if (!c.chain || idx >= static_cast<int>(c.chain->slots.size())) return nullptr;
+    return c.chain->slots[static_cast<std::size_t>(idx)]->fx;
+}
+
 EngineStats AudioEngine::stats() const {
     Impl& P = *p_;
     EngineStats s;
