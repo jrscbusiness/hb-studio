@@ -333,6 +333,15 @@ public:
         return converted;
     }
 
+    // TODO(ndi-output): real NDI sending (NDIlib_send_create_v2 / NDIlib_send_send_video_v2) is not
+    // implemented yet on this backend — Program output over NDI is not available until this lands.
+    // Deliberately safe no-ops in the meantime (never a crash, never a dangling handle): sendCreate
+    // always reports failure, so NdiSender::active() stays false and the UI shows this as "not
+    // available" rather than silently pretending to send.
+    void* sendCreate(const std::string&) override { return nullptr; }
+    void sendDestroy(void*) override {}
+    void sendVideo(void*, const std::uint8_t*, int, int, int, int, int) override {}
+
 private:
     void resolve() {
         auto sym = [this](const char* name) { return GetProcAddress(lib_, name); };

@@ -27,6 +27,10 @@ public:
         return false;
     }
 
+    void* sendCreate(const std::string&) override { return nullptr; }
+    void sendDestroy(void*) override {}
+    void sendVideo(void*, const std::uint8_t*, int, int, int, int, int) override {}
+
     const std::string& reason() const { return reason_; }
 
 private:

@@ -60,6 +60,18 @@ public:
     // treat as a hard failure (recv handle gone bad, format we truly cannot convert, ...).
     virtual bool recvCaptureVideo(void* handle, int timeoutMs, std::vector<std::uint8_t>& bgra, int& width,
                                   int& height, double& fps, std::string& error) = 0;
+
+    // Sender: publishes this process as an NDI source named `ndiName` on the network (other NDI
+    // receivers, including another copy of HB Studio, can then find and connect to it — same
+    // `NdiSourceInfo`/discovery path as any other source). Returns null on failure.
+    virtual void* sendCreate(const std::string& ndiName) = 0;
+    virtual void sendDestroy(void* handle) = 0;
+    // Publishes one BGRA8 frame (top-down, `stride` bytes/row) as the sender's current output.
+    // Must not block on network I/O beyond whatever buffering NDI's own async send already does
+    // internally, and must never throw; a send failure is silent (best-effort, like a dropped
+    // frame on an overloaded network) — there is no per-frame error to report.
+    virtual void sendVideo(void* handle, const std::uint8_t* bgra, int width, int height, int stride,
+                           int fpsNum, int fpsDen) = 0;
 };
 
 // Real backend: Windows-only dynamic load of the installed NDI Runtime. Safe to call on any
@@ -110,6 +122,32 @@ private:
     void run();
 
     NdiSourceInfo source_;
+    std::string name_;
+    std::shared_ptr<NdiBackend> backend_;
+    struct Impl;
+    std::unique_ptr<Impl> p_;
+};
+
+// Sends the Program Output over the network as an NDI source, named `ndiName` (what other NDI
+// receivers on the LAN see it as — including another copy of HB Studio's NDI input). Thread-safe;
+// feed() never blocks the caller on the network, so it is safe to call directly from the Program
+// Output's own render/consumer thread, the same way the virtual camera and the recorder already
+// consume Program frames.
+class NdiSender {
+public:
+    explicit NdiSender(std::string ndiName, std::shared_ptr<NdiBackend> backend = defaultBackend());
+    ~NdiSender();
+    NdiSender(const NdiSender&) = delete;
+    NdiSender& operator=(const NdiSender&) = delete;
+
+    bool available() const;                  // backend().available()
+    std::string unavailableMessage() const;   // pt-BR, same wording style as NdiDiscovery's
+    bool active() const;                      // true once the send handle was created successfully
+
+    // Call once per Program frame (BGRA8, top-down, `stride` bytes/row).
+    void feed(const std::uint8_t* bgra, int width, int height, int stride, int fpsNum, int fpsDen);
+
+private:
     std::string name_;
     std::shared_ptr<NdiBackend> backend_;
     struct Impl;

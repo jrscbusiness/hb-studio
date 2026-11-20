@@ -2,6 +2,7 @@
 // A fully in-process, deterministic NdiBackend for tests: no network, no Runtime, no hardware.
 // Lets tests simulate a well-behaved source as well as every hostile behaviour ndi.hpp's contract
 // has to survive (timeouts, hard errors, inconsistent frame sizes between calls).
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -105,9 +106,43 @@ public:
         return lastRequestedSource_;
     }
 
+    // ---- send side ---------------------------------------------------------------------------
+    std::atomic<bool> failSendCreate{false};
+    std::atomic<int> sendCreateCalls{0}, sendDestroyCalls{0}, sendVideoCalls{0};
+
+    void* sendCreate(const std::string& ndiName) override {
+        ++sendCreateCalls;
+        std::lock_guard lock(mutex_);
+        lastSendName_ = ndiName;
+        if (!available_.load() || failSendCreate.load()) return nullptr;
+        return &sendToken_;
+    }
+    void sendDestroy(void* handle) override {
+        if (handle == &sendToken_) ++sendDestroyCalls;
+    }
+    void sendVideo(void* handle, const std::uint8_t* bgra, int width, int height, int stride, int fpsNum,
+                   int fpsDen) override {
+        if (handle != &sendToken_) return;
+        ++sendVideoCalls;
+        std::lock_guard lock(mutex_);
+        lastSentWidth_ = width;
+        lastSentHeight_ = height;
+        lastSentFpsNum_ = fpsNum;
+        lastSentFpsDen_ = fpsDen;
+        lastSentFirstPixel_.assign(bgra, bgra + (width > 0 ? std::min(static_cast<std::size_t>(4), static_cast<std::size_t>(stride)) : 0));
+    }
+    std::string lastSendName() const { std::lock_guard lock(mutex_); return lastSendName_; }
+    int lastSentWidth() const { std::lock_guard lock(mutex_); return lastSentWidth_; }
+    int lastSentHeight() const { std::lock_guard lock(mutex_); return lastSentHeight_; }
+    std::vector<std::uint8_t> lastSentFirstPixel() const { std::lock_guard lock(mutex_); return lastSentFirstPixel_; }
+
 private:
     mutable std::mutex mutex_;
     std::vector<NdiSourceInfo> sources_;
+    int sendToken_ = 0;
+    std::string lastSendName_;
+    int lastSentWidth_ = 0, lastSentHeight_ = 0, lastSentFpsNum_ = 0, lastSentFpsDen_ = 0;
+    std::vector<std::uint8_t> lastSentFirstPixel_;
     NdiSourceInfo lastRequestedSource_;
     int findToken_ = 0;
     int recvToken_ = 0;
