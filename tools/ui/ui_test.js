@@ -87,13 +87,19 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.locator('#tbar').evaluate(el => { el.value = 1000; el.dispatchEvent(new Event('input', { bubbles: true })); });
   ok((await sent()).includes('tbar|1.0000'), 'dragging the T-bar to the end sends tbar|1');
   // While actively dragging (pointerdown), the periodic state feed must not override the T-bar's value.
-  // Dispatch pointerdown and update window.__state in the SAME in-page script (no await boundary
-  // between them): JS is single-threaded, so the 66ms state-feed interval cannot possibly fire
-  // between "the pointerdown listener runs" and "the new state is in place" — eliminating the
-  // CDP-roundtrip race a separate dispatchEvent() + a timed wait had (flaked occasionally on a
-  // busy CI runner even with a 30ms margin).
+  // Dispatch pointerdown FIRST (engaging the drag guard), THEN (re)set the value to 1000 and update
+  // window.__state - all inside the SAME in-page script, with no await boundary anywhere in between.
+  // This closes two gaps at once: (1) the well-known one, where the 66ms state-feed interval could
+  // fire between "the pointerdown listener runs" and "the new state is in place"; and (2) a subtler
+  // one that actually caused the observed flake - the PRECEDING step only set el.value via raw JS,
+  // without ever engaging the guard, so the interval could reset it back to the (non-dragging)
+  // engine state in the gap before this guarded block even started. Re-asserting the value here,
+  // after the guard is already engaged, makes the end state deterministic regardless of what the
+  // interval did in that earlier gap.
   await page.evaluate(st => {
-    document.querySelector('#tbar').dispatchEvent(new Event('pointerdown'));
+    const el = document.querySelector('#tbar');
+    el.dispatchEvent(new Event('pointerdown'));
+    el.value = 1000;
     window.__state = st;
   }, stateMsg({ transition: false, progress: 0 }));
   await page.waitForTimeout(100);
