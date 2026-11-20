@@ -26,10 +26,10 @@ int defaultPtzPort(const std::string& protocol);
 // Clamps/sanitises a config coming from the UI or from disk.
 PtzCameraConfig sanitize(PtzCameraConfig c);
 
-// Thread-safe store for 8 cameras x up to 64 named preset slots, persisted as JSON.
+// Thread-safe store for 16 cameras x up to 64 named preset slots, persisted as JSON.
 class PtzSettings {
 public:
-    static constexpr int kCameras = 8;
+    static constexpr int kCameras = 16;
     static constexpr int kMaxSlots = 64;
 
     PtzCameraConfig config(int cam) const;

@@ -93,7 +93,13 @@ main{padding:18px 22px;min-height:0;position:relative}
 
 /* ---------- inputs ---------- */
 .inputs{flex:none}
-.tiles{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;padding:10px 14px 14px}
+.inputsrow{display:flex;gap:10px;padding:10px 14px 14px;align-items:stretch}
+.bankbar{display:flex;flex-direction:column;gap:10px;width:18px;flex:none}
+.bankbtn{flex:1;border-radius:7px;background:var(--surface);border:1px solid var(--line-2);cursor:pointer;padding:0;transition:.12s}
+.bankbtn:hover{border-color:var(--blue-2)}
+.bankbtn.on{background:linear-gradient(180deg,#3C86FF,#1F6BFF);border-color:var(--blue);box-shadow:var(--glow)}
+.tiles{flex:1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;align-content:start}
+.tile.offbank{opacity:.55}
 .tile{position:relative;border-radius:10px;overflow:hidden;background:var(--navy);aspect-ratio:16/9;
   border:2px solid transparent;transition:.15s;cursor:pointer}
 .tile canvas{width:100%;height:100%;display:block}
@@ -323,7 +329,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   .stage{gap:12px}
   .mon{padding:10px}.mon .top{margin-bottom:8px}
   .switch{padding:12px 16px}.key{height:40px}.btn{height:40px}.bus{gap:8px}.trans{gap:9px}
-  .tiles{padding:8px 12px 12px}.inputs h3{padding-top:10px}
+  .inputsrow{padding:8px 12px 12px}.inputs h3{padding-top:10px}
 }
 @media (max-height:760px){.keys .key{height:38px}.tiles{gap:8px}}
 
@@ -450,8 +456,14 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         </div>
 
         <div class="card inputs">
-          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">8 / 8</span></h3>
-          <div class="tiles" id="tiles"></div>
+          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">16 / 16</span></h3>
+          <div class="inputsrow">
+            <div class="bankbar">
+              <button class="bankbtn on" data-bank="0" title="Fileira 1 (CAM 1–8) — teclado e botões de PROGRAM/PREVIEW"></button>
+              <button class="bankbtn" data-bank="1" title="Fileira 2 (CAM 9–16) — teclado e botões de PROGRAM/PREVIEW"></button>
+            </div>
+            <div class="tiles" id="tiles"></div>
+          </div>
         </div>
       </div>
 
@@ -681,13 +693,19 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 
 <script>
 (() => {
-  const N = 8;
+  const N = 16;          // 2 banks of 8 cameras (CAM 1–16)
+  const BANK_SIZE = 8;
   const $ = s => document.querySelector(s);
   const $$ = s => [...document.querySelectorAll(s)];
   const host = window.chrome && window.chrome.webview;
   const send = (...a) => { if (host) host.postMessage(a.join('|')); };
 
   // ---------- build static DOM ----------
+  // All 16 tiles are always live (mouse click/double-click on ANY tile works regardless of the
+  // active bank). The active bank only decides which 8 of the 16 the keyboard (1–8/Shift+1–8) and
+  // the small PROGRAM/PREVIEW number-button rows (fixed at 8 slots) currently address — see the
+  // bank bar to the left of the tiles and renderBusKeys() below.
+  let lastState = null;
   const tiles = $('#tiles'), busP = $('#bus-pgm'), busV = $('#bus-pvw');
   const canv = {pgm: $('#cv-pgm').getContext('2d'), pvw: $('#cv-pvw').getContext('2d')};
   for (let i = 0; i < N; i++) {
@@ -698,13 +716,32 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     t.addEventListener('dblclick', () => send('program', i));
     tiles.appendChild(t);
     canv['s' + i] = t.querySelector('canvas').getContext('2d');
-    for (const [bus, cmd] of [[busP, 'program'], [busV, 'preview']]) {
-      const k = document.createElement('button');
-      k.className = 'key'; k.dataset.i = i; k.textContent = i + 1;
-      k.addEventListener('click', () => send(cmd, i));
-      bus.appendChild(k);
-    }
   }
+  let bank = 0;
+  try { const b = +localStorage.getItem('hb.bank'); if (b === 0 || b === 1) bank = b; } catch (e) {}
+  const bankBase = () => bank * BANK_SIZE;
+  function renderBusKeys() {
+    for (const [bus, cmd] of [[busP, 'program'], [busV, 'preview']]) {
+      bus.innerHTML = '';
+      for (let j = 0; j < BANK_SIZE; j++) {
+        const i = bankBase() + j;
+        const k = document.createElement('button');
+        k.className = 'key'; k.dataset.i = i; k.textContent = i + 1;
+        k.addEventListener('click', () => send(cmd, i));
+        bus.appendChild(k);
+      }
+    }
+    $$('.tile').forEach(t => t.classList.toggle('offbank', +t.dataset.i < bankBase() || +t.dataset.i >= bankBase() + BANK_SIZE));
+  }
+  renderBusKeys();
+  $$('.bankbtn').forEach(b => b.addEventListener('click', () => {
+    bank = +b.dataset.bank;
+    $$('.bankbtn').forEach(x => x.classList.toggle('on', x === b));
+    try { localStorage.setItem('hb.bank', bank); } catch (e) {}
+    renderBusKeys();
+    if (lastState) render(lastState);   // immediately re-apply PGM/PVW highlighting to the new key set
+  }));
+  $$('.bankbtn').forEach(b => b.classList.toggle('on', +b.dataset.bank === bank));
   let duration = 500;
   $$('#dur button').forEach(b => b.addEventListener('click', () => {
     duration = +b.dataset.ms; $$('#dur button').forEach(x => x.classList.toggle('on', x === b)); try { localStorage.setItem('hb.duration', duration); } catch (e) {}
@@ -734,8 +771,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       send(e.shiftKey || mode === 'save' ? 'ptzsave' : 'ptzgo', ptzCam, slot);
       return;
     }
-    if (e.key >= '1' && e.key <= '8') { send(e.shiftKey ? 'program' : 'preview', +e.key - 1); }
-    else if (e.code && /^Digit[1-8]$/.test(e.code)) { send(e.shiftKey ? 'program' : 'preview', +e.code.slice(5) - 1); }
+    if (e.key >= '1' && e.key <= '8') { send(e.shiftKey ? 'program' : 'preview', bankBase() + (+e.key - 1)); }
+    else if (e.code && /^Digit[1-8]$/.test(e.code)) { send(e.shiftKey ? 'program' : 'preview', bankBase() + (+e.code.slice(5) - 1)); }
     else if (e.code === 'Space') { e.preventDefault(); send('cut'); }
     else if (e.code === 'Enter') { send('dissolve', duration); }
   });
@@ -1008,7 +1045,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       $('#pvw-hud').textContent = 'PRÓXIMA · ' + hud(s.pvw);
       $('#pgm-res').textContent = hud(s.pgm) + ' → 1920×1080 · ' + s.target + ' fps';
       const nd = s.slots.filter(x => x.k === 'dev').length;
-      $('#foot-src').textContent = nd ? nd + ' dispositivo(s) · ' + (8 - nd) + ' teste' : 'TESTE';
+      $('#foot-src').textContent = nd ? nd + ' dispositivo(s) · ' + (N - nd) + ' teste' : 'TESTE';
       renderLists();
     }
     if (s.ver) $('#ver').textContent = s.ver;
@@ -1029,11 +1066,14 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     $('#s-fps').textContent = s.fps.toFixed(1) + ' / ' + s.target + ' fps';
     $('#s-meter').style.width = Math.min(100, s.fps / s.target * 100) + '%';
     $('#s-skip').textContent = s.skipped;
-    const over = 8 > s.srcRec;
+    // Only REAL cameras count toward the performance warning: the slots still on the procedural
+    // test pattern are effectively free to render, unlike decoding a real camera feed.
+    const liveCount = (s.slots || []).filter(x => x.k === 'dev').length;
+    const over = liveCount > s.srcRec;
     const ic = $('#in-count');
-    ic.textContent = over ? '8 · acima do recomendado (' + s.srcRec + ')' : '8 / ' + s.srcRec;
+    ic.textContent = over ? liveCount + ' · acima do recomendado (' + s.srcRec + ')' : liveCount + ' / ' + s.srcRec;
     ic.className = 'cap mono' + (over ? ' warn' : '');
-    ic.title = over ? 'AVISO DE DESEMPENHO: este computador (perfil ' + s.tier + ') recomenda até ' + s.srcRec + ' fontes simultâneas (máximo ' + s.srcMax + '). Sugestão: reduzir a qualidade do Preview.' : '';
+    ic.title = over ? 'AVISO DE DESEMPENHO: este computador (perfil ' + s.tier + ') recomenda até ' + s.srcRec + ' câmeras reais simultâneas (máximo ' + s.srcMax + '). Sugestão: reduzir a qualidade do Preview.' : (N + ' entradas disponíveis em 2 fileiras de 8; ' + liveCount + ' com câmera real conectada.');
     const f = s.frames, fps = s.target, sec = Math.floor(f / fps);
     $('#tc').textContent = pad(Math.floor(sec / 3600)) + ':' + pad(Math.floor(sec / 60) % 60) + ':' + pad(sec % 60) + ':' + pad(f % fps);
 
@@ -1246,7 +1286,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
-    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') render(d); else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); }
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }

@@ -22,7 +22,10 @@ TEST(Engine, ProducesProgramAndUiFrames) {
     EXPECT_TRUE(e.renderUiFrame("pvw", f));
     EXPECT_TRUE(e.renderUiFrame("s7", f));
     EXPECT_EQ(f.width, app::Engine::kTileW);
-    EXPECT_FALSE(e.renderUiFrame("s8", f));
+    EXPECT_TRUE(e.renderUiFrame("s15", f));   // 2 banks of 8 (kSourceCount == 16): two-digit id works
+    EXPECT_FALSE(e.renderUiFrame("s16", f));
+    EXPECT_FALSE(e.renderUiFrame("s-1", f));
+    EXPECT_FALSE(e.renderUiFrame("s", f));
     EXPECT_FALSE(e.renderUiFrame("nope", f));
     e.stop();
 }

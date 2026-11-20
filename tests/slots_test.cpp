@@ -100,11 +100,24 @@ TEST(Slots, AssignRoutesRenderingAndClearGoesBackToTestSource) {
     EXPECT_FALSE(e.slotInfo(0).live);
 }
 
+TEST(Slots, SixteenSlotsAreAllUsable) {
+    app::Engine e;
+    EXPECT_EQ(app::Engine::kSourceCount, 16);
+    auto dev = std::make_shared<FakeDevice>(16, 9, 1, 2, 3);
+    EXPECT_TRUE(e.assignSlot(15, dev, "id15", "Segundo banco, última câmera"));
+    EXPECT_TRUE(e.slotInfo(15).live);
+    EXPECT_EQ(e.slotInfo(15).label, "Segundo banco, última câmera");
+    video::Frame f;
+    EXPECT_TRUE(e.renderUiFrame("s15", f));
+    EXPECT_TRUE(e.clearSlot(15));
+    EXPECT_FALSE(e.slotInfo(15).live);
+}
+
 TEST(Slots, InvalidArgumentsAreRejected) {
     app::Engine e;
     auto dev = std::make_shared<FakeDevice>(16, 9, 0, 0, 0);
     EXPECT_FALSE(e.assignSlot(-1, dev, "x", "x"));
-    EXPECT_FALSE(e.assignSlot(8, dev, "x", "x"));
+    EXPECT_FALSE(e.assignSlot(app::Engine::kSourceCount, dev, "x", "x"));
     EXPECT_FALSE(e.assignSlot(0, nullptr, "x", "x"));
     EXPECT_FALSE(e.clearSlot(99));
     EXPECT_FALSE(e.slotInfo(99).live);
@@ -130,7 +143,7 @@ TEST(Assignments, RoundTripSanitiseAndHostileFiles) {
     app::SourceAssignments a;
     EXPECT_TRUE(a.set(0, "\\\\?\\usb#vid_046d&pid_0825#abc", "Logitech C270"));
     EXPECT_TRUE(a.set(7, "OBS Virtual Camera", "OBS Virtual Camera"));
-    EXPECT_FALSE(a.set(8, "x", "x"));
+    EXPECT_FALSE(a.set(app::SourceAssignments::kSlots, "x", "x"));
     EXPECT_FALSE(a.set(-1, "x", "x"));
     EXPECT_FALSE(a.set(1, "", "x"));
     EXPECT_FALSE(a.set(1, "\t\n", "x"));    // sanitises to empty

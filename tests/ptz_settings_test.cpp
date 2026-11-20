@@ -56,7 +56,7 @@ TEST(PtzSettings, ApplyToAllAndVersion) {
         EXPECT_EQ(s.config(i).slotCount, 16);
         EXPECT_EQ(s.config(i).presetBase, 0);
     }
-    EXPECT_FALSE(s.setConfig(8, c));
+    EXPECT_FALSE(s.setConfig(PtzSettings::kCameras, c));
     EXPECT_FALSE(s.setConfig(-1, c));
 }
 
@@ -69,7 +69,7 @@ TEST(PtzSettings, PresetNamesAreSanitised) {
     s.setPresetName(2, 3, "");
     EXPECT_EQ(s.presetName(2, 3), "");
     EXPECT_FALSE(s.setPresetName(0, 64, "x"));
-    EXPECT_FALSE(s.setPresetName(8, 0, "x"));
+    EXPECT_FALSE(s.setPresetName(PtzSettings::kCameras, 0, "x"));
     EXPECT_EQ(s.presetName(99, 99), "");
 }
 

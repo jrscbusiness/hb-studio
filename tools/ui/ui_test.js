@@ -15,12 +15,11 @@ function stateMsg(over = {}) {
   return Object.assign({
     t: 's', pvw: 1, pgm: 0, transition: false, progress: 0, fps: 29.9, target: 30, frames: 1000, skipped: 0,
     tier: 'MEDIUM', cores: 8, ramGiB: 16, srcRec: 8, srcMax: 10, toast: null, log: [],
-    slots: [SLOT('dev', 'online', 'OBS Virtual Camera', 'obs', 1920, 1080), SLOT('test', 'test'), SLOT('test', 'test'), SLOT('test', 'test'),
-            SLOT('test', 'test'), SLOT('test', 'test'), SLOT('test', 'test'), SLOT('test', 'test')],
+    slots: [SLOT('dev', 'online', 'OBS Virtual Camera', 'obs', 1920, 1080), ...Array.from({ length: 15 }, () => SLOT('test', 'test'))],
     vcam: { supported: true, installed: true, active: false, connected: false, busy: false, error: false, sent: 0, message: '' },
   }, over);
 }
-const PTZ = () => ({ t: 'ptz', cams: Array.from({ length: 8 }, () => ({ protocol: 'onvif', host: '', port: 0, address: 1, slots: 10, base: 1,
+const PTZ = () => ({ t: 'ptz', cams: Array.from({ length: 16 }, () => ({ protocol: 'onvif', host: '', port: 0, address: 1, slots: 10, base: 1,
   storage: 'camera', speed: 50, invPan: false, invTilt: false, defPort: 80, connected: false, names: ['Altar', '', '', '', '', '', '', '', '', ''] })) });
 const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'OBS Virtual Camera', virt: true },
   { id: 'cam', name: 'Logitech C920 HD Pro Webcam', virt: false }, { id: 'link', name: 'Cam Link 4K', virt: false }] });
@@ -98,6 +97,31 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok(+(await page.locator('#tbar').inputValue()) === 300, 'once released, the T-bar follows the engine\'s own transition progress');
   await setState({});
 
+  console.log('\n[1c] PRODUÇÃO - 16 câmeras em 2 fileiras (banco ativo)');
+  ok(await page.locator('.tile').count() === 16, '16 input tiles are shown (2 rows of 8)');
+  ok(await page.locator('#bus-pgm .key').count() === 8 && await page.locator('#bus-pvw .key').count() === 8,
+    'the PROGRAM/PREVIEW number-button rows stay at a fixed 8 (one bank at a time)');
+  ok(await page.locator('.bankbtn.on').count() === 1 && (await page.locator('.bankbtn.on').getAttribute('data-bank')) === '0',
+    'bank 1 (CAM 1–8) is active by default');
+  ok(await page.locator('.tile[data-i="0"]').evaluate(el => !el.classList.contains('offbank')), 'a tile in the active bank is not dimmed');
+  ok(await page.locator('.tile[data-i="8"]').evaluate(el => el.classList.contains('offbank')), 'a tile in the inactive bank is dimmed');
+  await clearSent();
+  await page.keyboard.press('3');
+  ok((await sent()).includes('preview|2'), 'bank 1 active: pressing 3 selects preview|2 (CAM 3)');
+  await humanClick('.bankbtn[data-bank="1"]');
+  ok(await page.locator('.bankbtn[data-bank="1"]').evaluate(el => el.classList.contains('on')), 'clicking bank 2 activates it');
+  ok((await page.locator('#bus-pgm .key').first().textContent()) === '9', 'the PROGRAM number-row now starts at CAM 9 (bank 2)');
+  ok(await page.locator('.tile[data-i="0"]').evaluate(el => el.classList.contains('offbank')), 'CAM 1 is now the dimmed (inactive-bank) one');
+  ok(await page.locator('.tile[data-i="8"]').evaluate(el => !el.classList.contains('offbank')), 'CAM 9 is now in the active bank');
+  await clearSent();
+  await page.keyboard.press('3');
+  ok((await sent()).includes('preview|10'), 'bank 2 active: pressing 3 now selects preview|10 (CAM 11)');
+  await clearSent();
+  await page.locator('.tile[data-i="1"]').click();   // CAM 2, in the INACTIVE bank
+  ok((await sent()).includes('preview|1'), 'clicking any tile with the mouse works regardless of the active bank');
+  ok((await page.evaluate(() => localStorage.getItem('hb.bank'))) === '1', 'the chosen bank persists in localStorage');
+  await humanClick('.bankbtn[data-bank="0"]');  // back to the default bank for the rest of the suite
+
   console.log('\n[2] PRODUÇÃO - câmera virtual');
   await clearSent();
   await humanClick('#v-main');
@@ -165,7 +189,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await humanClick('#dev-refresh');
   ok((await sent()).includes('devrefresh'), 'ATUALIZAR LISTA -> devrefresh');
   // state of slots is reflected
-  await setState({ slots: [SLOT('dev', 'nosignal', 'OBS Virtual Camera', 'obs', 1920, 1080), SLOT('dev', 'error', 'Cam X', 'x', 0, 0), SLOT('test', 'test'), SLOT('test', 'test'), SLOT('test', 'test'), SLOT('test', 'test'), SLOT('test', 'test'), SLOT('test', 'test')] });
+  await setState({ slots: [SLOT('dev', 'nosignal', 'OBS Virtual Camera', 'obs', 1920, 1080), SLOT('dev', 'error', 'Cam X', 'x', 0, 0), ...Array.from({ length: 14 }, () => SLOT('test', 'test'))] });
   await page.waitForTimeout(200);
   const slotText = await page.locator('#slot-list').innerText();
   ok(/SEM SINAL/.test(slotText) && /ERRO/.test(slotText) && /TESTE/.test(slotText), 'slot list shows SEM SINAL / ERRO / TESTE states');
@@ -370,9 +394,19 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   for (const [w, h] of [[1280, 800], [1366, 768], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     await tab('prod'); await page.waitForTimeout(100);
-    const bottom = await page.evaluate(() => document.querySelector('.inputs').getBoundingClientRect().bottom);
-    const limit = await page.evaluate(() => document.querySelector('footer').getBoundingClientRect().top);
-    ok(bottom <= limit + 1, `${w}x${h}: the inputs strip is fully visible (bottom ${Math.round(bottom)} <= ${Math.round(limit)})`);
+    // With 16 cameras (2 rows) the inputs strip no longer always fits without scrolling on a
+    // smaller laptop screen — that's expected now (.stage already scrolls, "overflow:auto"), so
+    // this only checks the layout itself isn't broken (all 16 tiles render, non-zero size), not
+    // that scrolling is never needed. On a large screen it still fits with no scroll at all.
+    const tileCount = await page.locator('.tile').count();
+    ok(tileCount === 16, `${w}x${h}: all 16 input tiles are rendered (found ${tileCount})`);
+    const tileH = await page.locator('.tile').first().evaluate(el => el.getBoundingClientRect().height);
+    ok(tileH > 10, `${w}x${h}: tiles have a real, non-collapsed height (${Math.round(tileH)}px)`);
+    if (w >= 1920) {
+      const bottom = await page.evaluate(() => document.querySelector('.inputs').getBoundingClientRect().bottom);
+      const limit = await page.evaluate(() => document.querySelector('footer').getBoundingClientRect().top);
+      ok(bottom <= limit + 1, `${w}x${h}: on a large screen, the inputs strip still fits without scrolling (bottom ${Math.round(bottom)} <= ${Math.round(limit)})`);
+    }
   }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });

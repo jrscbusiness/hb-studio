@@ -18,7 +18,7 @@ namespace hb::app {
 // Program Output, independent of any window. The UI only calls this class.
 class Engine {
 public:
-    static constexpr int kSourceCount = 8;
+    static constexpr int kSourceCount = 16;  // 2 banks of 8 (see docs/ORCHESTRATION.md / UI bank selector)
     static constexpr int kMonitorW = 640, kMonitorH = 360;  // PVW/PGM monitors in the UI
     static constexpr int kTileW = 192, kTileH = 108;        // input tiles
 

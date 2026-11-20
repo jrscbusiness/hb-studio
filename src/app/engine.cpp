@@ -96,8 +96,14 @@ bool Engine::renderUiFrame(const std::string& id, video::Frame& out) {
         return true;
     }
     if (id.size() >= 2 && id[0] == 's') {
-        const int i = id[1] - '0';
-        if (i < 0 || i >= kSourceCount) return false;
+        // "s0".."s15": digits-only after the 's' (kSourceCount can exceed 9, so this can't just
+        // read a single character like it used to when it was always one digit).
+        int i = 0;
+        for (std::size_t k = 1; k < id.size(); ++k) {
+            if (id[k] < '0' || id[k] > '9') return false;
+            i = i * 10 + (id[k] - '0');
+        }
+        if (i >= kSourceCount) return false;
         video::prepareFrame(out, kTileW, kTileH);
         sources_[static_cast<std::size_t>(i)]->render(out, uiIndex);
         return true;
