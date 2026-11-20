@@ -13,9 +13,9 @@ using namespace std::chrono_literals;
 
 namespace {
 // The discovery thread polls at a fixed ~1s cadence (see discovery.cpp); tests that must observe
-// an update wait a bit over that, same style as other polling tests in this codebase
-// (tests/discovery_engine_test.cpp's HangingSource uses a comparable real-time safety margin).
-constexpr auto kPollWait = 1500ms;
+// an update wait a few cycles over that for margin on a busy CI runner (observed flaking at 1500ms
+// — a single delayed wakeup there leaves almost no slack over one ~1s poll cycle).
+constexpr auto kPollWait = 4000ms;
 }  // namespace
 
 TEST(NdiDiscovery, UnavailableBackendReportsItClearly) {
