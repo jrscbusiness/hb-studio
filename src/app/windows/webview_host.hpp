@@ -27,6 +27,10 @@ public:
         std::wstring userDataDir;
         COLORREF background = RGB(0xF2, 0xF6, 0xFD);
         int iconResource = 1;
+        // Remembers the window's size/position/maximized state across launches. Empty = don't
+        // persist (always centered at width x height). Best-effort: a missing/corrupt/stale file
+        // (e.g. the saved spot is off every connected monitor) is ignored and the default is used.
+        std::wstring placementFile;
     };
     using MessageHandler = std::function<void(const std::string&)>;
 

@@ -3,6 +3,7 @@
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <dwmapi.h>
+#include <cstdio>
 #include <cwchar>
 
 #include "app/windows/win_util.hpp"
@@ -15,6 +16,39 @@ namespace hb::win {
 namespace {
 constexpr UINT WM_HB_DRAIN = WM_APP + 1;
 constexpr wchar_t kClass[] = L"HBStudioHostWindow";
+
+// Best-effort window placement persistence (size, position, maximized), one line of 5 decimal
+// numbers ("left top right bottom maximized"), in workspace coordinates like WINDOWPLACEMENT.
+// Never throws; a missing/corrupt file just means "no saved placement".
+bool loadPlacement(const std::wstring& path, RECT& rc, bool& maximized) {
+    if (path.empty()) return false;
+    FILE* f = _wfopen(path.c_str(), L"rb");
+    if (!f) return false;
+    char buf[160] = {0};
+    const size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = 0;
+    int mx = 0;
+    if (sscanf_s(buf, "%ld %ld %ld %ld %d", &rc.left, &rc.top, &rc.right, &rc.bottom, &mx) != 5) return false;
+    maximized = mx != 0;
+    return rc.right > rc.left && rc.bottom > rc.top;
+}
+
+void savePlacement(const std::wstring& path, const RECT& rc, bool maximized) {
+    if (path.empty()) return;
+    FILE* f = _wfopen(path.c_str(), L"wb");
+    if (!f) return;
+    char buf[160];
+    const int n = sprintf_s(buf, "%ld %ld %ld %ld %d", rc.left, rc.top, rc.right, rc.bottom, maximized ? 1 : 0);
+    if (n > 0) fwrite(buf, 1, static_cast<size_t>(n), f);
+    fclose(f);
+}
+
+// True when any part of `rc` lands on a connected monitor (a saved spot from a since-unplugged
+// second monitor, or a since-shrunk desktop, must not put the window somewhere unreachable).
+bool onscreen(const RECT& rc) {
+    return MonitorFromRect(&rc, MONITOR_DEFAULTTONULL) != nullptr;
+}
 
 void showRuntimeMissing(HWND owner) {
     const int r = MessageBoxW(owner,
@@ -47,10 +81,24 @@ bool WebViewHost::create(HINSTANCE inst, const Options& opt, std::string html, M
     RegisterClassExW(&wc);
 
     DWORD style = opt.resizable ? WS_OVERLAPPEDWINDOW : (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX);
-    RECT r{0, 0, opt.width, opt.height};
-    AdjustWindowRectEx(&r, style, FALSE, 0);
-    const int w = r.right - r.left, h = r.bottom - r.top;
-    const int x = (GetSystemMetrics(SM_CXSCREEN) - w) / 2, y = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
+    RECT saved{};
+    bool savedMaximized = false;
+    int x, y, w, h;
+    if (loadPlacement(opt.placementFile, saved, savedMaximized) && onscreen(saved) &&
+        saved.right - saved.left >= opt.minWidth && saved.bottom - saved.top >= opt.minHeight) {
+        x = saved.left;
+        y = saved.top;
+        w = saved.right - saved.left;
+        h = saved.bottom - saved.top;
+    } else {
+        savedMaximized = false;
+        RECT r{0, 0, opt.width, opt.height};
+        AdjustWindowRectEx(&r, style, FALSE, 0);
+        w = r.right - r.left;
+        h = r.bottom - r.top;
+        x = (GetSystemMetrics(SM_CXSCREEN) - w) / 2;
+        y = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
+    }
     hwnd_ = CreateWindowExW(0, kClass, opt.title.c_str(), style, x < 0 ? 0 : x, y < 0 ? 0 : y, w, h, nullptr,
                             nullptr, inst, this);
     if (!hwnd_) return false;
@@ -62,7 +110,7 @@ bool WebViewHost::create(HINSTANCE inst, const Options& opt, std::string html, M
     BOOL dark = FALSE;
     DwmSetWindowAttribute(hwnd_, 20 /*DWMWA_USE_IMMERSIVE_DARK_MODE*/, &dark, sizeof(dark));
 
-    ShowWindow(hwnd_, SW_SHOW);
+    ShowWindow(hwnd_, savedMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
     UpdateWindow(hwnd_);
     trace("window created");
     initWebView();
@@ -245,7 +293,14 @@ LRESULT WebViewHost::handle(UINT m, WPARAM w, LPARAM l) {
         }
         case WM_ERASEBKGND: return 1;
         case WM_HB_DRAIN: drain(); return 0;
-        case WM_DESTROY: PostQuitMessage(0); return 0;
+        case WM_DESTROY:
+            if (!opt_.placementFile.empty()) {
+                WINDOWPLACEMENT wp{sizeof(wp)};
+                if (GetWindowPlacement(hwnd_, &wp))
+                    savePlacement(opt_.placementFile, wp.rcNormalPosition, wp.showCmd == SW_SHOWMAXIMIZED);
+            }
+            PostQuitMessage(0);
+            return 0;
         default: break;
     }
     return DefWindowProcW(hwnd_, m, w, l);

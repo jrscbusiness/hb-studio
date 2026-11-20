@@ -443,6 +443,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     win::WebViewHost::Options opt;
     opt.userDataDir = dataDir;
     opt.title = L"HB Studio";
+    if (!mediaDir.empty()) opt.placementFile = win::widen(mediaDir) + L"\\window.txt";
 
     std::thread feeder;
     auto startFeeder = [&] {
