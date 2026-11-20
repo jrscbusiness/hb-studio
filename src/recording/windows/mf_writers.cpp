@@ -277,20 +277,33 @@ private:
         // encoders (the MP3 one wraps a legacy ACM codec) reject an otherwise-reasonable, hand
         // built PCM type that the AAC encoder accepts without complaint.
         HRESULT last = E_FAIL;
+        std::string diag;   // every attempt's outcome, so a failure is diagnosable from CI logs alone
+        auto note = [&](const char* what, HRESULT h) {
+            char b[96];
+            std::snprintf(b, sizeof b, "%s=0x%08lX ", what, static_cast<unsigned long>(h));
+            diag += b;
+        };
         ComPtr<IMFSinkWriterEx> swEx;
-        if (SUCCEEDED(sw_.As(&swEx))) {
+        const HRESULT hrAs = sw_.As(&swEx);
+        note("AsEx", hrAs);
+        if (SUCCEEDED(hrAs)) {
             ComPtr<IMFTransform> mft;
             GUID category{};
-            if (SUCCEEDED(swEx->GetTransformForStream(aStream_, 0, &category, &mft))) {
-                for (DWORD idx = 0; idx < 16; ++idx) {
+            const HRESULT hrXform = swEx->GetTransformForStream(aStream_, 0, &category, &mft);
+            note("GetTransform", hrXform);
+            if (SUCCEEDED(hrXform)) {
+                DWORD idx = 0;
+                for (; idx < 16; ++idx) {
                     ComPtr<IMFMediaType> t;
-                    if (FAILED(mft->GetInputAvailableType(0, idx, &t))) break;
+                    const HRESULT hrAvail = mft->GetInputAvailableType(0, idx, &t);
+                    if (FAILED(hrAvail)) { note("AvailEnd", hrAvail); break; }
                     GUID major{};
                     t->GetGUID(MF_MT_MAJOR_TYPE, &major);
                     if (major != MFMediaType_Audio) continue;
                     t->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, rate);
                     t->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch);
                     last = sw_->SetInputMediaType(aStream_, t.Get(), nullptr);
+                    note(("Xform" + std::to_string(idx)).c_str(), last);
                     if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
                 }
             }
@@ -316,12 +329,13 @@ private:
             for (const bool preferWfx : {false, true})
                 for (const bool blockAlign : {true, false}) {
                     last = sw_->SetInputMediaType(aStream_, makeIn(blockAlign, preferWfx).Get(), nullptr);
+                    note((std::string("Hand") + (preferWfx ? "W" : "w") + (blockAlign ? "B" : "b")).c_str(), last);
                     if (SUCCEEDED(last)) { hr = last; goto inputTypeSet; }
                 }
         }
         hr = last;
     inputTypeSet:
-        if (FAILED(hr)) { error = hrText("formato de entrada de áudio recusado", hr); return false; }
+        if (FAILED(hr)) { error = hrText("formato de entrada de áudio recusado", hr) + " [" + diag + "]"; return false; }
         return true;
     }
 
