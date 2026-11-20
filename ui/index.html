@@ -624,6 +624,20 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
           <p class="note" style="margin-top:10px">“Sistema” segue a preferência de tema claro/escuro do Windows. O tema escuro é nativo do HB Studio — não precisa instalar nenhum plugin.</p>
         </div>
       </div>
+      <div class="card"><h3><span class="cap">Saídas</span></h3>
+        <div class="body">
+          <p class="note" style="margin-bottom:10px">Para usar um segundo ou terceiro monitor (ex.: HDMI), abra a janela de saída e arraste-a para a tela desejada; dê um duplo clique ou aperte <b>F11</b> nela para preencher o monitor inteiro (<b>Esc</b> sai do modo cheio).</p>
+          <div class="row"><span class="k">Janela de PROGRAM</span><span class="v"><button class="btn sm" id="out-pgm-open">ABRIR</button> <button class="btn sm" id="out-pgm-close">FECHAR</button></span></div>
+          <div class="row"><span class="k">Janela de PREVIEW</span><span class="v"><button class="btn sm" id="out-pvw-open">ABRIR</button> <button class="btn sm" id="out-pvw-close">FECHAR</button></span></div>
+          <div class="row" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+            <span class="k">Saída NDI (rede local)</span>
+            <span class="v"><button class="btn sm" id="out-ndi-toggle">LIGAR</button></span>
+          </div>
+          <label style="display:flex;flex-direction:column;gap:5px;margin-top:8px"><span class="cap">Nome da fonte NDI</span>
+            <input type="text" id="out-ndi-name" value="HB Studio Program" maxlength="128" style="height:34px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink)"></label>
+          <p class="note" id="out-ndi-note" style="margin-top:8px"></p>
+        </div>
+      </div>
       <div class="card"><h3><span class="cap">Computador detectado</span></h3>
         <div class="body">
           <div class="row"><span class="k">Perfil sugerido</span><span class="tier" id="g-tier">—</span></div>
@@ -1017,6 +1031,30 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     }));
   })();
 
+  // ---------- outputs: second/third-monitor windows + NDI output (CONFIG tab) ----------
+  $('#out-pgm-open').addEventListener('click', () => send('outwin', 'program', 'open'));
+  $('#out-pgm-close').addEventListener('click', () => send('outwin', 'program', 'close'));
+  $('#out-pvw-open').addEventListener('click', () => send('outwin', 'preview', 'open'));
+  $('#out-pvw-close').addEventListener('click', () => send('outwin', 'preview', 'close'));
+  let ndiOutEnabled = false;
+  function renderOutputs(d) {
+    ndiOutEnabled = !!d.ndiEnabled;
+    const btn = $('#out-ndi-toggle');
+    btn.textContent = ndiOutEnabled ? 'DESLIGAR' : 'LIGAR';
+    btn.classList.toggle('primary', ndiOutEnabled);
+    if (document.activeElement !== $('#out-ndi-name')) $('#out-ndi-name').value = d.ndiName || 'HB Studio Program';
+    const note = $('#out-ndi-note');
+    note.textContent = ndiOutEnabled
+      ? (d.ndiAvailable ? 'Ligada: outros programas NDI na rede (inclusive outro HB Studio) já enxergam "' + (d.ndiName || '') + '".'
+                        : 'Instale o NDI Runtime (ndi.video/tools) para a saída NDI funcionar de verdade.')
+      : 'Desligada. Ao ligar, o PROGRAM passa a ser visível como uma fonte NDI na rede local.';
+  }
+  $('#out-ndi-toggle').addEventListener('click', () => {
+    const name = $('#out-ndi-name').value.trim() || 'HB Studio Program';
+    send('ndiout', ndiOutEnabled ? 'off' : 'on', name);
+  });
+  $('#out-ndi-name').addEventListener('change', () => { if (ndiOutEnabled) send('ndiout', 'on', $('#out-ndi-name').value.trim() || 'HB Studio Program'); });
+
   // ---------- frames ----------
   const imgs = {};
   function drawFrame(id, b64) {
@@ -1286,7 +1324,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
-    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); }
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }

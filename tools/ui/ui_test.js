@@ -87,9 +87,16 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.locator('#tbar').evaluate(el => { el.value = 1000; el.dispatchEvent(new Event('input', { bubbles: true })); });
   ok((await sent()).includes('tbar|1.0000'), 'dragging the T-bar to the end sends tbar|1');
   // While actively dragging (pointerdown), the periodic state feed must not override the T-bar's value.
-  await page.locator('#tbar').dispatchEvent('pointerdown');
-  await setState({ transition: false, progress: 0 });
-  await page.waitForTimeout(50);
+  // Dispatch pointerdown and update window.__state in the SAME in-page script (no await boundary
+  // between them): JS is single-threaded, so the 66ms state-feed interval cannot possibly fire
+  // between "the pointerdown listener runs" and "the new state is in place" — eliminating the
+  // CDP-roundtrip race a separate dispatchEvent() + a timed wait had (flaked occasionally on a
+  // busy CI runner even with a 30ms margin).
+  await page.evaluate(st => {
+    document.querySelector('#tbar').dispatchEvent(new Event('pointerdown'));
+    window.__state = st;
+  }, stateMsg({ transition: false, progress: 0 }));
+  await page.waitForTimeout(100);
   ok(+(await page.locator('#tbar').inputValue()) === 1000, 'T-bar keeps the operator\'s position while pointer is down, ignoring the state feed');
   await page.evaluate(() => window.dispatchEvent(new Event('pointerup')));
   await setState({ transition: true, progress: 0.3 });
@@ -336,10 +343,22 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok(mh > 70 && mh < 90, 'AUDIO: level meter height follows the peak (' + mh.toFixed(0) + '%)');
   ok((await page.locator('#m-lufs').textContent()).includes('-16,4'), 'AUDIO: master shows LUFS');
   // a config update while dragging must not rebuild the strips
-  await page.evaluate(() => { window.__marker = document.querySelector('.strip[data-i="3"]'); });
-  await page.locator('.strip[data-i="3"] .fader').dispatchEvent('pointerdown');
-  await page.waitForTimeout(30);   // let the pointerdown listener settle before the race we're testing
-  await page.evaluate(a => window.__hbMessage(a), AUDIO());
+  // Same single-script trick as the T-bar test above: dispatch pointerdown and feed the config
+  // update in one evaluate() call so there is no await boundary the interval timer could land in.
+  // The preceding real clicks (del/add/bypass buttons, all inside #v-aud) each end with their own
+  // real pointerup, which schedules `setTimeout(audFlush, 0)` to clear audDown shortly after. Flush
+  // that queue first so none of those stale, already-pending timeouts can land audDown=false right
+  // after we set it true below (observed to cause exactly that: a leftover audFlush firing between
+  // our dispatch and the render check, even though our own two statements are one sync script).
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 0)));
+  await page.evaluate(a => {
+    window.__marker = document.querySelector('.strip[data-i="3"]');
+    // audDown is set by a document-level listener (it matches e.target.closest('#v-aud')), so the
+    // dispatched event must bubble - unlike the T-bar's listener, which is attached directly on
+    // the element itself.
+    document.querySelector('.strip[data-i="3"] .fader').dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    window.__hbMessage(a);
+  }, AUDIO());
   ok(await page.evaluate(() => window.__marker === document.querySelector('.strip[data-i="3"]')), 'AUDIO: strips are not rebuilt while the operator drags a fader');
   await page.evaluate(() => document.dispatchEvent(new Event('pointerup'))); await page.waitForTimeout(50);
 
@@ -388,6 +407,25 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'light', 'TEMA: escolher CLARO volta ao claro');
   await page.locator('#theme-seg button[data-th=system]').click();
   ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === null, 'TEMA: "Sistema" remove o atributo (volta a seguir o SO)');
+
+  console.log('\n[5d] CONFIG: Saídas (monitor externo + NDI)');
+  await clearSent();
+  await page.locator('#out-pgm-open').click();
+  ok((await sent()).includes('outwin|program|open'), 'ABRIR na janela de PROGRAM -> outwin|program|open');
+  await page.locator('#out-pvw-close').click();
+  ok((await sent()).includes('outwin|preview|close'), 'FECHAR na janela de PREVIEW -> outwin|preview|close');
+  await page.evaluate(() => window.__hbMessage({ t: 'outputs', ndiEnabled: false, ndiName: 'HB Studio Program', ndiAvailable: true }));
+  ok((await page.locator('#out-ndi-toggle').textContent()) === 'LIGAR', 'saída NDI desligada: botão mostra LIGAR');
+  await clearSent();
+  await page.locator('#out-ndi-toggle').click();
+  ok((await sent()).includes('ndiout|on|HB Studio Program'), 'LIGAR envia ndiout|on com o nome configurado');
+  await page.evaluate(() => window.__hbMessage({ t: 'outputs', ndiEnabled: true, ndiName: 'HB Studio Program', ndiAvailable: false }));
+  ok((await page.locator('#out-ndi-toggle').textContent()) === 'DESLIGAR', 'saída NDI ligada: botão mostra DESLIGAR');
+  ok((await page.locator('#out-ndi-note').textContent()).includes('NDI Runtime'), 'sem o NDI Runtime instalado, o aviso aparece mesmo com a saída "ligada"');
+  await page.locator('#out-ndi-name').fill('Estúdio Principal');
+  await clearSent();
+  await page.locator('#out-ndi-name').dispatchEvent('change');
+  ok((await sent()).includes('ndiout|on|Estúdio Principal'), 'mudar o nome com a saída ligada já reenvia ndiout|on com o novo nome');
 
   console.log('\n[6] Layout em janelas diferentes');
   // production screen must fit without clipping the inputs strip on common laptop sizes

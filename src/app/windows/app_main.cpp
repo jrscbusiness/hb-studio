@@ -33,7 +33,9 @@
 #include "app/windows/webview_host.hpp"
 #include "app/windows/wic_jpeg.hpp"
 #include "app/windows/win_util.hpp"
+#include "app/windows/output_window.hpp"
 #include "ndi/ndi.hpp"
+#include "video/frame_ops.hpp"
 #include "plugins/service.hpp"
 #include "vst3/vst3.hpp"
 
@@ -216,6 +218,36 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     std::map<int, std::shared_ptr<hb::ndi::NdiSource>> ndiDevices;  // slot -> running NDI receiver
     std::map<std::string, std::string> knownNames;          // id -> friendly name from the last scan
     hb::ndi::NdiDiscovery ndiDiscovery;                      // lists NDI sources currently on the network
+    // ---- outputs: second/third monitor windows + NDI output of PROGRAM ----
+    win::OutputWindow progWin(L"HB Studio — PROGRAM"), prevWin(L"HB Studio — PREVIEW");
+    std::unique_ptr<hb::ndi::NdiSender> ndiSender;  // created only when the operator turns NDI output on
+    std::mutex ndiSenderMutex;
+    bool ndiOutputEnabled = false;
+    std::string ndiOutputName = "HB Studio Program";
+    const std::string ndiOutPath = mediaDir.empty() ? std::string() : mediaDir + "\\ndiout.txt";
+    if (!ndiOutPath.empty()) {
+        std::ifstream f(ndiOutPath, std::ios::binary);
+        std::string enabledLine, nameLine;
+        if (f && std::getline(f, enabledLine)) {
+            ndiOutputEnabled = enabledLine == "1";
+            if (std::getline(f, nameLine) && !nameLine.empty() && nameLine.size() <= 128) ndiOutputName = nameLine;
+        }
+    }
+    auto saveNdiOutSettings = [&] {
+        if (ndiOutPath.empty()) return;
+        std::ofstream f(ndiOutPath, std::ios::binary | std::ios::trunc);
+        f << (ndiOutputEnabled ? "1" : "0") << "\n" << ndiOutputName;
+    };
+    auto postOutputsState = [&] {
+        bool ndiAvailable;
+        {
+            std::lock_guard lock(ndiSenderMutex);
+            ndiAvailable = ndiSender ? ndiSender->available() : true;  // "true": unknown yet, don't warn early
+        }
+        host.postQueued("outputs", std::string("{\"t\":\"outputs\",\"ndiEnabled\":") + (ndiOutputEnabled ? "true" : "false") +
+                                        ",\"ndiName\":\"" + win::jsonEscape(ndiOutputName) + "\",\"ndiAvailable\":" +
+                                        (ndiAvailable ? "true" : "false") + "}");
+    };
     std::atomic<bool> scanning{false};
     // Declared AFTER everything its jobs touch: destroyed first, so queued jobs finish while those still exist.
     win::TaskQueue tasks;                                   // slow jobs: enumeration, closing capture graphs
@@ -364,6 +396,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 host.postQueued("plugins", plugins.listJson());
                 host.postQueued("theme", plugins.themeJson());
             }
+            postOutputsState();
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "system")) {
             // Native dark/light mode: built into the app, no plugin needed. The web page applies
@@ -374,6 +407,31 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             if (!themePath.empty()) {
                 std::ofstream f(themePath, std::ios::binary | std::ios::trunc);
                 f << themePref;
+            }
+        }
+        else if (c == "outwin" && a.size() >= 3) {
+            // Second/third monitor output: a plain window the operator drags to another screen and
+            // maximizes/fullscreens (F11) there — see src/app/windows/output_window.hpp.
+            win::OutputWindow& win_ = a[1] == "preview" ? prevWin : progWin;
+            if (a[2] == "open") win_.open(inst);
+            else if (a[2] == "close") win_.close();
+        }
+        else if (c == "ndiout" && a.size() >= 2) {
+            if (a[1] == "on" || a[1] == "off") {
+                ndiOutputEnabled = a[1] == "on";
+                if (a.size() >= 3 && !a[2].empty() && a[2].size() <= 128) ndiOutputName = a[2];
+                std::lock_guard lock(ndiSenderMutex);
+                if (ndiOutputEnabled) {
+                    if (!ndiSender) ndiSender = std::make_unique<hb::ndi::NdiSender>(ndiOutputName);
+                } else {
+                    ndiSender.reset();
+                }
+                saveNdiOutSettings();
+                const std::string msg = !ndiOutputEnabled ? "Saída NDI desligada."
+                                       : (ndiSender->available() ? "Saída NDI ligada: \"" + ndiOutputName + "\" na rede."
+                                                                  : "Sem o NDI Runtime instalado, a saída NDI fica indisponível.");
+                toast(msg);
+                postOutputsState();
             }
         }
         else if (c == "aud" || c == "rec") {
@@ -540,6 +598,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     opt.initialDark = effectiveDark(themePref);
 
     std::thread feeder;
+    if (ndiOutputEnabled) {
+        std::lock_guard lock(ndiSenderMutex);
+        ndiSender = std::make_unique<hb::ndi::NdiSender>(ndiOutputName);
+    }
     auto startFeeder = [&] {
         if (feeder.joinable()) return;   // never start a second feeder (page reload)
         // Restore the inputs used last time and list the devices for the CÂMERAS tab.
@@ -571,6 +633,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             win::JpegEncoder jpeg;
             jpeg.init();
             video::Frame frame;
+            video::Frame previewFull;  // full-resolution (not the small UI monitor size) for prevWin
             std::vector<std::uint8_t> bytes;
             std::uint64_t tick = 0;
             auto next = std::chrono::steady_clock::now();
@@ -583,6 +646,24 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 };
                 sendFrame("pgm", 80);
                 sendFrame("pvw", 80);
+                // Outputs: second/third-monitor windows and the NDI sender want the FULL-resolution
+                // Program/Preview, not the small UI monitor size sendFrame() above produces.
+                auto progLatest = (progWin.isOpen() || ndiOutputEnabled) ? engine.program().latest() : nullptr;
+                if (progWin.isOpen() && progLatest) progWin.present(*progLatest);
+                if (prevWin.isOpen()) {
+                    const auto& pf = engine.program().format();
+                    video::prepareFrame(previewFull, pf.width, pf.height);
+                    engine.switcher().renderPreview(previewFull, tick);
+                    prevWin.present(previewFull);
+                }
+                if (ndiOutputEnabled && progLatest) {
+                    std::lock_guard lock(ndiSenderMutex);
+                    if (ndiSender) {
+                        const auto& pf = engine.program().format();
+                        ndiSender->feed(progLatest->data.data(), progLatest->width, progLatest->height,
+                                       progLatest->stride, pf.fps.num, pf.fps.den);
+                    }
+                }
                 // Input tiles: half of them per tick (~7.5 fps each) to save CPU.
                 for (int i = static_cast<int>(tick % 2); i < app::Engine::kSourceCount; i += 2)
                     sendFrame(("s" + std::to_string(i)).c_str(), 70);
@@ -649,6 +730,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
     if (feeder.joinable()) feeder.join();
     win::trace("feeder joined");
+    progWin.close();
+    prevWin.close();
+    { std::lock_guard lock(ndiSenderMutex); ndiSender.reset(); }
     media.stop();     // finishes an ongoing recording (valid file) and saves the mixer settings
     win::trace("media stopped");
     vcam.shutdown();
