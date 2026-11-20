@@ -219,4 +219,59 @@ std::string escape(std::string_view s) {
     return o;
 }
 
+namespace {
+void dumpValue(const Value& v, bool pretty, int level, std::string& o) {
+    auto nl = [&](int l) {
+        if (!pretty) return;
+        o += '\n';
+        o.append(static_cast<std::size_t>(l) * 2, ' ');
+    };
+    switch (v.t) {
+        case Value::T::Null: o += "null"; break;
+        case Value::T::Bool: o += v.b ? "true" : "false"; break;
+        case Value::T::Num: {
+            char b[48];
+            if (v.n == static_cast<double>(static_cast<long long>(v.n)) && v.n > -1e15 && v.n < 1e15)
+                std::snprintf(b, sizeof b, "%lld", static_cast<long long>(v.n));
+            else
+                std::snprintf(b, sizeof b, "%.17g", v.n);
+            o += b;
+            break;
+        }
+        case Value::T::Str: o += '"'; o += escape(v.s); o += '"'; break;
+        case Value::T::Arr:
+            if (v.a.empty()) { o += "[]"; break; }
+            o += '[';
+            for (std::size_t i = 0; i < v.a.size(); ++i) {
+                if (i) o += ',';
+                nl(level + 1);
+                dumpValue(v.a[i], pretty, level + 1, o);
+            }
+            nl(level);
+            o += ']';
+            break;
+        case Value::T::Obj:
+            if (v.o.empty()) { o += "{}"; break; }
+            o += '{';
+            bool first = true;
+            for (const auto& [k, c] : v.o) {
+                if (!first) o += ',';
+                first = false;
+                nl(level + 1);
+                o += '"'; o += escape(k); o += pretty ? "\": " : "\":";
+                dumpValue(c, pretty, level + 1, o);
+            }
+            nl(level);
+            o += '}';
+            break;
+    }
+}
+}  // namespace
+
+std::string dump(const Value& v, bool pretty) {
+    std::string o;
+    dumpValue(v, pretty, 0, o);
+    return o;
+}
+
 }  // namespace hb::core::json

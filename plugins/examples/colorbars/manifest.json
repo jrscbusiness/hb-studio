@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "id": "com.hbstudio.example.sources",
+  "name": "Fontes de exemplo (barras e rampa)",
+  "version": "1.0.0",
+  "author": "HB Studio",
+  "description": "Plugin de demonstração: duas fontes de vídeo de teste. Serve de modelo para criar plugins de fonte.",
+  "license": "MIT",
+  "type": "source",
+  "apiVersion": 1,
+  "library": { "windows-x64": "hb_plugin_example.dll", "linux-x64": "libhb_plugin_example.so" }
+}

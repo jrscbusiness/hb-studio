@@ -31,6 +31,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
+  page.on('dialog', d => d.accept());
   await page.addInitScript(() => {
     window.__sent = [];
     window.chrome = { webview: { postMessage: m => window.__sent.push(m), addEventListener: () => {} } };
@@ -154,6 +155,54 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await page.locator('#dev-list').innerText()).includes('Nenhum dispositivo'), 'empty list shows a helpful empty state');
   await setState({});
 
+  console.log('\n[4b] PLUGINS');
+  await tab('plg');
+  await page.evaluate(() => window.__hbMessage({ t: 'plugins', ver: 1, dir: 'C:\\Users\\x\\AppData\\Local\\HBStudio\\plugins', list: [
+    { id: 'com.t.theme', name: 'Tema Meia-noite', version: '1.0.0', author: 'HB', description: 'Azul escuro', license: 'MIT', type: 'theme', valid: true, supported: true, enabled: false, loaded: false, removed: false, error: '' },
+    { id: 'com.t.src', name: 'Fontes de exemplo', version: '1.0.0', author: 'HB', description: 'Duas fontes', license: 'MIT', type: 'source', valid: true, supported: true, enabled: true, loaded: true, removed: false, error: '' },
+    { id: 'com.t.bad', name: 'Quebrado', version: '0.1.0', author: '', description: '', license: '', type: 'source', valid: true, supported: true, enabled: false, loaded: false, removed: false, error: 'a biblioteca não confere com o sha256' }] }));
+  await page.waitForTimeout(100);
+  ok(await page.locator('#plg-list .plg').count() === 3, 'lists the 3 installed plugins');
+  ok((await page.locator('#plg-list').innerText()).includes('a biblioteca não confere'), 'plugin error is shown to the user');
+  await clearSent();
+  await humanClick('#plg-install');
+  ok((await sent()).includes('pluginpick'), 'INSTALAR PLUGIN… -> pluginpick (native file dialog)');
+  await humanClick('#plg-list .plg:nth-child(1) .acts button', 0);
+  ok((await sent()).includes('pluginenable|com.t.theme|1'), 'ATIVAR on the theme -> pluginenable|id|1');
+  await humanClick('#plg-list .plg:nth-child(2) .acts button', 0);
+  ok((await sent()).includes('pluginenable|com.t.src|0'), 'ATIVO (click) -> pluginenable|id|0');
+  await humanClick('#plg-list .plg:nth-child(1) .acts button', 1);
+  ok((await sent()).includes('pluginremove|com.t.theme'), 'Remover (after confirmation) -> pluginremove|id');
+  // review dialog: theme (no risk) then native (consent required)
+  await page.evaluate(() => window.__hbMessage({ t: 'plugin_review', ok: true, token: 'tok123', id: 'com.t.theme', name: 'Tema Meia-noite', version: '1.0.0', author: 'HB', description: 'x', license: 'MIT', type: 'theme', native: false, files: 1, size: 800, replaces: false, installedVersion: '', sha: 'abcdef0123456789' }));
+  await page.waitForTimeout(100);
+  ok(await page.locator('#modal3').evaluate(e => e.classList.contains('on')), 'review dialog opens');
+  ok(!(await page.locator('#rv-risk').isVisible()) && !(await page.locator('#rv-ok').isDisabled()), 'theme: no risk warning, INSTALAR enabled');
+  await clearSent();
+  await humanClick('#rv-ok');
+  ok((await sent()).includes('pluginconfirm|tok123'), 'INSTALAR -> pluginconfirm|token');
+  await page.evaluate(() => window.__hbMessage({ t: 'plugin_review', ok: true, token: 'tok456', id: 'com.t.src', name: 'Fontes', version: '2.0.0', author: 'X', description: '', license: '', type: 'source', native: true, files: 2, size: 90000, replaces: true, installedVersion: '1.0.0', sha: '0011223344556677' }));
+  await page.waitForTimeout(100);
+  ok(await page.locator('#rv-risk').isVisible() && await page.locator('#rv-ok').isDisabled(), 'native: risk warning shown and INSTALAR disabled until consent');
+  ok((await page.locator('#rv-body').innerText()).includes('substitui a 1.0.0'), 'review says it replaces version 1.0.0');
+  await page.locator('#rv-ack').evaluate(e => e.click());
+  ok(!(await page.locator('#rv-ok').isDisabled()), 'consent checkbox enables INSTALAR');
+  await clearSent();
+  await humanClick('#rv-cancel');
+  ok((await sent()).includes('plugincancel|tok456') && !(await page.locator('#modal3').evaluate(e => e.classList.contains('on'))), 'CANCELAR -> plugincancel|token and dialog closes');
+  await page.evaluate(() => window.__hbMessage({ t: 'plugin_review', ok: false, error: 'o arquivo não confere' }));
+  await page.waitForTimeout(100);
+  ok(await page.locator('#rv-ok').isHidden() && (await page.locator('#rv-err').innerText()).includes('não confere'), 'invalid package: error shown, no install button');
+  await humanClick('#rv-cancel');
+  // theme application is validated on the UI side too
+  await page.evaluate(() => window.__hbMessage({ t: 'theme', id: 'x', scheme: 'dark', vars: { '--bg': '#0A1226', '--evil': 'url(http://x)', '--ink': 'red', '--blue': 'rgb(1,2,3)' } }));
+  const css = await page.evaluate(() => ({ bg: document.documentElement.style.getPropertyValue('--bg'), evil: document.documentElement.style.getPropertyValue('--evil'),
+    ink: document.documentElement.style.getPropertyValue('--ink'), scheme: document.documentElement.style.colorScheme }));
+  ok(css.bg === '#0A1226' && css.scheme === 'dark', 'theme variables are applied');
+  ok(css.evil === '' && css.ink === '', 'non-colour values (url(), names) are refused by the UI as well');
+  await page.evaluate(() => window.__hbMessage({ t: 'theme', id: '', scheme: '', vars: {} }));
+  ok((await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg'))) === '', 'empty theme restores the default look');
+
   console.log('\n[5] ÁUDIO e CONFIG');
   await tab('aud');
   ok(await page.locator('#v-aud').isVisible(), 'ÁUDIO tab opens');
@@ -180,9 +229,17 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok(rows.length >= 6 && !overlap, 'CONFIG: formats table rows are stacked without overlapping');
 
   console.log('\n[6] Layout em janelas diferentes');
+  // production screen must fit without clipping the inputs strip on common laptop sizes
+  for (const [w, h] of [[1280, 800], [1366, 768], [1920, 1080]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await tab('prod'); await page.waitForTimeout(100);
+    const bottom = await page.evaluate(() => document.querySelector('.inputs').getBoundingClientRect().bottom);
+    const limit = await page.evaluate(() => document.querySelector('footer').getBoundingClientRect().top);
+    ok(bottom <= limit + 1, `${w}x${h}: the inputs strip is fully visible (bottom ${Math.round(bottom)} <= ${Math.round(limit)})`);
+  }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
-    for (const v of ['prod', 'cam', 'aud', 'cfg']) {
+    for (const v of ['prod', 'cam', 'aud', 'plg', 'cfg']) {
       await tab(v);
       const hs = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       ok(hs, `${w}x${h} ${v}: no horizontal overflow`);

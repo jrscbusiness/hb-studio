@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "id": "com.hbstudio.theme.midnight",
+  "name": "Tema Meia-noite (azul escuro)",
+  "version": "1.0.0",
+  "author": "HB Studio",
+  "description": "Interface em azul-marinho escuro, ideal para ambientes com pouca luz.",
+  "license": "MIT",
+  "type": "theme",
+  "theme": {
+    "colorScheme": "dark",
+    "vars": {
+      "--bg": "#0A1226", "--panel": "#111B33", "--surface": "#16233F", "--surface-2": "#1C2C4D", "--glass": "rgba(17,27,51,.78)",
+      "--line": "#243459", "--line-2": "#30446F", "--ink": "#E8EEFF", "--ink-2": "#B2C1E6", "--muted": "#7F92BE",
+      "--blue": "#4F8DFF", "--blue-2": "#7FAEFF", "--sky": "#2D4C87", "--mist": "#1B2D52", "--on-accent": "#FFFFFF", "--warn": "#F0B429", "--warn-ink": "#F5C65A", "--warn-bg": "#3A2E12", "--warn-line": "#6B5522"
+    }
+  }
+}

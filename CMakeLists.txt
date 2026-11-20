@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(HBStudio VERSION 0.1.0 LANGUAGES CXX)
+project(HBStudio VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -72,7 +72,7 @@ if(WIN32)
   endif()
 
   # ---- Graphical application + installer (needs the WebView2 SDK, see CI / BUILD.md) ----
-  set(HB_VERSION "0.2.0")
+  set(HB_VERSION "0.3.0")
   string(REPLACE "." "," HB_VER_COMMA "${HB_VERSION},0")
   set(HB_WEBVIEW2_DIR "${CMAKE_SOURCE_DIR}/third_party/webview2" CACHE PATH "Microsoft.Web.WebView2 NuGet package, extracted")
   if(EXISTS "${HB_WEBVIEW2_DIR}/build/native/include/WebView2.h")
@@ -94,8 +94,8 @@ if(WIN32)
       "${CMAKE_BINARY_DIR}/rc/app.rc" src/app/windows/rc/app.manifest)
     set_target_properties(hb_studio PROPERTIES OUTPUT_NAME HBStudio)
     target_include_directories(hb_studio PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
-    target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX)
-    target_link_libraries(hb_studio PRIVATE hb_core hb_vcam_sender mfplat mf mfuuid ${HB_WIN_LIBS})
+    target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION}")
+    target_link_libraries(hb_studio PRIVATE hb_core hb_plugins hb_vcam_sender mfplat mf mfuuid comdlg32 ${HB_WIN_LIBS})
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")

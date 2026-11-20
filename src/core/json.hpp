@@ -37,6 +37,9 @@ struct Limits {
 // Returns false for any syntax error, trailing garbage, or limit violation.
 bool parse(std::string_view text, Value& out, const Limits& limits = {});
 
+// Serialises a value (object keys sorted). `pretty`: 2-space indentation.
+std::string dump(const Value& v, bool pretty = false);
+
 // JSON string escaping (no surrounding quotes). Control characters become \u00XX.
 std::string escape(std::string_view s);
 

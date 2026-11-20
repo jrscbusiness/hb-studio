@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <objbase.h>
 #include <shellapi.h>
+#include <commdlg.h>
 #include <shlobj.h>
 
 #include <atomic>
@@ -30,6 +31,7 @@
 #include "app/windows/webview_host.hpp"
 #include "app/windows/wic_jpeg.hpp"
 #include "app/windows/win_util.hpp"
+#include "plugins/service.hpp"
 
 using namespace hb;
 
@@ -41,7 +43,7 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, i
     char b[2048];
     snprintf(b, sizeof b,
              "{\"t\":\"s\",\"pvw\":%d,\"pgm\":%d,\"transition\":%s,\"progress\":%.3f,\"fps\":%.2f,\"target\":%d,"
-             "\"frames\":%llu,\"skipped\":%llu,\"tier\":\"%s\",\"cores\":%u,\"ramGiB\":%u,\"srcRec\":%d,\"srcMax\":%d,"
+             "\"ver\":\"" HB_VERSION "\",\"frames\":%llu,\"skipped\":%llu,\"tier\":\"%s\",\"cores\":%u,\"ramGiB\":%u,\"srcRec\":%d,\"srcMax\":%d,"
              "\"vcam\":{\"supported\":%s,\"installed\":%s,\"active\":%s,\"connected\":%s,\"busy\":%s,\"error\":%s,"
              "\"sent\":%llu,\"message\":\"%s\"}",
              s.sw.pvw, s.sw.pgm, s.sw.transitioning ? "true" : "false", s.sw.progress, s.fps, s.targetFps,
@@ -162,6 +164,18 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         }
         if (!assignPath.empty()) assignments.load(assignPath);
     }
+    // ---- plugins (themes + native video-source plugins), installed per user ----
+    std::string pluginsDir;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            pluginsDir = win::narrow(std::wstring(p) + L"\\HBStudio\\plugins");
+            CoTaskMemFree(p);
+        }
+    }
+    plugins::PluginService plugins(pluginsDir, "windows-x64");
+    std::atomic<bool> pluginsReady{false};
+
     std::mutex devMutex;
     std::map<int, std::shared_ptr<win::DShowSource>> devices;   // slot -> running capture (keeps it alive)
     std::map<std::string, std::string> knownNames;          // id -> friendly name from the last scan
@@ -171,6 +185,19 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     auto retire = [&](std::shared_ptr<win::DShowSource> d) {
         if (d) tasks.post([d] { d->stop(); });              // never block UI/Program thread on a driver
+    };
+    auto attachPlugin = [&](int slot, const std::string& id, const std::string& name, std::string& err) {
+        auto src = plugins.runtime().open(id, err);
+        if (!src) return false;
+        std::shared_ptr<win::DShowSource> old;
+        {
+            std::lock_guard lock(devMutex);
+            auto it = devices.find(slot);
+            if (it != devices.end()) { old = it->second; devices.erase(it); }
+        }
+        engine.assignSlot(slot, src, id, name);
+        retire(old);
+        return true;
     };
     auto attach = [&](int slot, const std::string& id, const std::string& name) {
         auto src = std::make_shared<win::DShowSource>(id, name);
@@ -199,13 +226,24 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         tasks.post([&] {
             const auto devs = win::enumerateVideoDevices();
             std::string j = "{\"t\":\"devices\",\"busy\":false,\"list\":[";
+            bool firstDev = true;
             {
                 std::lock_guard lock(devMutex);
                 knownNames.clear();
                 for (std::size_t i = 0; i < devs.size(); ++i) {
                     knownNames[devs[i].id] = devs[i].name;
+                    firstDev = false;
                     j += std::string(i ? "," : "") + "{\"id\":\"" + win::jsonEscape(devs[i].id) + "\",\"name\":\"" +
                          win::jsonEscape(devs[i].name) + "\",\"virt\":" + (devs[i].virtualCam ? "true" : "false") + "}";
+                }
+            }
+            if (pluginsReady) {
+                std::lock_guard lock(devMutex);
+                for (const auto& ps : plugins.runtime().sources()) {
+                    knownNames[ps.fullId] = ps.name;
+                    j += std::string(firstDev ? "" : ",") + "{\"id\":\"" + win::jsonEscape(ps.fullId) + "\",\"name\":\"" + win::jsonEscape(ps.name) +
+                         "\",\"virt\":false,\"plugin\":\"" + win::jsonEscape(ps.pluginName) + "\"}";
+                    firstDev = false;
                 }
             }
             j += "]}";
@@ -247,7 +285,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         const std::string& c = a[0];
         const int cam = idx(1);
         const std::string camLabel = "CAM " + std::to_string(cam + 1) + ": ";
-        if (c == "ready") ptzSent = 0;
+        if (c == "ready") {
+            ptzSent = 0;
+            if (pluginsReady) {
+                host.postQueued("plugins", plugins.listJson());
+                host.postQueued("theme", plugins.themeJson());
+            }
+        }
         else if (c == "preview") engine.switcher().setPreview(idx(1));
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
@@ -266,9 +310,23 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 if (it != knownNames.end()) name = it->second;
             }
             if (slot >= 0 && slot < app::Engine::kSourceCount && assignments.set(slot, a[2], name)) {
-                attach(slot, a[2], name);
-                if (!assignPath.empty()) assignments.save(assignPath);
-                toast("CAM " + std::to_string(slot + 1) + ": " + name + " conectando…");
+                const std::string id = a[2];
+                if (id.rfind("plugin:", 0) == 0) {
+                    tasks.post([&, slot, id, name] {
+                        std::string err;
+                        if (!attachPlugin(slot, id, name, err)) {
+                            assignments.clear(slot);
+                            toast("CAM " + std::to_string(slot + 1) + ": não foi possível abrir a fonte do plugin (" + err + ").");
+                        } else {
+                            toast("CAM " + std::to_string(slot + 1) + ": " + name);
+                        }
+                        if (!assignPath.empty()) assignments.save(assignPath);
+                    });
+                } else {
+                    attach(slot, id, name);
+                    if (!assignPath.empty()) assignments.save(assignPath);
+                    toast("CAM " + std::to_string(slot + 1) + ": " + name + " conectando…");
+                }
             }
         } else if (c == "devclear") {
             const int slot = idx(1);
@@ -278,6 +336,50 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 if (!assignPath.empty()) assignments.save(assignPath);
                 toast("CAM " + std::to_string(slot + 1) + ": voltou para a fonte de teste.");
             }
+        } else if (c == "pluginpick") {
+            // Native file dialog (UI thread). The chosen file is only INSPECTED; nothing is installed yet.
+            wchar_t file[MAX_PATH * 4] = {0};
+            OPENFILENAMEW ofn{};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = host.hwnd();
+            ofn.lpstrFilter = L"Plugins do HB Studio (*.hbplugin;*.zip)\0*.hbplugin;*.zip\0Todos os arquivos\0*.*\0";
+            ofn.lpstrFile = file;
+            ofn.nMaxFile = static_cast<DWORD>(sizeof(file) / sizeof(file[0]));
+            ofn.lpstrTitle = L"Escolha o plugin (.hbplugin)";
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+            if (GetOpenFileNameW(&ofn)) {
+                const std::string path = win::narrow(file);
+                tasks.post([&, path] { host.postQueued("", plugins.beginInstall(path)); });
+            }
+        } else if (c == "pluginconfirm" && a.size() >= 2) {
+            const std::string token = a[1];
+            tasks.post([&, token] {
+                host.postQueued("", plugins.confirmInstall(token));
+                host.postQueued("plugins", plugins.listJson());
+            });
+        } else if (c == "plugincancel" && a.size() >= 2) {
+            plugins.cancelInstall(a[1]);
+        } else if ((c == "pluginenable" || c == "pluginremove") && a.size() >= 2) {
+            const std::string id = a[1];
+            const bool enable = c == "pluginenable" && a.size() >= 3 && a[2] == "1";
+            const bool removing = c == "pluginremove";
+            tasks.post([&, id, enable, removing] {
+                plugins::Result r = removing ? plugins.remove(id) : plugins.setEnabled(id, enable);
+                if (!enable) {      // switched off or removed: inputs that came from this plugin go back to the test source
+                    for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+                        const auto info = engine.slotInfo(i);
+                        if (info.live && info.deviceId.rfind("plugin:" + id + ":", 0) == 0) {
+                            detach(i);
+                            assignments.clear(i);
+                        }
+                    }
+                    if (!assignPath.empty()) assignments.save(assignPath);
+                }
+                toast(r.message);
+                host.postQueued("plugins", plugins.listJson());
+                host.postQueued("theme", plugins.themeJson());
+                scan();
+            });
         } else if (c == "ptzname" && a.size() >= 4) {
             if (ptzSettings.setPresetName(cam, idx(2), a[3])) ptzChanged();
         } else if (c == "ptzcfg" && a.size() >= 3) {
@@ -311,8 +413,21 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // Restore the inputs used last time and list the devices for the CÂMERAS tab.
         for (int i = 0; i < app::Engine::kSourceCount; ++i) {
             const auto e = assignments.get(i);
-            if (!e.empty()) attach(i, e.id, e.name);
+            if (!e.empty() && e.id.rfind("plugin:", 0) != 0) attach(i, e.id, e.name);
         }
+        tasks.post([&] {   // plugins: scan the folder, load enabled libraries (hash re-checked), restore their inputs
+            plugins.start();
+            pluginsReady = true;
+            for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+                const auto e = assignments.get(i);
+                std::string err;
+                if (!e.empty() && e.id.rfind("plugin:", 0) == 0 && !attachPlugin(i, e.id, e.name, err))
+                    engine.logger().warning("plugins", "entrada " + std::to_string(i + 1) + " não restaurada: " + err);
+            }
+            host.postQueued("plugins", plugins.listJson());
+            host.postQueued("theme", plugins.themeJson());
+            scan();
+        });
         scan();
         feeder = std::thread([&] {
             win::trace("feeder thread start");

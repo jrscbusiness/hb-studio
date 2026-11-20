@@ -8,7 +8,9 @@ const [,, html, out, view] = process.argv;
   const b = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: +(process.env.VW || 1600), height: +(process.env.VH || 900) } });
   await p.goto('file://' + require('path').resolve(html));
-  await p.evaluate(([t, r]) => { window.__tier = t; window.__rec = r; }, [process.env.TIER || 'MEDIUM', +(process.env.REC || 8)]);
+  const themeFile = process.env.THEME;
+  const themeMsg = themeFile ? (() => { const m = JSON.parse(require('fs').readFileSync(themeFile, 'utf8')); return { t: 'theme', id: m.id, scheme: m.theme.colorScheme, vars: m.theme.vars }; })() : null;
+  await p.evaluate(([t, r, th]) => { window.__tier = t; window.__rec = r; window.__theme = th; }, [process.env.TIER || 'MEDIUM', +(process.env.REC || 8), themeMsg]);
   await p.evaluate(async (view) => {
     const mk = (w, h, hue, label) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
       const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, `hsl(${hue},60%,70%)`); g.addColorStop(1, `hsl(${hue},80%,30%)`); x.fillStyle = g; x.fillRect(0, 0, w, h);
@@ -26,8 +28,15 @@ const [,, html, out, view] = process.argv;
     window.__hbMessage({ t: 'ptz', cams: Array.from({length: 8}, (_, i) => ({ protocol: 'onvif', host: '192.168.15.10' + i, port: 0, address: 1, slots: 10, base: 1, storage: 'camera', speed: 50, invPan: false, invTilt: false, defPort: 80, connected: false, names }))});
     window.__hbMessage({ t: 'devices', list: [
       { id: 'a', name: 'OBS Virtual Camera', virt: true }, { id: 'b', name: 'Logitech C920 HD Pro Webcam', virt: false }, { id: 'c', name: 'Cam Link 4K', virt: false } ]});
+    window.__hbMessage({ t: 'plugins', ver: 1, dir: 'C:\\Users\\Usuario\\AppData\\Local\\HBStudio\\plugins', list: [
+      { id: 'com.hbstudio.theme.midnight', name: 'Tema Meia-noite (azul escuro)', version: '1.0.0', author: 'HB Studio', description: 'Interface em azul-marinho escuro, ideal para ambientes com pouca luz.', license: 'MIT', type: 'theme', valid: true, supported: true, enabled: !!window.__theme, loaded: false, removed: false, error: '' },
+      { id: 'com.hbstudio.example.sources', name: 'Fontes de exemplo (barras e rampa)', version: '1.0.0', author: 'HB Studio', description: 'Plugin de demonstração: duas fontes de vídeo de teste.', license: 'MIT', type: 'source', valid: true, supported: true, enabled: true, loaded: true, removed: false, error: '' },
+      { id: 'com.acme.capture', name: 'Placa de captura Acme', version: '0.9.2', author: 'Acme', description: '', license: '', type: 'source', valid: true, supported: true, enabled: false, loaded: false, removed: false, error: 'a biblioteca não confere com o sha256 do manifesto: ativação recusada' }] });
+    if (window.__theme) window.__hbMessage(window.__theme);
+    if (view === 'review') window.__hbMessage({ t: 'plugin_review', ok: true, token: 't', id: 'com.acme.capture', name: 'Placa de captura Acme', version: '0.9.3', author: 'Acme Ltda', description: 'Entrada de vídeo para placas Acme SDI.', license: 'MIT', type: 'source', native: true, files: 3, size: 482000, replaces: true, installedVersion: '0.9.2', sha: 'a1b2c3d4e5f60718' });
     if (view === 'modal') document.querySelector('#ptz-cfg').click();
     else if (view === 'edit') { document.querySelector('#ptz-mode button[data-m=edit]').click(); }
+    else if (view === 'review') document.querySelector('#tabs button[data-v=plg]').click();
     else if (view) document.querySelector(`#tabs button[data-v=${view}]`).click();
   }, view);
   await p.waitForTimeout(400);
