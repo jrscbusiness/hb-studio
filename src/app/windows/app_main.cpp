@@ -49,13 +49,16 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, c
                       int toastId, const std::string& toast) {
     const auto s = engine.snapshot();
     const auto v = vcam.status();
+    const auto pf = engine.program().format();
     char b[2048];
     snprintf(b, sizeof b,
              "{\"t\":\"s\",\"pvw\":%d,\"pgm\":%d,\"transition\":%s,\"progress\":%.3f,\"fps\":%.2f,\"target\":%d,"
+             "\"pw\":%d,\"ph\":%d,"
              "\"ver\":\"" HB_VERSION "\",\"frames\":%llu,\"skipped\":%llu,\"tier\":\"%s\",\"cores\":%u,\"ramGiB\":%u,\"srcRec\":%d,\"srcMax\":%d,"
              "\"vcam\":{\"supported\":%s,\"installed\":%s,\"active\":%s,\"connected\":%s,\"busy\":%s,\"error\":%s,"
              "\"sent\":%llu,\"message\":\"%s\"}",
              s.sw.pvw, s.sw.pgm, s.sw.transitioning ? "true" : "false", s.sw.progress, s.fps, s.targetFps,
+             pf.width, pf.height,
              static_cast<unsigned long long>(s.produced), static_cast<unsigned long long>(s.skipped), s.tier.c_str(),
              s.cores, s.ramGiB, s.sourcesRecommended, s.sourcesMax, v.supported ? "true" : "false",
              v.installed ? "true" : "false", v.active ? "true" : "false", v.connected ? "true" : "false",
@@ -146,7 +149,24 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     win::trace("wWinMain start");
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
-    app::Engine engine;
+    // ---- Program output format: a saved choice from CONFIG > Formatos de saída comuns, read
+    // before the engine exists since ProgramOutput's resolution/fps is fixed for its whole
+    // lifetime (changing it live would mean resizing every consumer - switcher sources, the
+    // virtual camera, recording, NDI/RTMP output - while they run; out of scope for now). A
+    // changed format only takes effect the next time HB Studio starts, which "outfmt"'s toast says.
+    video::ProgramFormat outputFormat{1920, 1080, {30, 1}};
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            std::ifstream f(win::narrow(std::wstring(p) + L"\\HBStudio\\outputformat.txt"), std::ios::binary);
+            CoTaskMemFree(p);
+            int w = 0, h = 0, fn = 0, fd = 0;
+            if (f && (f >> w >> h >> fn >> fd) && w > 0 && h > 0 && fn > 0 && fd > 0 && w <= 7680 && h <= 4320)
+                outputFormat = {w, h, {fn, fd}};
+        }
+    }
+
+    app::Engine engine(outputFormat);
     engine.start();
     win::trace("engine started");
     win::VirtualCameraController vcam(engine.program(), engine.logger());
@@ -202,6 +222,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
     std::mutex sendersMutex;
     std::map<std::string, std::unique_ptr<win::StreamSender>> senders;   // destination id -> running sender
+    // ---- output format (CONFIG > Formatos de saída comuns): same file read at the top into
+    // `outputFormat`, kept here too so the "outfmt" command can save a new choice for next launch.
+    std::string outFmtPath;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            outFmtPath = win::narrow(std::wstring(p) + L"\\HBStudio\\outputformat.txt");
+            CoTaskMemFree(p);
+        }
+    }
     // ---- plugins (themes + native video-source plugins), installed per user ----
     std::string pluginsDir;
     {
@@ -284,6 +314,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // only pushed then + on "ready"; per-destination live status is cheap and safe to push often
     // (the feeder tick does, at the same ~4x/s cadence as "rec" - see media.tick() below).
     auto postXmitDest = [&] { host.postQueued("xmit_dest", destinations.uiJson()); };
+    // The SAVED (pending) output format choice, which may differ from the one actually running
+    // (engine.program().format(), already sent in every "s" message as pw/ph/target) until the
+    // next restart - see the big comment where `outputFormat` is read, above.
+    auto postOutFmt = [&] {
+        const auto pf = engine.program().format();
+        host.postQueued("outfmt", "{\"t\":\"outfmt\",\"w\":" + std::to_string(outputFormat.width) + ",\"h\":" +
+                                       std::to_string(outputFormat.height) + ",\"fpsNum\":" + std::to_string(outputFormat.fps.num) +
+                                       ",\"fpsDen\":" + std::to_string(outputFormat.fps.den) + ",\"activeW\":" +
+                                       std::to_string(pf.width) + ",\"activeH\":" + std::to_string(pf.height) + ",\"activeFpsNum\":" +
+                                       std::to_string(pf.fps.num) + ",\"activeFpsDen\":" + std::to_string(pf.fps.den) + "}");
+    };
     auto postXmitStatus = [&] {
         std::string j = "{\"t\":\"xmit_status\",\"list\":[";
         {
@@ -478,6 +519,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postOutputsState();
             postXmitDest();
             postXmitStatus();
+            postOutFmt();
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "system")) {
             // Native dark/light mode: built into the app, no plugin needed. The web page applies
@@ -713,6 +755,26 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         } else if (c == "xmitstopall") {
             for (const auto& d : destinations.list()) stopXmit(d.id);
             postXmitStatus();
+        } else if (c == "outfmt" && a.size() >= 5) {
+            // Only the 6 documented presets (CONFIG > Formatos de saída comuns) are accepted -
+            // arbitrary resolutions aren't vetted against the switcher/virtual camera/recording
+            // pipeline, all of which assume whatever ProgramOutput was constructed with.
+            static const int kPresets[][4] = {{1280, 720, 30, 1}, {1280, 720, 60, 1}, {1920, 1080, 25, 1},
+                                              {1920, 1080, 30, 1}, {1920, 1080, 60, 1}, {3840, 2160, 30, 1}};
+            const int w = idx(1), h = idx(2), fn = idx(3), fd = idx(4);
+            bool valid = false;
+            for (const auto& p : kPresets)
+                if (p[0] == w && p[1] == h && p[2] == fn && p[3] == fd) { valid = true; break; }
+            if (valid) {
+                outputFormat = {w, h, {fn, fd}};
+                if (!outFmtPath.empty()) {
+                    std::ofstream f(outFmtPath, std::ios::binary | std::ios::trunc);
+                    f << w << ' ' << h << ' ' << fn << ' ' << fd;
+                }
+                postOutFmt();
+                toast("Formato salvo: " + std::to_string(w) + "×" + std::to_string(h) + " · " + std::to_string(fn / fd) +
+                     " fps. Reinicie o HB Studio para aplicar.");
+            }
         } else if (c == "pluginpick") {
             // Native file dialog (UI thread). The chosen file is only INSPECTED; nothing is installed yet.
             wchar_t file[MAX_PATH * 4] = {0};

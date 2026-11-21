@@ -222,10 +222,6 @@ kbd{font-family:var(--mono);font-size:9.5px;background:rgba(255,255,255,.22);bor
 .empty p{color:var(--ink-2);line-height:1.6}
 .phase{display:inline-block;margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--blue);background:var(--mist);padding:4px 12px;border-radius:999px}
 #v-cfg{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-content:start}
-table.fmt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
-table.fmt td{padding:6px 4px;border-bottom:1px dashed var(--line)}
-table.fmt tr:last-child td{border-bottom:0}
-table.fmt td:last-child{text-align:right;color:var(--blue);font-weight:600}
 
 footer{display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-top:1px solid var(--line);color:var(--muted);font-size:10.5px;letter-spacing:.08em;background:var(--glass)}
 footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
@@ -717,12 +713,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
           <div class="row"><span class="k">Fontes recomendadas / máximo</span><span class="v" id="g-src">—</span></div>
         </div></div>
       <div class="card"><h3><span class="cap">Formatos de saída comuns</span></h3>
-        <div class="body"><table class="fmt">
-          <tr><td>720p30</td><td>1280×720 · 30</td></tr><tr><td>720p60</td><td>1280×720 · 60</td></tr>
-          <tr><td>1080p25</td><td>1920×1080 · 25</td></tr><tr><td><b>1080p30</b> (ativo)</td><td>1920×1080 · 30</td></tr>
-          <tr><td>1080p60</td><td>1920×1080 · 60</td></tr><tr><td>2160p30 (4K)</td><td>3840×2160 · 30</td></tr>
-        </table>
-        <p class="note" style="margin-top:10px">Nesta versão a saída é fixa em 1080p30 (a câmera virtual usa este formato). A escolha de formato será liberada em uma próxima versão.</p></div></div>
+        <div class="body"><div id="outfmt-list"></div>
+        <p class="note" style="margin-top:10px" id="outfmt-note"></p></div></div>
     </section>
   </main>
 
@@ -1242,6 +1234,33 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
                         : 'Instale o NDI Runtime (ndi.video/tools) para a saída NDI funcionar de verdade.')
       : 'Desligada. Ao ligar, o PROGRAM passa a ser visível como uma fonte NDI na rede local.';
   }
+
+  // ---------- CONFIG: Formatos de saída comuns ----------
+  const outFmtPresets = [
+    { w: 1280, h: 720, fpsNum: 30, fpsDen: 1, label: '720p30', desc: '1280×720 · 30 fps' },
+    { w: 1280, h: 720, fpsNum: 60, fpsDen: 1, label: '720p60', desc: '1280×720 · 60 fps' },
+    { w: 1920, h: 1080, fpsNum: 25, fpsDen: 1, label: '1080p25', desc: '1920×1080 · 25 fps' },
+    { w: 1920, h: 1080, fpsNum: 30, fpsDen: 1, label: '1080p30', desc: '1920×1080 · 30 fps' },
+    { w: 1920, h: 1080, fpsNum: 60, fpsDen: 1, label: '1080p60', desc: '1920×1080 · 60 fps' },
+    { w: 3840, h: 2160, fpsNum: 30, fpsDen: 1, label: '2160p30 (4K)', desc: '3840×2160 · 30 fps' },
+  ];
+  function renderOutFmt(d) {
+    const box = $('#outfmt-list'); box.innerHTML = '';
+    outFmtPresets.forEach(p => {
+      const isActive = d && d.activeW === p.w && d.activeH === p.h && d.activeFpsNum === p.fpsNum && d.activeFpsDen === p.fpsDen;
+      const isPending = d && d.w === p.w && d.h === p.h && d.fpsNum === p.fpsNum && d.fpsDen === p.fpsDen;
+      const f = document.createElement('div'); f.className = 'fmt' + (isPending ? ' on' : ''); f.setAttribute('role', 'radio'); f.tabIndex = 0;
+      f.innerHTML = `<span class="rd"></span><div><b>${p.label}</b><em>${p.desc}</em></div>` +
+        (isActive ? '<span class="ext">ativo agora</span>' : isPending ? '<span class="ext">aplica ao reiniciar</span>' : '');
+      const pick = () => send('outfmt', p.w, p.h, p.fpsNum, p.fpsDen);
+      f.onclick = pick; f.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+      box.appendChild(f);
+    });
+    const note = $('#outfmt-note');
+    note.textContent = (d && (d.w !== d.activeW || d.h !== d.activeH || d.fpsNum !== d.activeFpsNum || d.fpsDen !== d.activeFpsDen))
+      ? 'Formato escolhido: será aplicado na próxima vez que o HB Studio for aberto.'
+      : 'Escolha o formato de saída do Program (afeta câmera virtual, gravação e transmissão) — a mudança só vale depois de reiniciar o HB Studio.';
+  }
   $('#out-ndi-toggle').addEventListener('click', () => {
     const name = $('#out-ndi-name').value.trim() || 'HB Studio Program';
     send('ndiout', ndiOutEnabled ? 'off' : 'on', name);
@@ -1316,6 +1335,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     $('#modal4').classList.add('on');
   }
   renderXmit();   // shows the empty-state hint immediately, before any xmit_dest message arrives
+  renderOutFmt(null);   // shows the preset list immediately, before any outfmt message arrives
   $('#xmit-add').addEventListener('click', () => openXmitEditor(null));
   $('#xmit-startall').addEventListener('click', () => send('xmitstartall'));
   $('#xmit-stopall').addEventListener('click', () => send('xmitstopall'));
@@ -1367,7 +1387,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       const nm = i => s.slots[i].k === 'dev' ? s.slots[i].name : 'CAM ' + (i + 1);
       $('#pgm-name').textContent = nm(s.pgm); $('#pvw-name').textContent = nm(s.pvw);
       $('#pvw-hud').textContent = 'PRÓXIMA · ' + hud(s.pvw);
-      $('#pgm-res').textContent = hud(s.pgm) + ' → 1920×1080 · ' + s.target + ' fps';
+      $('#pgm-res').textContent = hud(s.pgm) + ' → ' + (s.pw || 1920) + '×' + (s.ph || 1080) + ' · ' + s.target + ' fps';
       const nd = s.slots.filter(x => x.k === 'dev').length;
       $('#foot-src').textContent = nd ? nd + ' dispositivo(s) · ' + (N - nd) + ' teste' : 'TESTE';
       renderLists();
@@ -1612,6 +1632,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
     else if (d.t === 'devformats') renderCamFormats(d);
+    else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }

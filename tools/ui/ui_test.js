@@ -13,7 +13,7 @@ const ok = (c, msg) => { checks++; if (!c) { failures++; console.log('  FAIL: ' 
 const SLOT = (k, st, name, id, w, h, en) => ({ k, st, name: name || '', id: id || '', w: w || 0, h: h || 0, fps: k === 'dev' ? 30 : 0, msg: '', en: en === undefined ? true : en });
 function stateMsg(over = {}) {
   return Object.assign({
-    t: 's', pvw: 1, pgm: 0, transition: false, progress: 0, fps: 29.9, target: 30, frames: 1000, skipped: 0,
+    t: 's', pvw: 1, pgm: 0, transition: false, progress: 0, fps: 29.9, target: 30, pw: 1920, ph: 1080, frames: 1000, skipped: 0,
     tier: 'MEDIUM', cores: 8, ramGiB: 16, srcRec: 8, srcMax: 10, toast: null, log: [],
     slots: [SLOT('dev', 'online', 'OBS Virtual Camera', 'obs', 1920, 1080), ...Array.from({ length: 15 }, () => SLOT('test', 'test'))],
     vcam: { supported: true, installed: true, active: false, connected: false, busy: false, error: false, sent: 0, message: '' },
@@ -383,11 +383,28 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
     return out;
   });
   ok(spill.length === 0, 'CONFIG: every element stays inside its card' + (spill.length ? ' -> ' + spill.slice(0, 4).join(' | ') : ''));
-  const rows = await page.locator('#v-cfg table tr').evaluateAll(trs => trs.map(t => { const r = t.getBoundingClientRect(); return [r.top, r.bottom]; }));
+  const rows = await page.locator('#outfmt-list .fmt').evaluateAll(trs => trs.map(t => { const r = t.getBoundingClientRect(); return [r.top, r.bottom]; }));
   let overlap = false;
   for (let i = 1; i < rows.length; i++) if (rows[i][0] < rows[i - 1][1] - 1) overlap = true;
-  ok(rows.length >= 6 && !overlap, 'CONFIG: formats table rows are stacked without overlapping');
+  ok(rows.length === 6 && !overlap, 'CONFIG: output format presets are stacked without overlapping');
 
+  console.log('\n[5a2] CONFIG: Formatos de saída comuns (selecionáveis)');
+  await page.evaluate(() => window.__hbMessage({ t: 'outfmt', w: 1920, h: 1080, fpsNum: 30, fpsDen: 1, activeW: 1920, activeH: 1080, activeFpsNum: 30, activeFpsDen: 1 }));
+  ok((await page.locator('#outfmt-list .fmt.on').count()) === 1, 'the saved preset is marked selected');
+  ok((await page.locator('#outfmt-list .fmt.on .ext').textContent()).includes('ativo agora'), 'when saved == active, it reads "ativo agora"');
+  await clearSent();
+  const fmt720p60 = page.locator('#outfmt-list .fmt', { hasText: '720p60' });
+  await fmt720p60.click();
+  ok((await sent()).includes('outfmt|1280|720|60|1'), 'clicking a preset sends outfmt with its w/h/fps');
+  await page.evaluate(() => window.__hbMessage({ t: 'outfmt', w: 1280, h: 720, fpsNum: 60, fpsDen: 1, activeW: 1920, activeH: 1080, activeFpsNum: 30, activeFpsDen: 1 }));
+  ok((await fmt720p60.evaluate(e => e.classList.contains('on'))), 'the newly chosen preset becomes the one marked selected');
+  ok((await fmt720p60.locator('.ext').textContent()).includes('aplica ao reiniciar'), 'a pending choice different from the active format says it needs a restart');
+  ok((await page.locator('#outfmt-note').textContent()).includes('próxima vez'), 'the note explains the change only applies on next launch');
+  await page.evaluate(() => window.__hbMessage({ t: 'outfmt', w: 1920, h: 1080, fpsNum: 30, fpsDen: 1, activeW: 1920, activeH: 1080, activeFpsNum: 30, activeFpsDen: 1 }));
+  await setState({ pw: 1280, ph: 720 });
+  await tab('prod'); await page.waitForTimeout(100);
+  ok((await page.locator('#pgm-res').textContent()).includes('1280×720'), 'PROGRAM resolution readout follows the real active output size (s.pw/s.ph), not a hardcoded 1920×1080');
+  await setState({});
 
   console.log('\n[5b] ÁUDIO: canais, efeitos, gravação');
   const AUDIO = () => ({ t: 'audio', ver: 1, strips: Array.from({ length: 8 }, (_, i) => ({ i, name: ['MIC 1', 'MIC 2', 'LINHA', 'SISTEMA', 'FAIXA 5', 'FAIXA 6', 'FAIXA 7', 'FAIXA 8'][i],
