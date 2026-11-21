@@ -458,6 +458,77 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.locator('#out-ndi-name').dispatchEvent('change');
   ok((await sent()).includes('ndiout|on|Estúdio Principal'), 'mudar o nome com a saída ligada já reenvia ndiout|on com o novo nome');
 
+  console.log('\n[5e] TRANSMISSÃO');
+  await tab('xmit');
+  ok((await page.locator('#xmit-list .devempty').count()) === 1, 'TRANSMISSÃO: lista vazia mostra a dica de "adicionar destino"');
+  await page.evaluate(() => window.__hbMessage({
+    t: 'xmit_dest', list: [
+      { id: 'd1', name: 'YouTube culto', platform: 'youtube', protocol: 'rtmp', serverUrl: 'rtmp://a.rtmp.youtube.com/live2',
+        keySet: true, keyHint: '••••ab12', enabled: true, encoder: 'auto', videoKbps: 6000, audioKbps: 160,
+        useOwnFormat: false, width: 1920, height: 1080, fpsNum: 30, fpsDen: 1 },
+      { id: 'd2', name: 'Twitch', platform: 'twitch', protocol: 'rtmp', serverUrl: 'rtmp://live.twitch.tv/app',
+        keySet: false, keyHint: '', enabled: false, encoder: 'auto', videoKbps: 4500, audioKbps: 160,
+        useOwnFormat: false, width: 1920, height: 1080, fpsNum: 30, fpsDen: 1 },
+    ],
+  }));
+  ok((await page.locator('.xmitcard').count()) === 2, 'TRANSMISSÃO: os dois destinos aparecem como cards');
+  ok((await page.locator('.xmitcard').nth(1).locator('[data-a=run]').isDisabled()), 'TRANSMISSÃO: INICIAR fica desabilitado para um destino desativado');
+  await page.evaluate(() => window.__hbMessage({ t: 'xmit_status', list: [{ id: 'd1', running: true, publishing: true, message: 'Transmitindo.', videoUnits: 10, audioUnits: 20 }] }));
+  ok((await page.locator('.xmitcard').first().locator('.xc-st').textContent()).trim() === 'AO VIVO', 'TRANSMISSÃO: status "publishing" mostra AO VIVO');
+
+  await clearSent();
+  await page.locator('.xmitcard').nth(1).locator('[data-a=enable]').click();
+  ok((await sent()).includes('xmitenable|d2|1'), 'TRANSMISSÃO: ATIVAR envia xmitenable|id|1');
+
+  await clearSent();
+  await page.locator('.xmitcard').first().locator('[data-a=run]').click();
+  ok((await sent()).includes('xmitstop|d1'), 'TRANSMISSÃO: destino em execução -> botão vira PARAR -> envia xmitstop');
+
+  await page.click('#xmit-add');
+  ok(await page.locator('#modal4.on').count() === 1, 'TRANSMISSÃO: "+ Adicionar destino" abre o editor');
+  ok((await page.inputValue('#xm-server')) === 'rtmp://a.rtmp.youtube.com/live2', 'TRANSMISSÃO: plataforma padrão (YouTube) já preenche o servidor');
+  await page.selectOption('#xm-platform', 'custom');
+  await page.evaluate(() => document.querySelector('#xm-platform').dispatchEvent(new Event('change')));
+  // "custom" has no preset; switching to it must not clobber text already in the server field.
+  ok((await page.inputValue('#xm-server')) === 'rtmp://a.rtmp.youtube.com/live2', 'TRANSMISSÃO: trocar para "Personalizado" não apaga um servidor já preenchido');
+  await page.fill('#xm-server', '');
+  await clearSent();
+  await page.click('#xm-save');
+  ok((await page.locator('#xm-note').textContent()).length > 0, 'TRANSMISSÃO: salvar sem nome/servidor mostra aviso e não envia nada');
+  ok((await sent()).length === 0, 'TRANSMISSÃO: nenhum comando é enviado quando a validação falha');
+
+  await page.fill('#xm-name', 'Meu servidor RTMP');
+  await page.fill('#xm-server', 'rtmp://meuservidor.exemplo.com/live');
+  await page.fill('#xm-key', 'chave-123');
+  await clearSent();
+  await page.click('#xm-save');
+  const savedMsg = (await sent()).find(m => m.startsWith('xmitsave|'));
+  ok(!!savedMsg, 'TRANSMISSÃO: SALVAR envia xmitsave com o payload');
+  const savedPayload = JSON.parse(savedMsg.slice('xmitsave|'.length));
+  ok(savedPayload.name === 'Meu servidor RTMP' && savedPayload.serverUrl === 'rtmp://meuservidor.exemplo.com/live' &&
+    savedPayload.streamKey === 'chave-123' && savedPayload.platform === 'custom', 'TRANSMISSÃO: payload salvo contém os campos preenchidos');
+  ok(await page.locator('#modal4.on').count() === 0, 'TRANSMISSÃO: salvar fecha o editor');
+
+  // Editing an existing destination never shows its real key, only a masked hint as a placeholder.
+  await page.locator('.xmitcard').first().locator('[data-a=edit]').click();
+  ok((await page.inputValue('#xm-key')) === '', 'TRANSMISSÃO: o campo de chave nunca vem preenchido com a chave real ao editar');
+  ok((await page.getAttribute('#xm-key', 'placeholder')).includes('••••ab12'), 'TRANSMISSÃO: a dica mascarada aparece como placeholder');
+  await clearSent();
+  await page.click('#xm-save');   // leaving the key field blank on an edit must NOT wipe the stored key
+  const editMsg = (await sent()).find(m => m.startsWith('xmitsave|'));
+  const editPayload = JSON.parse(editMsg.slice('xmitsave|'.length));
+  ok(editPayload.id === 'd1' && editPayload.streamKey === '', 'TRANSMISSÃO: editar sem mexer na chave envia streamKey vazio (o host mantém a chave salva)');
+
+  await clearSent();
+  await page.locator('.xmitcard').first().locator('[data-a=remove]').click();   // the test harness auto-accepts confirm()
+  ok((await sent()).includes('xmitremove|d1'), 'TRANSMISSÃO: remover (após confirmar) envia xmitremove|id');
+
+  await clearSent();
+  await page.click('#xmit-startall');
+  ok((await sent()).includes('xmitstartall'), 'TRANSMISSÃO: "INICIAR TODAS" envia xmitstartall');
+  await page.click('#xmit-stopall');
+  ok((await sent()).includes('xmitstopall'), 'TRANSMISSÃO: "ENCERRAR TODAS" envia xmitstopall');
+
   console.log('\n[6] Layout em janelas diferentes');
   // The PRODUÇÃO stage (monitors + switcher + 16-camera strip) uses a 3-row CSS grid where the
   // monitors and inputs rows flex to fill whatever's left after the switcher card's own natural
@@ -479,7 +550,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
-    for (const v of ['prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {
+    for (const v of ['xmit', 'prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {
       await tab(v);
       const hs = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       ok(hs, `${w}x${h} ${v}: no horizontal overflow`);

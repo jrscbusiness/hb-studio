@@ -276,7 +276,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .span2{grid-column:span 2}
 .sheet label{display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:.06em;color:var(--ink-2);font-weight:600}
 .sheet label em{font-style:normal;font-weight:400;color:var(--muted);font-size:11px;letter-spacing:0;line-height:1.4}
-.sheet input[type=text],.sheet input:not([type]),.sheet input[type=number],.sheet select{height:38px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);outline:none;user-select:text}
+.sheet input[type=text],.sheet input:not([type]),.sheet input[type=number],.sheet input[type=password],.sheet select{height:38px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);outline:none;user-select:text;width:100%}
 .sheet input:focus,.sheet select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,107,255,.15)}
 .sheet input[type=range]{accent-color:var(--blue);height:38px}
 .checks{display:flex;gap:18px;align-items:flex-end;padding-bottom:8px}
@@ -395,6 +395,25 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .audset label{display:flex;flex-direction:column;gap:5px;font-size:10.5px;letter-spacing:.08em;color:var(--ink-2);font-weight:600}
 .audset select,.audset input{height:32px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);font:inherit;font-size:12px;padding:0 8px;color:var(--ink);outline:none}
 
+/* ---------- TRANSMISSÃO ---------- */
+.xmitwrap{display:grid;grid-template-columns:1fr;gap:18px;align-content:start;overflow:auto;padding:2px}
+.xc-topbtns{display:flex;gap:8px}
+.xmitlist{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.xmitcard{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--surface)}
+.xc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.xc-top b{font-size:13px;flex:1;min-width:120px}
+.xc-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.xc-dot.live{background:#1FAF5C;box-shadow:0 0 0 4px rgba(31,175,92,.18);animation:pulse 1.8s infinite}
+.xc-dot.connecting{background:var(--blue);box-shadow:0 0 0 4px rgba(31,107,255,.18);animation:pulse 1.8s infinite}
+.xc-st{font-size:9.5px;letter-spacing:.14em;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--mist);color:var(--muted)}
+.xc-st.live{background:#E3F8EC;color:#1FAF5C}
+.xc-st.connecting{background:var(--mist);color:var(--blue)}
+.xc-info{font-size:11.5px;color:var(--ink-2);margin-top:6px;word-break:break-all}
+.xc-info.err{color:var(--warn-ink)}
+.xc-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.xc-actions .btn{height:32px;font-size:10.5px;padding:0 12px}
+.xc-actions .icon{width:32px;height:32px}
+
 /* ---------- GRAVAÇÃO ---------- */
 .recwrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-content:start;overflow:auto;padding:2px}
 .fmt{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:.12s;background:var(--surface)}
@@ -422,6 +441,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       <b>HB<i> </i>STUDIO</b>
     </div>
     <nav id="tabs">
+      <button data-v="xmit">TRANSMISSÃO</button>
       <button class="on" data-v="prod">PRODUÇÃO</button>
       <button data-v="cam">CÂMERAS</button>
       <button data-v="aud">ÁUDIO</button>
@@ -438,6 +458,27 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   </header>
 
   <main>
+    <!-- ===================== TRANSMISSÃO ===================== -->
+    <section class="view" id="v-xmit">
+      <div class="xmitwrap">
+        <div class="card">
+          <h3><span class="cap">Destinos de transmissão</span>
+            <span class="xc-topbtns">
+              <button class="btn sm" id="xmit-stopall">ENCERRAR TODAS</button>
+              <button class="btn primary sm" id="xmit-startall">INICIAR TODAS</button>
+            </span>
+          </h3>
+          <div class="body">
+            <p class="note">Transmita ao vivo simultaneamente para várias plataformas. Não há login
+              nem permissão de conta aqui — cada destino usa a chave de transmissão que você mesmo
+              copia da sua conta naquela plataforma, exatamente como o OBS Studio faz.</p>
+            <div id="xmit-list" class="xmitlist"></div>
+            <button class="btn wide sm" id="xmit-add" style="margin-top:14px">+ ADICIONAR DESTINO</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===================== PRODUÇÃO ===================== -->
     <section class="view on" id="v-prod">
       <div class="stage">
@@ -721,6 +762,42 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   </div>
   <p class="note err" id="rv-err" style="display:none"></p>
   <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="rv-cancel">CANCELAR</button><button class="btn primary sm" id="rv-ok" style="flex:none">INSTALAR</button></div>
+</div></div>
+<div id="modal4" class="modal"><div class="sheet" style="width:560px">
+  <div class="sh-head"><div><span class="cap">Destino de transmissão</span><h2 id="xm-title">Novo destino</h2></div><button class="icon" id="xm-x">✕</button></div>
+  <div class="grid2">
+    <label>Nome<input id="xm-name" maxlength="64" placeholder="Ex.: YouTube — culto de domingo"></label>
+    <label>Plataforma<select id="xm-platform">
+      <option value="youtube">YouTube</option>
+      <option value="twitch">Twitch</option>
+      <option value="facebook">Facebook</option>
+      <option value="kick">Kick</option>
+      <option value="vimeo">Vimeo</option>
+      <option value="linkedin">LinkedIn</option>
+      <option value="x">X (Twitter)</option>
+      <option value="custom">Personalizado / servidor RTMP próprio</option>
+    </select></label>
+    <label>Protocolo<select id="xm-protocol"><option value="rtmp">RTMP</option><option value="rtmps">RTMPS</option><option value="srt">SRT</option></select></label>
+    <label style="grid-column:1/-1">Endereço do servidor<input id="xm-server" placeholder="rtmp://..." spellcheck="false"></label>
+    <label style="grid-column:1/-1">Chave de transmissão<input id="xm-key" type="password" placeholder="Cole aqui a chave da sua conta nesta plataforma" spellcheck="false" autocomplete="off"></label>
+    <label>Bitrate de vídeo (kbps)<input id="xm-vkbps" type="number" min="300" max="60000" step="100"></label>
+    <label>Bitrate de áudio (kbps)<input id="xm-akbps" type="number" min="32" max="512" step="8"></label>
+    <label style="grid-column:1/-1">Codificador<select id="xm-encoder">
+      <option value="auto">Automático (recomendado)</option>
+      <option value="x264">Software (x264)</option>
+      <option value="nvenc">NVIDIA NVENC</option>
+      <option value="qsv">Intel Quick Sync</option>
+      <option value="amf">AMD AMF</option>
+    </select></label>
+  </div>
+  <label class="chk" style="margin-top:4px"><input type="checkbox" id="xm-ownformat"><span class="box"></span>Usar resolução/fps própria para este destino, em vez de seguir o Program</label>
+  <div class="grid2" id="xm-ownformat-fields" style="display:none;margin-top:8px">
+    <label>Largura<input id="xm-w" type="number" min="160" max="7680"></label>
+    <label>Altura<input id="xm-h" type="number" min="90" max="4320"></label>
+    <label>FPS<input id="xm-fps" type="number" min="1" max="240"></label>
+  </div>
+  <p class="note" id="xm-note" style="margin-top:10px"></p>
+  <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="xm-cancel">CANCELAR</button><button class="btn primary sm" id="xm-save" style="flex:none">SALVAR</button></div>
 </div></div>
 <div id="toast"></div>
 
@@ -1085,6 +1162,98 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   });
   $('#out-ndi-name').addEventListener('change', () => { if (ndiOutEnabled) send('ndiout', 'on', $('#out-ndi-name').value.trim() || 'HB Studio Program'); });
 
+  // ---------- TRANSMISSÃO ----------
+  let xmitList = [], xmitStatus = {};
+  // Only the two most stable, publicly documented ingest URLs are pre-filled - a wrong prefilled
+  // server is worse than an empty one with a hint, so every other platform leaves it blank for the
+  // operator to paste from that platform's own broadcast page (this app does no OAuth/login with
+  // any of them - "platform" only changes the preset/label, see the note in the TRANSMISSÃO tab).
+  const xmitPresetServer = {youtube: 'rtmp://a.rtmp.youtube.com/live2', twitch: 'rtmp://live.twitch.tv/app'};
+  const xmitPlatformLabel = {youtube: 'YouTube', twitch: 'Twitch', facebook: 'Facebook', kick: 'Kick', vimeo: 'Vimeo',
+                             linkedin: 'LinkedIn', x: 'X (Twitter)', custom: 'Personalizado'};
+  function renderXmit() {
+    const box = $('#xmit-list'); box.innerHTML = '';
+    if (!xmitList.length) {
+      box.innerHTML = '<div class="devempty">Nenhum destino cadastrado ainda. Clique em “+ Adicionar destino”.</div>';
+      return;
+    }
+    xmitList.forEach(d => {
+      const st = xmitStatus[d.id] || {};
+      const live = d.enabled && st.publishing, connecting = d.enabled && st.running && !st.publishing;
+      const cls = live ? 'live' : connecting ? 'connecting' : '';
+      const label = !d.enabled ? 'DESATIVADO' : live ? 'AO VIVO' : connecting ? 'CONECTANDO' : 'PARADO';
+      const row = document.createElement('div'); row.className = 'xmitcard';
+      row.innerHTML = `<div class="xc-top"><span class="xc-dot ${cls}"></span><b></b>
+          <span class="badge"></span><span class="xc-st ${cls}">${label}</span></div>
+        <div class="xc-info"></div><div class="xc-info err" style="display:none"></div>
+        <div class="xc-actions">
+          <button class="btn sm" data-a="enable"></button>
+          <button class="btn sm primary" data-a="run"></button>
+          <button class="icon" data-a="edit" title="Editar">⚙</button>
+          <button class="icon" data-a="remove" title="Remover">✕</button>
+        </div>`;
+      row.querySelector('b').textContent = d.name || '(sem nome)';
+      row.querySelector('.badge').textContent = xmitPlatformLabel[d.platform] || d.platform;
+      row.querySelector('.xc-info').textContent = (d.serverUrl || '(sem servidor)') + (d.keySet ? ' · chave ' + d.keyHint : ' · sem chave definida');
+      const errEl = row.querySelector('.xc-info.err');
+      if (st.message && (connecting === false && live === false && d.enabled)) { errEl.textContent = st.message; errEl.style.display = ''; }
+      const eb = row.querySelector('[data-a=enable]');
+      eb.textContent = d.enabled ? 'DESATIVAR' : 'ATIVAR';
+      eb.onclick = () => send('xmitenable', d.id, d.enabled ? 0 : 1);
+      const rb = row.querySelector('[data-a=run]');
+      rb.textContent = st.running ? 'PARAR' : 'INICIAR';
+      rb.disabled = !d.enabled;
+      rb.onclick = () => send(st.running ? 'xmitstop' : 'xmitstart', d.id);
+      row.querySelector('[data-a=edit]').onclick = () => openXmitEditor(d);
+      row.querySelector('[data-a=remove]').onclick = () => { if (confirm('Remover o destino “' + (d.name || '') + '”?')) send('xmitremove', d.id); };
+      box.appendChild(row);
+    });
+  }
+  let xmitEditId = '';
+  function openXmitEditor(d) {
+    d = d || {};
+    xmitEditId = d.id || '';
+    $('#xm-title').textContent = d.id ? (d.name || 'Editar destino') : 'Novo destino';
+    $('#xm-name').value = d.name || '';
+    $('#xm-platform').value = d.platform || 'youtube';
+    $('#xm-protocol').value = d.protocol || 'rtmp';
+    $('#xm-server').value = d.serverUrl || xmitPresetServer[d.platform || 'youtube'] || '';
+    $('#xm-key').value = '';
+    $('#xm-key').placeholder = d.keySet ? 'Chave salva (' + d.keyHint + ') - deixe em branco para manter' : 'Cole aqui a chave da sua conta nesta plataforma';
+    $('#xm-vkbps').value = d.videoKbps || 6000;
+    $('#xm-akbps').value = d.audioKbps || 160;
+    $('#xm-encoder').value = d.encoder || 'auto';
+    $('#xm-ownformat').checked = !!d.useOwnFormat;
+    $('#xm-ownformat-fields').style.display = d.useOwnFormat ? '' : 'none';
+    $('#xm-w').value = d.width || 1920; $('#xm-h').value = d.height || 1080; $('#xm-fps').value = d.fpsNum || 30;
+    $('#xm-note').textContent = '';
+    $('#modal4').classList.add('on');
+  }
+  renderXmit();   // shows the empty-state hint immediately, before any xmit_dest message arrives
+  $('#xmit-add').addEventListener('click', () => openXmitEditor(null));
+  $('#xmit-startall').addEventListener('click', () => send('xmitstartall'));
+  $('#xmit-stopall').addEventListener('click', () => send('xmitstopall'));
+  $('#xm-platform').addEventListener('change', () => {
+    const preset = xmitPresetServer[$('#xm-platform').value];
+    if (preset && !$('#xm-server').value.trim()) $('#xm-server').value = preset;
+  });
+  $('#xm-ownformat').addEventListener('change', () => { $('#xm-ownformat-fields').style.display = $('#xm-ownformat').checked ? '' : 'none'; });
+  $('#xm-x').addEventListener('click', closeModals);
+  $('#xm-cancel').addEventListener('click', closeModals);
+  $('#xm-save').addEventListener('click', () => {
+    const name = $('#xm-name').value.trim(), server = $('#xm-server').value.trim();
+    if (!name || !server) { $('#xm-note').textContent = 'Informe pelo menos o nome e o endereço do servidor.'; return; }
+    const payload = {
+      id: xmitEditId, name, platform: $('#xm-platform').value, protocol: $('#xm-protocol').value, serverUrl: server,
+      streamKey: $('#xm-key').value, encoder: $('#xm-encoder').value,
+      videoKbps: +$('#xm-vkbps').value || 6000, audioKbps: +$('#xm-akbps').value || 160,
+      useOwnFormat: $('#xm-ownformat').checked, width: +$('#xm-w').value || 1920, height: +$('#xm-h').value || 1080,
+      fpsNum: +$('#xm-fps').value || 30, fpsDen: 1,
+    };
+    send('xmitsave', JSON.stringify(payload));
+    closeModals();
+  });
+
   // ---------- frames ----------
   const imgs = {};
   function drawFrame(id, b64) {
@@ -1355,6 +1524,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
+    else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
+    else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
