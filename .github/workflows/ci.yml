@@ -93,6 +93,28 @@ jobs:
           build/Release/hb_pack.exe plugins/examples/theme-midnight dist/HBStudio-Tema-Meia-Noite.hbplugin
           Get-ChildItem dist/*.hbplugin | Select-Object Name, Length
 
+      - name: Sign installer (only runs once a code-signing certificate secret is configured)
+        # Without this, HBStudio-Setup.exe is unsigned and Windows SmartScreen blocks it on first
+        # run ("Windows protected your PC" / "the publisher could not be verified") - expected
+        # behaviour for any unsigned download, not a bug. This step is a no-op until the repo has
+        # WIN_CODESIGN_PFX_BASE64/WIN_CODESIGN_PFX_PASSWORD secrets (see BUILD.md "Assinatura de
+        # código"); it never fails the build for lacking them.
+        if: runner.os == 'Windows' && secrets.WIN_CODESIGN_PFX_BASE64 != ''
+        shell: pwsh
+        env:
+          WIN_CODESIGN_PFX_BASE64: ${{ secrets.WIN_CODESIGN_PFX_BASE64 }}
+          WIN_CODESIGN_PFX_PASSWORD: ${{ secrets.WIN_CODESIGN_PFX_PASSWORD }}
+        run: |
+          $pfxPath = "$env:RUNNER_TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WIN_CODESIGN_PFX_BASE64))
+          $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+                      Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signtool) { throw "signtool.exe not found on this runner image" }
+          & $signtool sign /f $pfxPath /p $env:WIN_CODESIGN_PFX_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 dist/HBStudio-Setup.exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool sign failed with exit code $LASTEXITCODE" }
+          Remove-Item $pfxPath -Force
+          & $signtool verify /pa dist/HBStudio-Setup.exe
+
       - name: Upload installer artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
