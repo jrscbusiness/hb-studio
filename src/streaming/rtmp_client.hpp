@@ -23,6 +23,17 @@
 // machine.
 namespace hb::streaming {
 
+struct ParsedRtmpUrl {
+    std::string host;
+    std::uint16_t port = 1935;
+    std::string app;   // everything after host[:port]/ - may itself contain slashes
+    bool ok = false;
+};
+// Parses "rtmp://host[:port]/app[/more]" (an optional "rtmps://" scheme is accepted and ignored -
+// the caller decides TLS from StreamDestination::protocol, not from the URL text). ok=false for
+// anything missing a host or a non-empty app segment.
+ParsedRtmpUrl parseRtmpUrl(const std::string& url);
+
 struct RtmpTarget {
     std::string host;
     std::uint16_t port = 1935;

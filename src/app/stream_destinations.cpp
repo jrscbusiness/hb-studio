@@ -190,6 +190,15 @@ bool StreamDestinations::save(const std::string& path) const {
     return std::rename(tmp.c_str(), path.c_str()) == 0;
 }
 
+bool StreamDestinations::parseDestination(const std::string& json, StreamDestination& out) {
+    Json root;
+    if (!hb::core::json::parse(json, root) || root.t != Json::T::Obj) return false;
+    StreamDestination d;
+    readDest(root, d);
+    out = std::move(d);
+    return true;
+}
+
 std::string StreamDestinations::uiJson() const {
     std::lock_guard lock(mutex_);
     std::ostringstream o;

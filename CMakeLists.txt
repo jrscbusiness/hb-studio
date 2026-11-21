@@ -97,12 +97,12 @@ if(WIN32)
 
     add_executable(hb_studio WIN32 ${HB_WIN_COMMON}
       src/app/windows/app_main.cpp src/app/windows/wic_jpeg.cpp src/app/windows/vcam_controller.cpp
-      src/app/windows/dshow_capture.cpp src/app/windows/output_window.cpp
+      src/app/windows/dshow_capture.cpp src/app/windows/output_window.cpp src/app/windows/stream_sender.cpp
       "${CMAKE_BINARY_DIR}/rc/app.rc" src/app/windows/rc/app.manifest)
     set_target_properties(hb_studio PROPERTIES OUTPUT_NAME HBStudio)
     target_include_directories(hb_studio PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
     target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION}")
-    target_link_libraries(hb_studio PRIVATE hb_core hb_plugins hb_media hb_ndi hb_vcam_sender mfplat mf mfuuid comdlg32 ${HB_WIN_LIBS})
+    target_link_libraries(hb_studio PRIVATE hb_core hb_plugins hb_media hb_ndi hb_vcam_sender hb_streaming hb_streaming_win mfplat mf mfuuid comdlg32 ${HB_WIN_LIBS})
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")

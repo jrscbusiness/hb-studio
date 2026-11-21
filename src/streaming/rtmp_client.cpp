@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <random>
 #include <thread>
@@ -38,6 +39,32 @@ std::uint32_t get32le(const std::uint8_t* p) {
            (static_cast<std::uint32_t>(p[3]) << 24);
 }
 }  // namespace
+
+ParsedRtmpUrl parseRtmpUrl(const std::string& url) {
+    ParsedRtmpUrl out;
+    std::string rest = url;
+    const std::size_t scheme = rest.find("://");
+    if (scheme != std::string::npos) rest = rest.substr(scheme + 3);
+    const std::size_t slash = rest.find('/');
+    if (slash == std::string::npos || slash == 0) return out;   // no host, or no app segment at all
+    std::string hostPort = rest.substr(0, slash);
+    out.app = rest.substr(slash + 1);
+    if (out.app.empty()) return out;
+    const std::size_t colon = hostPort.find(':');
+    if (colon == std::string::npos) {
+        out.host = hostPort;
+    } else {
+        out.host = hostPort.substr(0, colon);
+        const std::string portStr = hostPort.substr(colon + 1);
+        if (portStr.empty() || portStr.find_first_not_of("0123456789") != std::string::npos) return out;
+        const int p = std::atoi(portStr.c_str());
+        if (p <= 0 || p > 65535) return out;
+        out.port = static_cast<std::uint16_t>(p);
+    }
+    if (out.host.empty()) return out;
+    out.ok = true;
+    return out;
+}
 
 RtmpClient::RtmpClient(std::unique_ptr<hb::rtsp::ITcpStream> transport)
     : io_(transport ? std::move(transport) : hb::rtsp::makeSocketTcpStream()) {}

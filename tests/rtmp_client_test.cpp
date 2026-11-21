@@ -14,6 +14,23 @@
 using namespace hb::streaming;
 using namespace hb::streaming::test;
 
+TEST(RtmpClient, ParseRtmpUrl) {
+    auto a = parseRtmpUrl("rtmp://a.rtmp.youtube.com/live2");
+    EXPECT_TRUE(a.ok); EXPECT_EQ(a.host, "a.rtmp.youtube.com"); EXPECT_EQ(a.port, 1935); EXPECT_EQ(a.app, "live2");
+
+    auto b = parseRtmpUrl("rtmps://live.example.com:443/app/sub");
+    EXPECT_TRUE(b.ok); EXPECT_EQ(b.host, "live.example.com"); EXPECT_EQ(b.port, 443); EXPECT_EQ(b.app, "app/sub");
+
+    auto c = parseRtmpUrl("live.twitch.tv/app");   // no scheme is fine
+    EXPECT_TRUE(c.ok); EXPECT_EQ(c.host, "live.twitch.tv"); EXPECT_EQ(c.app, "app");
+
+    EXPECT_FALSE(parseRtmpUrl("").ok);
+    EXPECT_FALSE(parseRtmpUrl("rtmp://host-with-no-app").ok);
+    EXPECT_FALSE(parseRtmpUrl("rtmp:///app").ok);           // empty host
+    EXPECT_FALSE(parseRtmpUrl("rtmp://host:notaport/app").ok);
+    EXPECT_FALSE(parseRtmpUrl("rtmp://host:99999/app").ok); // out of range port
+}
+
 TEST(RtmpClient, HandshakeConnectCreateStreamAndPublishSucceed) {
     auto listener = hb::rtsp::makeLoopbackListener();
     ASSERT_TRUE(listener);

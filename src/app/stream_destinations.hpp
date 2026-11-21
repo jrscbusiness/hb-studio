@@ -65,6 +65,11 @@ public:
     // and "keyHint" (maskSecret's output) - the one JSON representation the UI is ever allowed to see.
     std::string uiJson() const;
 
+    // Decodes one destination object (as sent by the UI's save dialog: {"id":..., "name":..., ...})
+    // into `out`; false if not valid JSON. Does not sanitise or look anything up - pass the result
+    // straight to upsert(), which does both.
+    static bool parseDestination(const std::string& json, StreamDestination& out);
+
 private:
     mutable std::mutex mutex_;
     std::vector<StreamDestination> d_;

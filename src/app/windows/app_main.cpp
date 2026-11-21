@@ -26,7 +26,9 @@
 #include "app/media_service.hpp"
 #include "app/ptz_settings.hpp"
 #include "app/source_assignments.hpp"
+#include "app/stream_destinations.hpp"
 #include "app/windows/dshow_capture.hpp"
+#include "app/windows/stream_sender.hpp"
 #include "app/windows/task_queue.hpp"
 #include "app/windows/resource_ids.h"
 #include "app/windows/vcam_controller.hpp"
@@ -187,6 +189,19 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         }
         if (!assignPath.empty()) assignments.load(assignPath);
     }
+    // ---- TRANSMISSÃO: outbound RTMP(S) destinations, persisted next to the other settings ----
+    app::StreamDestinations destinations;
+    std::string destPath;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            destPath = win::narrow(std::wstring(p) + L"\\HBStudio\\xmit.json");
+            CoTaskMemFree(p);
+        }
+        if (!destPath.empty()) destinations.load(destPath);
+    }
+    std::mutex sendersMutex;
+    std::map<std::string, std::unique_ptr<win::StreamSender>> senders;   // destination id -> running sender
     // ---- plugins (themes + native video-source plugins), installed per user ----
     std::string pluginsDir;
     {
@@ -264,6 +279,27 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         host.postQueued("outputs", std::string("{\"t\":\"outputs\",\"ndiEnabled\":") + (ndiOutputEnabled ? "true" : "false") +
                                         ",\"ndiName\":\"" + win::jsonEscape(ndiOutputName) + "\",\"ndiAvailable\":" +
                                         (ndiAvailable ? "true" : "false") + "}");
+    };
+    // The destination list itself (names/servers/settings) only changes on an explicit edit, so it's
+    // only pushed then + on "ready"; per-destination live status is cheap and safe to push often
+    // (the feeder tick does, at the same ~4x/s cadence as "rec" - see media.tick() below).
+    auto postXmitDest = [&] { host.postQueued("xmit_dest", destinations.uiJson()); };
+    auto postXmitStatus = [&] {
+        std::string j = "{\"t\":\"xmit_status\",\"list\":[";
+        {
+            std::lock_guard lock(sendersMutex);
+            bool first = true;
+            for (const auto& kv : senders) {
+                const auto st = kv.second->status();
+                j += std::string(first ? "" : ",") + "{\"id\":\"" + win::jsonEscape(kv.first) + "\",\"running\":" +
+                     (st.running ? "true" : "false") + ",\"publishing\":" + (st.publishing ? "true" : "false") +
+                     ",\"message\":\"" + win::jsonEscape(st.message) + "\",\"videoUnits\":" + std::to_string(st.videoUnits) +
+                     ",\"audioUnits\":" + std::to_string(st.audioUnits) + "}";
+                first = false;
+            }
+        }
+        j += "]}";
+        host.postQueued("xmit_status", j);
     };
     std::atomic<bool> scanning{false};
     // Declared AFTER everything its jobs touch: destroyed first, so queued jobs finish while those still exist.
@@ -372,6 +408,28 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             scanning = false;
         });
     };
+    // Starts (or restarts) one destination's sender; stopXmit tears it down. Both are id-keyed so a
+    // destination's own failure/restart never touches the others (the per-destination isolation the
+    // module's requirements call for).
+    auto startXmit = [&](const std::string& id) {
+        const auto d = destinations.get(id);
+        if (d.empty()) return;
+        std::lock_guard lock(sendersMutex);
+        auto& slot = senders[id];
+        if (!slot) slot = std::make_unique<win::StreamSender>(d, engine.program(), media.audio());
+        slot->start();
+    };
+    auto stopXmit = [&](const std::string& id) {
+        std::unique_ptr<win::StreamSender> doomed;
+        {
+            std::lock_guard lock(sendersMutex);
+            auto it = senders.find(id);
+            if (it == senders.end()) return;
+            doomed = std::move(it->second);
+            senders.erase(it);
+        }
+        tasks.post([d = std::move(doomed)]() mutable { d->stop(); });   // stop() joins a thread: never on the UI thread
+    };
 
     std::atomic<unsigned> ptzSent{0};
     std::mutex toastMutex;
@@ -400,7 +458,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
         const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
-                                     (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : 8))));
+                                     (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : (c0 == "xmitsave" ? 2 : 8)))));
         auto a = split(msg, maxParts);
         if (a.empty()) return;
         auto idx = [&](std::size_t k) { return k < a.size() ? std::atoi(a[k].c_str()) : -1; };
@@ -415,6 +473,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 host.postQueued("theme", plugins.themeJson());
             }
             postOutputsState();
+            postXmitDest();
+            postXmitStatus();
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "system")) {
             // Native dark/light mode: built into the app, no plugin needed. The web page applies
@@ -605,6 +665,51 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     attach(slot, e.id, e.name, win::VideoFormat{e.w, e.h, e.fpsNum, e.fpsDen});
                 toast("CAM " + std::to_string(slot + 1) + ": formato de captura atualizado.");
             }
+        } else if (c == "xmitsave" && a.size() >= 2) {
+            app::StreamDestination d;
+            if (app::StreamDestinations::parseDestination(a[1], d)) {
+                // The UI never receives a saved key back in full (see StreamDestinations::uiJson),
+                // so an edit that didn't touch the key arrives with it blank - keep the stored one.
+                if (!d.id.empty() && d.streamKey.empty()) {
+                    const auto existing = destinations.get(d.id);
+                    if (!existing.empty()) d.streamKey = existing.streamKey;
+                }
+                const std::string savedId = destinations.upsert(d);
+                if (!savedId.empty()) {
+                    if (!destPath.empty()) destinations.save(destPath);
+                    postXmitDest();
+                    toast(d.name.empty() ? "Destino de transmissão salvo." : ("Destino \"" + d.name + "\" salvo."));
+                } else {
+                    toast("Não foi possível salvar: nome/servidor inválido ou limite de 16 destinos atingido.");
+                }
+            }
+        } else if (c == "xmitremove" && a.size() >= 2) {
+            stopXmit(a[1]);
+            if (destinations.remove(a[1])) {
+                if (!destPath.empty()) destinations.save(destPath);
+                postXmitDest();
+                postXmitStatus();
+            }
+        } else if (c == "xmitenable" && a.size() >= 3) {
+            if (destinations.setEnabled(a[1], a[2] == "1")) {
+                if (!destPath.empty()) destinations.save(destPath);
+                if (a[2] != "1") stopXmit(a[1]);   // turning a destination off also stops it if running
+                postXmitDest();
+                postXmitStatus();
+            }
+        } else if (c == "xmitstart" && a.size() >= 2) {
+            startXmit(a[1]);
+            postXmitStatus();
+        } else if (c == "xmitstop" && a.size() >= 2) {
+            stopXmit(a[1]);
+            postXmitStatus();
+        } else if (c == "xmitstartall") {
+            for (const auto& d : destinations.list())
+                if (d.enabled) startXmit(d.id);
+            postXmitStatus();
+        } else if (c == "xmitstopall") {
+            for (const auto& d : destinations.list()) stopXmit(d.id);
+            postXmitStatus();
         } else if (c == "pluginpick") {
             // Native file dialog (UI thread). The chosen file is only INSPECTED; nothing is installed yet.
             wchar_t file[MAX_PATH * 4] = {0};
@@ -756,6 +861,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     media.tick(tick, [&](const char* key, const std::string& json) { host.postQueued(key, json); });
                     const unsigned v = ptzSettings.version();
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
+                    if (tick % 4 == 0) postXmitStatus();
                 }
                 ++tick;
                 std::this_thread::sleep_until(next);
@@ -815,6 +921,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     progWin.close();
     prevWin.close();
     { std::lock_guard lock(ndiSenderMutex); ndiSender.reset(); }
+    {
+        std::map<std::string, std::unique_ptr<win::StreamSender>> doomed;
+        { std::lock_guard lock(sendersMutex); doomed = std::move(senders); }
+        for (auto& kv : doomed) kv.second->stop();   // joins each sender's thread; while program_/audio_ still exist
+    }
     media.stop();     // finishes an ongoing recording (valid file) and saves the mixer settings
     win::trace("media stopped");
     vcam.shutdown();
