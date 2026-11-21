@@ -39,6 +39,7 @@ add_library(hb_core STATIC
   src/app/engine.cpp
   src/app/ptz_settings.cpp
   src/app/source_assignments.cpp
+  src/app/stream_destinations.cpp
 )
 target_include_directories(hb_core PUBLIC src)
 target_link_libraries(hb_core PUBLIC Threads::Threads)
@@ -140,7 +141,8 @@ if(HB_BUILD_TESTS)
     tests/switcher_test.cpp
     tests/engine_test.cpp
     tests/ptz_settings_test.cpp
-    tests/slots_test.cpp)
+    tests/slots_test.cpp
+    tests/stream_destinations_test.cpp)
   target_link_libraries(hb_tests PRIVATE hb_core GTest::gtest_main)
   include(GoogleTest)
   gtest_discover_tests(hb_tests)
