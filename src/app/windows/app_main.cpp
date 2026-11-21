@@ -428,7 +428,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             doomed = std::move(it->second);
             senders.erase(it);
         }
-        tasks.post([d = std::move(doomed)]() mutable { d->stop(); });   // stop() joins a thread: never on the UI thread
+        // std::function (what TaskQueue::post takes) requires a copy-constructible target, so a
+        // move-only unique_ptr can't be captured directly - share ownership into the one task instead.
+        std::shared_ptr<win::StreamSender> shared = std::move(doomed);
+        tasks.post([shared]() { shared->stop(); });   // stop() joins a thread: never on the UI thread
     };
 
     std::atomic<unsigned> ptzSent{0};

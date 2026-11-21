@@ -1,5 +1,7 @@
 #include "app/windows/stream_sender.hpp"
 
+#include <algorithm>
+
 #include "audio/audio_common.hpp"
 #include "streaming/flv.hpp"
 #include "streaming/rtmp_client.hpp"
@@ -128,7 +130,7 @@ void StreamSender::run() {
         if (vFrame) {
             const std::uint32_t ts = msFromStart(start);
             ok = ok && videoEnc->encode(vFrame->data.data(), vFrame->width, vFrame->height, vFrame->stride, ts,
-                                        [&](const streaming::EncodedVideoUnit& u) {
+                                        [&](const EncodedVideoUnit& u) {
                                             if (!sentVideoHeader) {
                                                 std::vector<std::uint8_t> sps, pps;
                                                 if (videoEnc->spsPps(sps, pps)) {
@@ -143,7 +145,7 @@ void StreamSender::run() {
         if (ok && !aBlock.empty()) {
             const std::uint32_t ts = msFromStart(start);
             const std::size_t frames = aBlock.size() / static_cast<std::size_t>(audioChannels_);
-            ok = audioEnc->encode(aBlock.data(), frames, ts, [&](const streaming::EncodedAudioUnit& u) {
+            ok = audioEnc->encode(aBlock.data(), frames, ts, [&](const EncodedAudioUnit& u) {
                 if (!sentAudioHeader) {
                     std::vector<std::uint8_t> asc;
                     if (audioEnc->audioSpecificConfig(asc)) {
