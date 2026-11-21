@@ -43,7 +43,8 @@ using namespace hb;
 
 namespace {
 
-std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, int toastId, const std::string& toast) {
+std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, const app::SourceAssignments& assignments,
+                      int toastId, const std::string& toast) {
     const auto s = engine.snapshot();
     const auto v = vcam.status();
     char b[2048];
@@ -64,16 +65,32 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, i
     j += ",\"slots\":[";
     for (int i = 0; i < app::Engine::kSourceCount; ++i) {
         const auto info = engine.slotInfo(i);
+        const auto assigned = assignments.get(i);
+        // A disabled slot has been detach()'d (engine.slotInfo reports not live, same as an empty
+        // slot), so the remembered device (id/name from SourceAssignments) must be overlaid here -
+        // otherwise turning a camera off would look identical to never having assigned one.
+        const bool enabled = assigned.empty() || assigned.enabled;
+        const char* k = "test";
         const char* st = "test";
+        std::string label, devId, msg;
         if (info.live) {
             using S = video::SourceStatus::State;
+            k = "dev";
             st = info.status.state == S::Online ? "online" : info.status.state == S::Connecting ? "connecting"
                : info.status.state == S::NoSignal ? "nosignal" : "error";
+            label = info.label;
+            devId = info.deviceId;
+            msg = info.status.message;
+        } else if (!assigned.empty() && !enabled) {
+            k = "dev";
+            st = "off";
+            label = assigned.name;
+            devId = assigned.id;
         }
         char sb[160];
-        snprintf(sb, sizeof sb, "%s{\"k\":\"%s\",\"st\":\"%s\",\"w\":%d,\"h\":%d,\"fps\":%.1f,\"name\":\"", i ? "," : "",
-                 info.live ? "dev" : "test", st, info.status.width, info.status.height, info.status.fps);
-        j += sb + win::jsonEscape(info.label) + "\",\"id\":\"" + win::jsonEscape(info.deviceId) + "\",\"msg\":\"" + win::jsonEscape(info.status.message) + "\"}";
+        snprintf(sb, sizeof sb, "%s{\"k\":\"%s\",\"st\":\"%s\",\"en\":%s,\"w\":%d,\"h\":%d,\"fps\":%.1f,\"name\":\"", i ? "," : "",
+                 k, st, enabled ? "true" : "false", info.status.width, info.status.height, info.status.fps);
+        j += sb + win::jsonEscape(label) + "\",\"id\":\"" + win::jsonEscape(devId) + "\",\"msg\":\"" + win::jsonEscape(msg) + "\"}";
     }
     j += "]";
     j += ",\"log\":[";
@@ -289,8 +306,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         retire(old);
         return true;
     };
-    auto attach = [&](int slot, const std::string& id, const std::string& name) {
-        auto src = std::make_shared<win::DShowSource>(id, name);
+    auto attach = [&](int slot, const std::string& id, const std::string& name, win::VideoFormat fmt = {}) {
+        auto src = std::make_shared<win::DShowSource>(id, name, fmt);
         src->start();
         std::shared_ptr<win::DShowSource> old;
         {
@@ -382,7 +399,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
-        const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 : (c0 == "devassign" ? 3 : 8)));
+        const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
+                                     (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : 8))));
         auto a = split(msg, maxParts);
         if (a.empty()) return;
         auto idx = [&](std::size_t k) { return k < a.size() ? std::atoi(a[k].c_str()) : -1; };
@@ -523,6 +541,70 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 if (!assignPath.empty()) assignments.save(assignPath);
                 toast("CAM " + std::to_string(slot + 1) + ": voltou para a fonte de teste.");
             }
+        } else if (c == "devenable" && a.size() >= 2) {
+            // Re-attach the device this slot remembers, without touching which one it is - the
+            // counterpart of "devdisable" below, not a re-assignment (that's "devassign").
+            const int slot = idx(1);
+            if (slot >= 0 && slot < app::Engine::kSourceCount) {
+                const auto e = assignments.get(slot);
+                if (!e.empty() && assignments.setEnabled(slot, true)) {
+                    if (!assignPath.empty()) assignments.save(assignPath);
+                    const std::string id = e.id, name = e.name;
+                    const win::VideoFormat fmt{e.w, e.h, e.fpsNum, e.fpsDen};
+                    if (id.rfind("plugin:", 0) == 0) {
+                        tasks.post([&, slot, id, name] {
+                            std::string err;
+                            if (!attachPlugin(slot, id, name, err))
+                                toast("CAM " + std::to_string(slot + 1) + ": não foi possível religar (" + err + ").");
+                            else
+                                toast("CAM " + std::to_string(slot + 1) + ": ligada.");
+                        });
+                    } else if (id.rfind("ndi:", 0) == 0) {
+                        attachNdi(slot, id, name);
+                        toast("CAM " + std::to_string(slot + 1) + ": ligada (NDI) conectando…");
+                    } else {
+                        attach(slot, id, name, fmt);
+                        toast("CAM " + std::to_string(slot + 1) + ": ligada.");
+                    }
+                }
+            }
+        } else if (c == "devdisable" && a.size() >= 2) {
+            // Stops capture but keeps the device remembered (unlike "devclear", which forgets it).
+            const int slot = idx(1);
+            if (slot >= 0 && slot < app::Engine::kSourceCount && assignments.setEnabled(slot, false)) {
+                detach(slot);
+                if (!assignPath.empty()) assignments.save(assignPath);
+                toast("CAM " + std::to_string(slot + 1) + ": desligada.");
+            }
+        } else if (c == "devformats" && a.size() >= 2) {
+            // Probes a device's supported resolutions/frame rates for the camera-settings dialog;
+            // "id" is the device id as listed by devrefresh, not necessarily the slot's own device
+            // (the dialog can be opened for any device shown in CÂMERAS).
+            const std::string id = a[1];
+            tasks.post([&, id] {
+                std::string j = "{\"t\":\"devformats\",\"id\":\"" + win::jsonEscape(id) + "\",\"list\":[";
+                bool first = true;
+                for (const auto& f : win::enumerateDeviceFormats(id)) {
+                    j += std::string(first ? "" : ",") + "{\"w\":" + std::to_string(f.width) + ",\"h\":" + std::to_string(f.height) +
+                         ",\"fpsNum\":" + std::to_string(f.fpsNum) + ",\"fpsDen\":" + std::to_string(f.fpsDen) + "}";
+                    first = false;
+                }
+                j += "]}";
+                host.postQueued("", j);
+            });
+        } else if (c == "devformat" && a.size() >= 6) {
+            // Remembers the chosen resolution/fps for this slot's device and, if it's currently
+            // running, re-attaches it with the new format right away. NDI/plugin sources don't go
+            // through DirectShow format negotiation, so the format is only ever applied to those.
+            const int slot = idx(1);
+            const int w = idx(2), h = idx(3), fn = idx(4), fd = idx(5);
+            if (slot >= 0 && slot < app::Engine::kSourceCount && assignments.setFormat(slot, w, h, fn, fd)) {
+                if (!assignPath.empty()) assignments.save(assignPath);
+                const auto e = assignments.get(slot);
+                if (e.enabled && !e.id.empty() && e.id.rfind("ndi:", 0) != 0 && e.id.rfind("plugin:", 0) != 0)
+                    attach(slot, e.id, e.name, win::VideoFormat{e.w, e.h, e.fpsNum, e.fpsDen});
+                toast("CAM " + std::to_string(slot + 1) + ": formato de captura atualizado.");
+            }
         } else if (c == "pluginpick") {
             // Native file dialog (UI thread). The chosen file is only INSPECTED; nothing is installed yet.
             wchar_t file[MAX_PATH * 4] = {0};
@@ -607,9 +689,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // Restore the inputs used last time and list the devices for the CÂMERAS tab.
         for (int i = 0; i < app::Engine::kSourceCount; ++i) {
             const auto e = assignments.get(i);
-            if (e.empty() || e.id.rfind("plugin:", 0) == 0) continue;
+            if (e.empty() || !e.enabled || e.id.rfind("plugin:", 0) == 0) continue;
             if (e.id.rfind("ndi:", 0) == 0) attachNdi(i, e.id, e.name);
-            else attach(i, e.id, e.name);
+            else attach(i, e.id, e.name, win::VideoFormat{e.w, e.h, e.fpsNum, e.fpsDen});
         }
         tasks.post([&] {   // plugins: scan the folder, load enabled libraries (hash re-checked), restore their inputs
             plugins.start();
@@ -619,7 +701,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             for (int i = 0; i < app::Engine::kSourceCount; ++i) {
                 const auto e = assignments.get(i);
                 std::string err;
-                if (!e.empty() && e.id.rfind("plugin:", 0) == 0 && !attachPlugin(i, e.id, e.name, err))
+                if (!e.empty() && e.enabled && e.id.rfind("plugin:", 0) == 0 && !attachPlugin(i, e.id, e.name, err))
                     engine.logger().warning("plugins", "entrada " + std::to_string(i + 1) + " não restaurada: " + err);
             }
             host.postQueued("plugins", plugins.listJson());
@@ -670,7 +752,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 {
                     int tid; std::string ttxt;
                     { std::lock_guard lock(toastMutex); tid = toastId; ttxt = toastText; }
-                    host.postQueued("state", stateJson(engine, vcam, tid, ttxt));
+                    host.postQueued("state", stateJson(engine, vcam, assignments, tid, ttxt));
                     media.tick(tick, [&](const char* key, const std::string& json) { host.postQueued(key, json); });
                     const unsigned v = ptzSettings.version();
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }

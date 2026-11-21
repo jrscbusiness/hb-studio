@@ -136,8 +136,13 @@ std::vector<VideoDevice> enumerateVideoDevices() {
     return out;
 }
 
-DShowSource::DShowSource(std::string deviceId, std::string displayName)
-    : id_(std::move(deviceId)), name_(std::move(displayName)) {
+// TODO(camera-resolution): enumerate real formats via IAMStreamConfig on the device's capture pin.
+// Returning empty is a safe, honest default - every caller already treats "no formats" as "this
+// device doesn't advertise a list, use automatic" rather than an error.
+std::vector<VideoFormat> enumerateDeviceFormats(const std::string&) { return {}; }
+
+DShowSource::DShowSource(std::string deviceId, std::string displayName, VideoFormat requested)
+    : id_(std::move(deviceId)), name_(std::move(displayName)), requested_(requested) {
     stopEvent_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
 }
 
@@ -206,6 +211,9 @@ void DShowSource::run() {
             want.subtype = MEDIASUBTYPE_RGB32;   // forces a colour converter into the graph: BGRA out
             if (!grabber || FAILED(grabber->SetMediaType(&want))) { fail("SampleGrabber indisponível."); goto done; }
 
+            // TODO(camera-resolution): if requested_ is non-empty, QueryInterface the capture pin
+            // for IAMStreamConfig and SetFormat() here, before RenderStream connects it - falling
+            // back to automatic (today's behaviour) if the exact format isn't supported.
             // capture pin first, then preview, then any pin (software cameras differ)
             HRESULT hr = cgb->RenderStream(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());
             if (FAILED(hr)) hr = cgb->RenderStream(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());

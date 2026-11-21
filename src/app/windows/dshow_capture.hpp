@@ -25,12 +25,29 @@ struct VideoDevice {
 // May block for a while on misbehaving drivers: call it from a worker thread.
 std::vector<VideoDevice> enumerateVideoDevices();
 
+// A capture resolution/frame rate; all-zero means "automatic" (let the device negotiate its own
+// default, exactly like DShowSource has always done).
+struct VideoFormat {
+    int width = 0, height = 0, fpsNum = 0, fpsDen = 0;
+    bool empty() const { return width <= 0 || height <= 0; }
+};
+
+// Lists the resolutions/frame rates `id` (as returned by enumerateVideoDevices) advertises via
+// IAMStreamConfig, deduplicated. Empty if the device can't be probed (busy, or doesn't expose
+// IAMStreamConfig) - callers must fall back to automatic in that case. May block: call off the UI
+// thread, same caveat as enumerateVideoDevices.
+std::vector<VideoFormat> enumerateDeviceFormats(const std::string& id);
+
 // Captures one device with DirectShow (source -> SampleGrabber(RGB32) -> NullRenderer) on its own
 // thread. All failures end up in status(); nothing throws. The newest frame is scaled (letterbox) to
 // whatever size render() is asked for.
 class DShowSource final : public video::LiveSource {
 public:
-    DShowSource(std::string deviceId, std::string displayName);
+    // `requested`: a format to ask the device for via IAMStreamConfig::SetFormat before the graph
+    // is built; empty (the default) keeps today's behaviour of letting the device auto-negotiate.
+    // If the device doesn't support the exact requested format, start() falls back to automatic
+    // rather than failing the whole source.
+    explicit DShowSource(std::string deviceId, std::string displayName, VideoFormat requested = {});
     ~DShowSource() override;
     DShowSource(const DShowSource&) = delete;
     DShowSource& operator=(const DShowSource&) = delete;
@@ -50,6 +67,7 @@ private:
     void run();
 
     std::string id_, name_;
+    VideoFormat requested_;
     std::thread thread_;
     HANDLE stopEvent_ = nullptr;
 

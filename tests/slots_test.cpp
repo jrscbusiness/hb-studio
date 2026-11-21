@@ -159,16 +159,65 @@ TEST(Assignments, RoundTripSanitiseAndHostileFiles) {
     EXPECT_TRUE(b.get(3).empty());
 
     app::SourceAssignments c;
+    // The 4th..8th fields are enabled/w/h/fpsNum/fpsDen; "more" (a non-numeric, non-"0"/"1" 4th
+    // field) is lenient: anything but an exact "0" counts as enabled, so the entry still loads.
     c.parse("garbage\n99\tx\ty\n-1\tx\ty\n3\t\t\n4\tonly-id\n\t\t\n5\tok\tname\tmore\n");
     EXPECT_TRUE(c.get(3).empty());
     EXPECT_EQ(c.get(4).id, "only-id");
     EXPECT_EQ(c.get(4).name, "");
+    EXPECT_TRUE(c.get(4).enabled);
     EXPECT_EQ(c.get(5).id, "ok");
-    EXPECT_EQ(c.get(5).name, "namemore");   // the stray tab was dropped, nothing leaked into other fields
+    EXPECT_EQ(c.get(5).name, "name");
+    EXPECT_TRUE(c.get(5).enabled);
     std::string big(100000, 'a');
     big.insert(0, "1\t");
     EXPECT_NO_THROW(c.parse(big));
     EXPECT_LE(c.get(1).id.size(), 512u);
+}
+
+TEST(Assignments, EnabledAndFormatRoundTripAndRejectEmptySlots) {
+    app::SourceAssignments a;
+    EXPECT_FALSE(a.setEnabled(0, false));           // nothing assigned yet
+    EXPECT_FALSE(a.setFormat(0, 1920, 1080, 30, 1));
+    EXPECT_FALSE(a.setEnabled(-1, false));
+    EXPECT_FALSE(a.setEnabled(app::SourceAssignments::kSlots, false));
+
+    ASSERT_TRUE(a.set(0, "dev-1", "Cam A"));
+    EXPECT_TRUE(a.get(0).enabled);
+    EXPECT_EQ(a.get(0).w, 0);
+    ASSERT_TRUE(a.setEnabled(0, false));
+    EXPECT_FALSE(a.get(0).enabled);
+    EXPECT_EQ(a.get(0).id, "dev-1");                // disabling keeps the device remembered
+    ASSERT_TRUE(a.setFormat(0, 1280, 720, 60, 1));
+    EXPECT_EQ(a.get(0).w, 1280); EXPECT_EQ(a.get(0).h, 720);
+    EXPECT_EQ(a.get(0).fpsNum, 60); EXPECT_EQ(a.get(0).fpsDen, 1);
+    EXPECT_FALSE(a.get(0).enabled);                 // setFormat doesn't implicitly re-enable
+
+    app::SourceAssignments b;
+    b.parse(a.serialize());
+    EXPECT_EQ(b.get(0).id, "dev-1");
+    EXPECT_FALSE(b.get(0).enabled);
+    EXPECT_EQ(b.get(0).w, 1280); EXPECT_EQ(b.get(0).h, 720);
+    EXPECT_EQ(b.get(0).fpsNum, 60); EXPECT_EQ(b.get(0).fpsDen, 1);
+
+    ASSERT_TRUE(a.setEnabled(0, true));
+    EXPECT_TRUE(a.get(0).enabled);
+    EXPECT_EQ(a.get(0).w, 1280);                     // re-enabling keeps the chosen format too
+
+    // Negative/zero format values are clamped to "automatic" (0), never stored as negative.
+    ASSERT_TRUE(a.setFormat(0, -1, 0, -9, 1));
+    EXPECT_EQ(a.get(0).w, 0); EXPECT_EQ(a.get(0).h, 0); EXPECT_EQ(a.get(0).fpsNum, 0); EXPECT_EQ(a.get(0).fpsDen, 1);
+
+    // Re-assigning a device via set() resets enabled/format to a fresh default, same as today.
+    ASSERT_TRUE(a.set(0, "dev-2", "Cam B"));
+    EXPECT_TRUE(a.get(0).enabled);
+    EXPECT_EQ(a.get(0).w, 0);
+
+    // A file written by an older build (only 3 columns) loads with enabled=true, format=automatic.
+    app::SourceAssignments c;
+    c.parse("1\tOBS Virtual Camera\tOBS Virtual Camera\n");
+    EXPECT_TRUE(c.get(1).enabled);
+    EXPECT_EQ(c.get(1).w, 0);
 }
 
 TEST(Assignments, FilePersistence) {
