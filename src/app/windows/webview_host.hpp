@@ -65,6 +65,11 @@ private:
     void initWebView();
     void drain();
 
+    // The web page's Fullscreen API (used for the PROGRAM monitor) only changes the WebView2
+    // content itself; WebView2 requires the host to separately borderless/maximize the real
+    // window, via this event. Mirrors OutputWindow::toggleFullscreen's save/restore approach.
+    void setWindowFullscreen(bool enter);
+
     HWND hwnd_ = nullptr;
     HBRUSH bgBrush_ = nullptr;
     Options opt_;
@@ -74,6 +79,8 @@ private:
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> controller_;
     Microsoft::WRL::ComPtr<ICoreWebView2> webview_;
     bool ready_ = false;
+    bool fullscreen_ = false;
+    WINDOWPLACEMENT savedPlacement_{sizeof(WINDOWPLACEMENT)};
 
     std::mutex qMutex_;
     std::vector<std::pair<std::string, std::string>> queue_;

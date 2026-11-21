@@ -135,6 +135,31 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await page.evaluate(() => localStorage.getItem('hb.bank'))) === '1', 'the chosen bank persists in localStorage');
   await humanClick('.bankbtn[data-bank="0"]');  // back to the default bank for the rest of the suite
 
+  console.log('\n[1d] PRODUÇÃO - PROGRAM em tela cheia');
+  ok(await page.locator('#pgm-fs').count() === 1, 'PROGRAM: fullscreen button is present');
+  // Headless Chromium refuses a real Fullscreen API grant (no user gesture, no compositor), so this
+  // stubs requestFullscreen/exitFullscreen to verify the wiring, then simulates the browser's own
+  // confirmation (fullscreenElement + the fullscreenchange event) to verify the icon follows it.
+  await page.evaluate(() => {
+    window.__fsCalls = 0;
+    document.querySelector('.mon.pgm').requestFullscreen = () => { window.__fsCalls++; return Promise.resolve(); };
+    document.exitFullscreen = () => Promise.resolve();
+  });
+  await page.locator('#pgm-fs').click();
+  ok(await page.evaluate(() => window.__fsCalls) === 1, 'PROGRAM: the button requests fullscreen on the PROGRAM card');
+  await page.locator('.mon.pgm .screen').dblclick();
+  ok(await page.evaluate(() => window.__fsCalls) === 2, 'PROGRAM: double-clicking the picture also requests fullscreen');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'fullscreenElement', { value: document.querySelector('.mon.pgm'), configurable: true });
+    document.dispatchEvent(new Event('fullscreenchange'));
+  });
+  ok((await page.locator('#pgm-fs').textContent()) === '⤢', 'PROGRAM: the button flips to the exit-fullscreen icon once confirmed');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true });
+    document.dispatchEvent(new Event('fullscreenchange'));
+  });
+  ok((await page.locator('#pgm-fs').textContent()) === '⛶', 'PROGRAM: the button flips back once fullscreen ends');
+
   console.log('\n[2] PRODUÇÃO - câmera virtual');
   await clearSent();
   await humanClick('#v-main');
@@ -434,23 +459,23 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await sent()).includes('ndiout|on|Estúdio Principal'), 'mudar o nome com a saída ligada já reenvia ndiout|on com o novo nome');
 
   console.log('\n[6] Layout em janelas diferentes');
-  // production screen must fit without clipping the inputs strip on common laptop sizes
-  for (const [w, h] of [[1280, 800], [1366, 768], [1920, 1080]]) {
+  // The PRODUÇÃO stage (monitors + switcher + 16-camera strip) uses a 3-row CSS grid where the
+  // monitors and inputs rows flex to fill whatever's left after the switcher card's own natural
+  // size — by construction this always sums to exactly the stage's height, so it must never need
+  // to scroll, down to the app's own declared minimum window size (webview_host's minWidth x
+  // minHeight, 1100x680).
+  for (const [w, h] of [[1100, 680], [1280, 800], [1366, 768], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     await tab('prod'); await page.waitForTimeout(100);
-    // With 16 cameras (2 rows) the inputs strip no longer always fits without scrolling on a
-    // smaller laptop screen — that's expected now (.stage already scrolls, "overflow:auto"), so
-    // this only checks the layout itself isn't broken (all 16 tiles render, non-zero size), not
-    // that scrolling is never needed. On a large screen it still fits with no scroll at all.
     const tileCount = await page.locator('.tile').count();
     ok(tileCount === 16, `${w}x${h}: all 16 input tiles are rendered (found ${tileCount})`);
     const tileH = await page.locator('.tile').first().evaluate(el => el.getBoundingClientRect().height);
     ok(tileH > 10, `${w}x${h}: tiles have a real, non-collapsed height (${Math.round(tileH)}px)`);
-    if (w >= 1920) {
-      const bottom = await page.evaluate(() => document.querySelector('.inputs').getBoundingClientRect().bottom);
-      const limit = await page.evaluate(() => document.querySelector('footer').getBoundingClientRect().top);
-      ok(bottom <= limit + 1, `${w}x${h}: on a large screen, the inputs strip still fits without scrolling (bottom ${Math.round(bottom)} <= ${Math.round(limit)})`);
-    }
+    const noScroll = await page.evaluate(() => {
+      const stage = document.querySelector('.stage');
+      return stage.scrollHeight <= stage.clientHeight + 1;
+    });
+    ok(noScroll, `${w}x${h}: the production stage fits without scrolling`);
   }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });

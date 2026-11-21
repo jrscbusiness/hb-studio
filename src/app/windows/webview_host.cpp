@@ -181,6 +181,14 @@ void WebViewHost::initWebView() {
                                         }
                                         return S_OK;
                                     }).Get(), &tok);
+                            webview_->add_ContainsFullScreenElementChanged(
+                                Callback<ICoreWebView2ContainsFullScreenElementChangedEventHandler>(
+                                    [this](ICoreWebView2* sender, IUnknown*) -> HRESULT {
+                                        BOOL isFs = FALSE;
+                                        sender->get_ContainsFullScreenElement(&isFs);
+                                        setWindowFullscreen(isFs != FALSE);
+                                        return S_OK;
+                                    }).Get(), &tok);
                             webview_->add_NavigationCompleted(
                                 Callback<ICoreWebView2NavigationCompletedEventHandler>(
                                     [this](ICoreWebView2*, ICoreWebView2NavigationCompletedEventArgs*) -> HRESULT {
@@ -226,6 +234,27 @@ void WebViewHost::drain() {
         q.swap(queue_);
     }
     for (auto& m : q) post(m.second);
+}
+
+void WebViewHost::setWindowFullscreen(bool enter) {
+    if (enter == fullscreen_ || !hwnd_) return;
+    const DWORD style = static_cast<DWORD>(GetWindowLongPtrW(hwnd_, GWL_STYLE));
+    if (enter) {
+        savedPlacement_.length = sizeof(savedPlacement_);
+        GetWindowPlacement(hwnd_, &savedPlacement_);
+        MONITORINFO mi{sizeof(mi)};
+        if (!GetMonitorInfoW(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST), &mi)) return;
+        SetWindowLongPtrW(hwnd_, GWL_STYLE, style & ~static_cast<DWORD>(WS_OVERLAPPEDWINDOW));
+        SetWindowPos(hwnd_, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
+                     mi.rcMonitor.bottom - mi.rcMonitor.top, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        fullscreen_ = true;
+    } else {
+        SetWindowLongPtrW(hwnd_, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(hwnd_, &savedPlacement_);
+        SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        fullscreen_ = false;
+    }
 }
 
 void WebViewHost::setTheme(bool dark) {

@@ -92,15 +92,20 @@ main{padding:18px 22px;min-height:0;position:relative}
 .col .card{flex:none}
 
 /* ---------- inputs ---------- */
-.inputs{flex:none}
-.inputsrow{display:flex;gap:10px;padding:10px 14px 14px;align-items:stretch}
+/* .inputs's row (see .stage) already has a definite height; h3 keeps its natural height and
+   .inputsrow flexes to fill the rest, so the 2 tile rows always fit without needing to scroll -
+   unlike the monitors above, tile height here comes straight from its grid row (not aspect-ratio),
+   since 16 small thumbnails tolerate a slightly-off aspect far better than losing part of the row. */
+.inputs{display:flex;flex-direction:column;min-height:0}
+.inputs h3{flex:none}
+.inputsrow{display:flex;flex:1;min-height:0;gap:10px;padding:10px 14px 14px;align-items:stretch}
 .bankbar{display:flex;flex-direction:column;gap:10px;width:18px;flex:none}
 .bankbtn{flex:1;border-radius:7px;background:var(--surface);border:1px solid var(--line-2);cursor:pointer;padding:0;transition:.12s}
 .bankbtn:hover{border-color:var(--blue-2)}
 .bankbtn.on{background:linear-gradient(180deg,#3C86FF,#1F6BFF);border-color:var(--blue);box-shadow:var(--glow)}
-.tiles{flex:1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;align-content:start}
+.tiles{flex:1;min-height:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:10px}
 .tile.offbank{opacity:.55}
-.tile{position:relative;border-radius:10px;overflow:hidden;background:var(--navy);aspect-ratio:16/9;
+.tile{position:relative;border-radius:10px;overflow:hidden;background:var(--navy);min-height:0;
   border:2px solid transparent;transition:.15s;cursor:pointer}
 .tile canvas{width:100%;height:100%;display:block}
 .tile:hover{border-color:var(--sky)}
@@ -115,14 +120,23 @@ main{padding:18px 22px;min-height:0;position:relative}
 .tile.pvw:not(.pgm) .tally{display:block;background:var(--surface);color:var(--blue)}
 
 /* ---------- monitors ---------- */
-.stage{display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto;padding:2px}
-.monitors{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.mon{padding:12px}
-.mon .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+/* Three rows share the stage's exact height (no row can push the others off-screen): monitors and
+   inputs flex to whatever's left after the switcher card takes its own natural (fixed-control)
+   height, which - by construction of CSS Grid's fr tracks - always sums to the container's height,
+   so .stage never needs to scroll at any window size down to the app's declared minimum. */
+.stage{display:grid;grid-template-rows:minmax(140px,1.6fr) auto minmax(110px,1fr);gap:14px;min-height:0;overflow:auto;padding:2px}
+.monitors{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-height:0}
+.mon{padding:12px;display:flex;flex-direction:column;min-height:0}
+.mon .top{display:flex;flex:none;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
+.mon .top .icon{width:24px;height:24px;font-size:12px;flex:none}
 .mon .tag{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.2em;font-size:11px}
 .mon .tag.pgm{color:var(--blue)}
 .mon .tag.pvw{color:var(--ink-2)}
-.screen{position:relative;aspect-ratio:16/9;background:var(--navy);border-radius:10px;overflow:hidden}
+/* Height comes from the flex-grown space in .mon (not from width, as aspect-ratio boxes usually
+   size); width is then derived from that height via the same aspect-ratio, centered (align-self)
+   so the picture never grows taller than its row has room for, at any window size. */
+.screen{position:relative;aspect-ratio:16/9;background:var(--navy);border-radius:10px;overflow:hidden;
+  flex:1 1 0;min-height:0;width:auto;max-width:100%;align-self:center}
 .screen canvas{width:100%;height:100%;display:block}
 .screen::before,.screen::after{content:"";position:absolute;inset:8px;pointer-events:none;
   background:
@@ -139,6 +153,9 @@ main{padding:18px 22px;min-height:0;position:relative}
 .screen .name{position:absolute;left:14px;top:12px;font-family:var(--mono);font-size:11px;font-weight:600;color:#fff;
   background:rgba(7,18,43,.55);padding:3px 8px;border-radius:6px;backdrop-filter:blur(4px)}
 .mon .tc{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.mon.pgm:fullscreen{background:#000;display:flex;align-items:center;justify-content:center;padding:0;border-radius:0}
+.mon.pgm:fullscreen .top{display:none}
+.mon.pgm:fullscreen .screen{width:auto;height:100%;max-width:100%;border-radius:0}
 
 /* ---------- switcher ---------- */
 .switch{padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px}
@@ -431,7 +448,9 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
               <div class="hud"><span>1920×1080</span><span id="pvw-hud">PRÓXIMA</span></div></div>
           </div>
           <div class="card mon pgm">
-            <div class="top"><div class="tag pgm"><span class="dot on"></span>PROGRAM</div><span class="tc" id="tc">00:00:00:00</span></div>
+            <div class="top"><div class="tag pgm"><span class="dot on"></span>PROGRAM</div>
+              <span class="tc" id="tc">00:00:00:00</span>
+              <button class="icon" id="pgm-fs" title="Tela cheia (ou duplo clique na imagem)">⛶</button></div>
             <div class="screen"><canvas id="cv-pgm" width="640" height="360"></canvas>
               <div class="name" id="pgm-name">—</div>
               <div class="hud"><span id="pgm-res">1920×1080 · 30 fps</span><span>NO AR</span></div></div>
@@ -762,6 +781,17 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   }));
   $('#b-cut').addEventListener('click', () => send('cut'));
   $('#b-dis').addEventListener('click', () => send('dissolve', duration));
+  // PROGRAM tela cheia: usa a Fullscreen API do próprio navegador no card do PROGRAM (não abre uma
+  // janela nova do sistema - isso já existe em CONFIG > Saídas, para um segundo/terceiro monitor).
+  const pgmMon = $('.mon.pgm');
+  const toggleProgramFullscreen = () => { if (document.fullscreenElement) document.exitFullscreen(); else pgmMon.requestFullscreen().catch(() => {}); };
+  $('#pgm-fs').addEventListener('click', toggleProgramFullscreen);
+  pgmMon.querySelector('.screen').addEventListener('dblclick', toggleProgramFullscreen);
+  document.addEventListener('fullscreenchange', () => {
+    const on = document.fullscreenElement === pgmMon;
+    $('#pgm-fs').textContent = on ? '⤢' : '⛶';
+    $('#pgm-fs').title = on ? 'Sair da tela cheia (Esc)' : 'Tela cheia (ou duplo clique na imagem)';
+  });
   // T-bar: manual fader alongside CUT/DISSOLVE. While the operator is dragging it, the periodic
   // state feed must not fight the drag (same guard style as the ÁUDIO faders).
   let tbarDown = false;
