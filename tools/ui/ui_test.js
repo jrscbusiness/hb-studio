@@ -10,7 +10,7 @@ const html = path.resolve(process.argv[2] || '../../ui/index.html');
 let failures = 0, checks = 0;
 const ok = (c, msg) => { checks++; if (!c) { failures++; console.log('  FAIL: ' + msg); } else console.log('  ok:   ' + msg); };
 
-const SLOT = (k, st, name, id, w, h) => ({ k, st, name: name || '', id: id || '', w: w || 0, h: h || 0, fps: k === 'dev' ? 30 : 0, msg: '' });
+const SLOT = (k, st, name, id, w, h, en) => ({ k, st, name: name || '', id: id || '', w: w || 0, h: h || 0, fps: k === 'dev' ? 30 : 0, msg: '', en: en === undefined ? true : en });
 function stateMsg(over = {}) {
   return Object.assign({
     t: 's', pvw: 1, pgm: 0, transition: false, progress: 0, fps: 29.9, target: 30, frames: 1000, skipped: 0,
@@ -254,7 +254,68 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok(await page.locator('#ndi-note').isHidden(), 'the hint disappears once the Runtime note is cleared');
   await setState({});
 
-  console.log('\n[4b] PLUGINS');
+  console.log('\n[4b] CÂMERAS: ligar/desligar e configurações por câmera');
+  await setState({ slots: [SLOT('dev', 'online', 'OBS Virtual Camera', 'obs', 1920, 1080),
+    SLOT('dev', 'off', 'Logitech C920', 'cam', 0, 0, false), ...Array.from({ length: 14 }, () => SLOT('test', 'test'))] });
+  await page.waitForTimeout(100);
+  const slot0 = page.locator('#slot-list .slot').nth(0), slot1 = page.locator('#slot-list .slot').nth(1);
+  ok(await slot0.locator('.pwr').count() === 1, 'CÂMERAS: uma câmera atribuída tem botão de ligar/desligar');
+  ok(!(await slot0.locator('.pwr').evaluate(e => e.classList.contains('off'))), 'CÂMERAS: câmera ligada mostra o botão "aceso"');
+  ok(await slot1.locator('.pwr').evaluate(e => e.classList.contains('off')), 'CÂMERAS: câmera desligada mostra o botão apagado');
+  ok((await slot1.locator('.st').textContent()).trim() === 'DESLIGADA', 'CÂMERAS: status da câmera desligada aparece como DESLIGADA, mantendo o nome');
+  await clearSent();
+  await slot0.locator('.pwr').click();
+  ok((await sent()).includes('devdisable|0'), 'CÂMERAS: clicar no botão de uma câmera ligada envia devdisable');
+  await clearSent();
+  await slot1.locator('.pwr').click();
+  ok((await sent()).includes('devenable|1'), 'CÂMERAS: clicar no botão de uma câmera desligada envia devenable');
+
+  await clearSent();
+  await slot0.locator('.cfg').click();
+  ok(await page.locator('#modal5.on').count() === 1, 'CÂMERAS: engrenagem abre o diálogo de configurações');
+  ok((await sent()).includes('devformats|obs'), 'CÂMERAS: abrir o diálogo pede os formatos suportados pela câmera');
+  ok((await page.locator('#camcfg-note').textContent()).length > 0, 'CÂMERAS: mostra uma mensagem enquanto busca os formatos');
+  await page.evaluate(() => window.__hbMessage({ t: 'devformats', id: 'obs', list: [
+    { w: 1920, h: 1080, fpsNum: 30, fpsDen: 1 }, { w: 1280, h: 720, fpsNum: 60, fpsDen: 1 }] }));
+  ok(await page.locator('#camcfg-res option').count() === 3, 'CÂMERAS: lista "Automática" + os formatos recebidos');
+  await page.selectOption('#camcfg-res', '1280,720,60,1');
+  await clearSent();
+  await page.click('#camcfg-save');
+  ok((await sent()).includes('devformat|0|1280|720|60|1'), 'CÂMERAS: salvar a resolução escolhida envia devformat com os números certos');
+  ok(await page.locator('#modal5.on').count() === 0, 'CÂMERAS: salvar fecha o diálogo');
+
+  // a devformats reply for a camera the operator is no longer looking at must be ignored
+  await slot1.locator('.cfg').click();
+  await page.evaluate(() => window.__hbMessage({ t: 'devformats', id: 'obs', list: [{ w: 9999, h: 9999, fpsNum: 1, fpsDen: 1 }] }));
+  ok(await page.locator('#camcfg-res option').count() === 1, 'CÂMERAS: uma resposta de devformats atrasada de outra câmera é ignorada');
+  await page.click('#camcfg-cancel');
+
+  console.log('\n[4b2] PRODUÇÃO: menu de contexto (botão direito) nos quadros de entrada');
+  await tab('prod'); await page.waitForTimeout(100);
+  await page.locator('.tile[data-i="0"]').click({ button: 'right' });
+  ok(await page.locator('#tilemenu.on').count() === 1, 'botão direito num quadro com câmera abre o menu');
+  ok(await page.locator('#tm-deactivate').isEnabled(), 'câmera ligada: "Desligar" está habilitado');
+  ok(!(await page.locator('#tm-activate').isEnabled()), 'câmera ligada: "Ativar" está desabilitado');
+  await clearSent();
+  await page.click('#tm-deactivate');
+  ok((await sent()).includes('devdisable|0'), 'menu de contexto "Desligar" envia devdisable');
+  ok(await page.locator('#tilemenu.on').count() === 0, 'escolher uma ação fecha o menu');
+
+  await page.locator('.tile[data-i="1"]').click({ button: 'right' });
+  ok(await page.locator('#tm-activate').isEnabled(), 'câmera desligada: "Ativar" está habilitado');
+  ok(!(await page.locator('#tm-deactivate').isEnabled()), 'câmera desligada: "Desligar" está desabilitado');
+  await page.click('#tm-cfg');
+  ok(await page.locator('#modal5.on').count() === 1, 'menu de contexto "Configurações…" abre o diálogo da câmera');
+  await page.click('#camcfg-cancel');
+
+  await page.locator('.tile[data-i="2"]').click({ button: 'right' });   // a pure test-pattern slot, no device ever assigned
+  ok(!(await page.locator('#tm-activate').isEnabled()) && !(await page.locator('#tm-deactivate').isEnabled()) && !(await page.locator('#tm-cfg').isEnabled()),
+    'quadro sem câmera atribuída: todas as ações do menu ficam desabilitadas');
+  await page.keyboard.press('Escape');
+  ok(await page.locator('#tilemenu.on').count() === 0, 'Esc fecha o menu de contexto');
+  await setState({});
+
+  console.log('\n[4c] PLUGINS');
   await tab('plg');
   await page.evaluate(() => window.__hbMessage({ t: 'plugins', ver: 1, dir: 'C:\\Users\\x\\AppData\\Local\\HBStudio\\plugins', list: [
     { id: 'com.t.theme', name: 'Tema Meia-noite', version: '1.0.0', author: 'HB', description: 'Azul escuro', license: 'MIT', type: 'theme', valid: true, supported: true, enabled: false, loaded: false, removed: false, error: '' },

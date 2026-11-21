@@ -105,6 +105,7 @@ main{padding:18px 22px;min-height:0;position:relative}
 .bankbtn.on{background:linear-gradient(180deg,#3C86FF,#1F6BFF);border-color:var(--blue);box-shadow:var(--glow)}
 .tiles{flex:1;min-height:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:10px}
 .tile.offbank{opacity:.55}
+.tile.off{opacity:.45}
 .tile{position:relative;border-radius:10px;overflow:hidden;background:var(--navy);min-height:0;
   border:2px solid transparent;transition:.15s;cursor:pointer}
 .tile canvas{width:100%;height:100%;display:block}
@@ -315,7 +316,17 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .st.online{background:#E5F0FF;color:var(--blue)}
 .st.connecting{background:var(--mist);color:var(--ink-2)}
 .st.nosignal,.st.error{background:var(--warn-bg);color:var(--warn-ink);border:1px solid var(--warn-line)}
-.st.test{background:var(--mist);color:var(--muted)}
+.st.test,.st.off{background:var(--mist);color:var(--muted)}
+.slot .icon{width:26px;height:26px;font-size:12px;flex:none}
+.slot .icon.pwr{color:var(--blue)}
+.slot .icon.pwr.off{color:var(--muted)}
+.ctxmenu{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 12px 32px rgba(10,30,71,.25);padding:6px;display:none;min-width:190px}
+.ctxmenu.on{display:block}
+.ctxmenu button{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:7px;font-size:12.5px;color:var(--ink)}
+.ctxmenu button:hover:not(:disabled){background:var(--mist);color:var(--blue)}
+.ctxmenu button:disabled{color:var(--muted);opacity:.5;cursor:default}
+.ctxmenu hr{border:none;border-top:1px solid var(--line);margin:4px 0}
 .slot .x{font-size:11px;color:var(--muted);padding:4px 8px;border-radius:8px;border:1px solid var(--line)}
 .slot .x:hover{border-color:var(--blue);color:var(--blue)}
 .devempty{padding:22px 4px;color:var(--ink-2);line-height:1.6}
@@ -752,6 +763,12 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   <label>Nome do preset<input id="nm-input" maxlength="24" placeholder="Ex.: Altar, Púlpito, Louvor" spellcheck="false"></label>
   <div class="sh-foot"><button class="btn sm" id="nm-clear">LIMPAR</button><span style="flex:1"></span><button class="btn sm" id="nm-cancel">CANCELAR</button><button class="btn primary sm" id="nm-ok" style="flex:none">OK</button></div>
 </div></div>
+<div id="modal5" class="modal"><div class="sheet small">
+  <div class="sh-head"><div><span class="cap">Configurações da câmera</span><h2 id="camcfg-title">CAM 1</h2></div><button class="icon" id="camcfg-x">✕</button></div>
+  <label>Resolução e taxa de quadros<select id="camcfg-res"><option value="">Automática (padrão da câmera)</option></select></label>
+  <p class="note" id="camcfg-note">Buscando formatos suportados…</p>
+  <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="camcfg-cancel">CANCELAR</button><button class="btn primary sm" id="camcfg-save" style="flex:none">SALVAR</button></div>
+</div></div>
 <div id="modal3" class="modal"><div class="sheet small" style="width:520px">
   <div class="sh-head"><div><span class="cap" id="rv-cap">Instalar plugin</span><h2 id="rv-name">—</h2></div><button class="icon" id="rv-x">✕</button></div>
   <div id="rv-body"></div>
@@ -799,6 +816,12 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   <p class="note" id="xm-note" style="margin-top:10px"></p>
   <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="xm-cancel">CANCELAR</button><button class="btn primary sm" id="xm-save" style="flex:none">SALVAR</button></div>
 </div></div>
+<div id="tilemenu" class="ctxmenu">
+  <button id="tm-activate">Ativar</button>
+  <button id="tm-deactivate">Desligar</button>
+  <hr>
+  <button id="tm-cfg">Configurações…</button>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -824,6 +847,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     t.innerHTML = `<canvas width="192" height="108"></canvas><div class="lb"><b>CAM ${i+1}</b><em>TESTE</em></div><div class="tally"></div>`;
     t.addEventListener('click', () => send('preview', i));
     t.addEventListener('dblclick', () => send('program', i));
+    t.addEventListener('contextmenu', e => { e.preventDefault(); openTileMenu(e, i); });
     tiles.appendChild(t);
     canv['s' + i] = t.querySelector('canvas').getContext('2d');
   }
@@ -992,7 +1016,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   // ---------- input devices (CÂMERAS tab) ----------
   let devs = null, slots = [], devBusy = false;
   const camSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="7" width="12" height="10" rx="2.5"/><path d="M15 11l6-3v8l-6-3"/></svg>';
-  const stTxt = {online: 'AO VIVO', connecting: 'CONECTANDO', nosignal: 'SEM SINAL', error: 'ERRO', test: 'TESTE'};
+  const stTxt = {online: 'AO VIVO', connecting: 'CONECTANDO', nosignal: 'SEM SINAL', error: 'ERRO', test: 'TESTE', off: 'DESLIGADA'};
   function renderDevices() {
     const box = $('#dev-list'); box.innerHTML = '';
     if (!devs) { box.innerHTML = '<div class="devempty">Procurando dispositivos…</div>'; return; }
@@ -1017,13 +1041,18 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   function renderSlots() {
     const box = $('#slot-list'); box.innerHTML = '';
     for (let i = 0; i < N; i++) {
-      const x = slots[i] || {k: 'test', st: 'test', name: ''};
+      const x = slots[i] || {k: 'test', st: 'test', name: '', en: true};
       const r = document.createElement('div'); r.className = 'slot';
       const dims = x.k === 'dev' && x.w ? x.w + '×' + x.h + (x.fps ? ' · ' + x.fps.toFixed(0) + ' fps' : '') : '';
-      r.innerHTML = '<span class="n">CAM ' + (i + 1) + '</span><div class="w"><b></b><em></em></div><span class="st ' + x.st + '">' + stTxt[x.st] + '</span>' + (x.k === 'dev' ? '<button class="x">Remover</button>' : '');
+      r.innerHTML = '<span class="n">CAM ' + (i + 1) + '</span><div class="w"><b></b><em></em></div><span class="st ' + x.st + '">' + stTxt[x.st] + '</span>' +
+        (x.k === 'dev' ? '<button class="icon pwr" title="Ligar/desligar esta câmera">⏻</button><button class="icon cfg" title="Configurações">⚙</button><button class="x">Remover</button>' : '');
       r.querySelector('b').textContent = x.k === 'dev' ? x.name : 'Fonte de teste (gerada pelo programa)';
       r.querySelector('em').textContent = x.msg || dims || (x.k === 'dev' ? '' : 'Não é uma câmera real');
       const rm = r.querySelector('.x'); if (rm) rm.onclick = () => send('devclear', i);
+      const pwr = r.querySelector('.pwr');
+      if (pwr) { pwr.classList.toggle('off', x.en === false); pwr.onclick = () => send(x.en === false ? 'devenable' : 'devdisable', i); }
+      const cfg = r.querySelector('.cfg');
+      if (cfg) cfg.onclick = () => openCamSettings(i, x);
       box.appendChild(r);
     }
   }
@@ -1032,7 +1061,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   let listSig = '', pointerDown = false, listPending = false;
   const drawLists = () => { renderSlots(); renderDevices(); };
   function renderLists(force) {
-    const sig = JSON.stringify([slots.map(x => x && [x.k, x.st, x.name, x.id, x.w, x.h, Math.round(x.fps || 0), x.msg]), devs]);
+    const sig = JSON.stringify([slots.map(x => x && [x.k, x.st, x.name, x.id, x.w, x.h, Math.round(x.fps || 0), x.msg, x.en]), devs]);
     if (!force && sig === listSig) return;
     if (pointerDown) { listPending = true; return; }
     listSig = sig; listPending = false; drawLists();
@@ -1044,6 +1073,63 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   addEventListener('blur', releasePointer);
   $('#dev-refresh').onclick = () => { devs = null; renderLists(true); send('devrefresh'); };
   $$('#tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.v === 'cam') { send('devrefresh'); } }));
+
+  // ---------- camera settings (resolution/fps) ----------
+  let camcfgSlot = -1, camcfgId = '';
+  function openCamSettings(i, x) {
+    camcfgSlot = i; camcfgId = x.id || '';
+    $('#camcfg-title').textContent = 'CAM ' + (i + 1);
+    $('#camcfg-res').innerHTML = '<option value="">Automática (padrão da câmera)</option>';
+    $('#camcfg-note').textContent = 'Buscando formatos suportados…';
+    $('#modal5').classList.add('on');
+    if (camcfgId) send('devformats', camcfgId);
+  }
+  function renderCamFormats(d) {
+    if (d.id !== camcfgId) return;   // a stale reply for a dialog the operator already closed/changed
+    const sel = $('#camcfg-res');
+    sel.innerHTML = '<option value="">Automática (padrão da câmera)</option>';
+    (d.list || []).forEach(f => {
+      const o = document.createElement('option');
+      o.value = [f.w, f.h, f.fpsNum, f.fpsDen].join(',');
+      const fps = f.fpsDen ? (f.fpsNum / f.fpsDen) : f.fpsNum;
+      o.textContent = f.w + '×' + f.h + ' · ' + fps.toFixed(fps % 1 ? 2 : 0) + ' fps';
+      sel.appendChild(o);
+    });
+    $('#camcfg-note').textContent = (d.list && d.list.length)
+      ? 'Formatos informados pela própria câmera.'
+      : 'Esta câmera não informa uma lista de formatos; será usado o padrão automático.';
+  }
+  $('#camcfg-x').addEventListener('click', closeModals);
+  $('#camcfg-cancel').addEventListener('click', closeModals);
+  $('#camcfg-save').addEventListener('click', () => {
+    const v = $('#camcfg-res').value;
+    const parts = v ? v.split(',').map(Number) : [0, 0, 0, 0];
+    send('devformat', camcfgSlot, parts[0], parts[1], parts[2], parts[3]);
+    closeModals();
+  });
+
+  // ---------- PRODUÇÃO: right-click menu on an input tile ----------
+  let tmSlot = -1;
+  const tileMenu = $('#tilemenu');
+  const closeTileMenu = () => tileMenu.classList.remove('on');
+  function openTileMenu(e, i) {
+    tmSlot = i;
+    const x = slots[i] || {k: 'test'};
+    const isDev = x.k === 'dev', isOff = x.en === false;
+    $('#tm-activate').disabled = !isDev || !isOff;
+    $('#tm-deactivate').disabled = !isDev || isOff;
+    $('#tm-cfg').disabled = !isDev;
+    const vw = innerWidth, vh = innerHeight;
+    tileMenu.classList.add('on');   // measure after it's visible, so offsetWidth/Height are real
+    tileMenu.style.left = Math.min(e.clientX, vw - tileMenu.offsetWidth - 8) + 'px';
+    tileMenu.style.top = Math.min(e.clientY, vh - tileMenu.offsetHeight - 8) + 'px';
+  }
+  $('#tm-activate').addEventListener('click', () => { send('devenable', tmSlot); closeTileMenu(); });
+  $('#tm-deactivate').addEventListener('click', () => { send('devdisable', tmSlot); closeTileMenu(); });
+  $('#tm-cfg').addEventListener('click', () => { closeTileMenu(); if (slots[tmSlot]) openCamSettings(tmSlot, slots[tmSlot]); });
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#tilemenu')) closeTileMenu(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTileMenu(); });
+  addEventListener('blur', closeTileMenu);
 
 
   // ---------- theme (installed theme plugins) ----------
@@ -1274,7 +1360,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         const x = s.slots[+t.dataset.i], b = t.querySelector('b'), em = t.querySelector('em');
         b.textContent = x.k === 'dev' ? x.name : 'CAM ' + (+t.dataset.i + 1);
         em.textContent = stTxt[x.st]; em.style.display = '';
-        em.className = x.k === 'dev' && x.st !== 'online' ? 'bad' : '';
+        em.className = x.k === 'dev' && x.st !== 'online' && x.st !== 'off' ? 'bad' : '';
+        t.classList.toggle('off', x.en === false);
       });
       const hud = i => s.slots[i].k === 'dev' && s.slots[i].w ? s.slots[i].w + '×' + s.slots[i].h : '1920×1080';
       const nm = i => s.slots[i].k === 'dev' ? s.slots[i].name : 'CAM ' + (i + 1);
@@ -1524,6 +1611,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
+    else if (d.t === 'devformats') renderCamFormats(d);
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
