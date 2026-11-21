@@ -1,7 +1,8 @@
-# Licenças (rascunho — Fase 1)
+# Licenças
 
-Licença do HB Studio: **pendente**. Candidatas compatíveis com Qt/FFmpeg LGPL e libsrt MPL:
-Apache-2.0 ou MPL-2.0 (decisão do mantenedor; não é aconselhamento jurídico).
+Licença do HB Studio: **MIT** (ver [LICENSE](LICENSE)), copyright © 2026 Rafael Campos. Compatível
+com todas as dependências de terceiros listadas abaixo (nenhuma delas é copyleft forte sobre o
+próprio HB Studio).
 
 | Dependência | Uso | Licença | Notas |
 |---|---|---|---|
