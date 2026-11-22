@@ -100,7 +100,10 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, c
     j += "]";
     j += ",\"log\":[";
     auto tail = engine.logTail();
-    const std::size_t from = tail.size() > 9 ? tail.size() - 9 : 0;
+    // 200, not the sidebar widget's old 9: the CONFIG tab's full Logs panel needs real history to
+    // be worth copying into a bug report; the small PRODUÇÃO sidebar widget still only shows its
+    // own last few lines (sliced client-side), so this bump doesn't change that widget's look.
+    const std::size_t from = tail.size() > 200 ? tail.size() - 200 : 0;
     for (std::size_t i = from; i < tail.size(); ++i) {
         const auto& r = tail[i];
         const std::time_t t = std::chrono::system_clock::to_time_t(r.time);

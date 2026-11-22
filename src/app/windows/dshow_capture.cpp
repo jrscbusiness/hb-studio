@@ -185,7 +185,18 @@ void DShowSource::run() {
             if (f.dev.id == id_) { moniker = f.moniker; break; }
         if (!moniker) { fail("Dispositivo não encontrado (desconectado?)."); goto done; }
 
-        {
+        // Two passes. Pass 0 forces RGB32 (today's established, zero-conversion-cost path),
+        // falling back to no subtype constraint if the pin negotiation itself fails outright
+        // (DroidCam's "ERRO" symptom). Some sources (OBS Virtual Camera is a confirmed real-world
+        // example) negotiate successfully - the pin connects, Run() succeeds - but then never
+        // actually push a single sample through it. That is DirectShow's connection succeeding
+        // while the filter itself silently stalls, and it is indistinguishable from "working, just
+        // hasn't produced a frame yet" until a grace period passes. So after Run(), each pass
+        // watches frames_ for a few seconds; if nothing ever arrives, the whole graph is torn down
+        // and pass 1 retries with no subtype constraint at all, letting intelligent-connect pick a
+        // different path from scratch rather than reusing the (apparently dead) RGB32 negotiation.
+        for (int pass = 0; pass < 2 && !failed_; ++pass) {
+            const bool forceRgb32 = (pass == 0);
             ComPtr<IBaseFilter> src;
             if (FAILED(moniker->BindToObject(nullptr, nullptr, IID_PPV_ARGS(&src))) || !src) {
                 fail("Não foi possível abrir o dispositivo (em uso por outro programa?).");
@@ -220,18 +231,26 @@ void DShowSource::run() {
                 return h;
             };
 
-            AM_MEDIA_TYPE wantRgb32{};
-            wantRgb32.majortype = MEDIATYPE_Video;
-            wantRgb32.subtype = MEDIASUBTYPE_RGB32;   // forces a colour converter into the graph: BGRA out
-            grabber->SetMediaType(&wantRgb32);
-            HRESULT hr = tryConnect();
-            if (FAILED(hr)) {
-                // Some capture filters (DroidCam's is a known real-world example) refuse to
-                // connect at all once forced into RGB32 - they only ever expose one native,
-                // often packed/compressed layout and won't let DirectShow insert a converter
-                // ahead of it. Retry with no subtype constraint, so intelligent-connect accepts
-                // whatever the device natively offers; onBuffer() converts that raw layout to
-                // BGRA itself (see RawFormat) instead of relying on a DirectShow converter filter.
+            HRESULT hr;
+            if (forceRgb32) {
+                AM_MEDIA_TYPE wantRgb32{};
+                wantRgb32.majortype = MEDIATYPE_Video;
+                wantRgb32.subtype = MEDIASUBTYPE_RGB32;   // forces a colour converter into the graph: BGRA out
+                grabber->SetMediaType(&wantRgb32);
+                hr = tryConnect();
+                if (FAILED(hr)) {
+                    // Some capture filters (DroidCam's is a known real-world example) refuse to
+                    // connect at all once forced into RGB32 - they only ever expose one native,
+                    // often packed/compressed layout and won't let DirectShow insert a converter
+                    // ahead of it. Retry with no subtype constraint, so intelligent-connect accepts
+                    // whatever the device natively offers; onBuffer() converts that raw layout to
+                    // BGRA itself (see RawFormat) instead of relying on a DirectShow converter filter.
+                    AM_MEDIA_TYPE wantAny{};
+                    wantAny.majortype = MEDIATYPE_Video;
+                    grabber->SetMediaType(&wantAny);
+                    hr = tryConnect();
+                }
+            } else {
                 AM_MEDIA_TYPE wantAny{};
                 wantAny.majortype = MEDIATYPE_Video;
                 grabber->SetMediaType(&wantAny);
@@ -304,10 +323,46 @@ void DShowSource::run() {
                 std::lock_guard lock(mutex_);
                 running_ = true;
                 runningSince_ = std::chrono::steady_clock::now();
+                frames_ = 0;       // count arrivals fresh for this pass's grace-period check below
+                fpsFrames_ = 0;
+                fps_ = 0;
             }
-            WaitForSingleObject(stopEvent_, INFINITE);   // frames arrive on the streaming thread
+
+            // Grace period: poll in short slices (instead of one INFINITE wait) so a connection
+            // that never delivers a frame can be detected and retried without the caller having
+            // to stop() first.
+            bool gotFrame = false;
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+            for (;;) {
+                if (WaitForSingleObject(stopEvent_, 250) == WAIT_OBJECT_0) {
+                    control->Stop();
+                    grabber->SetCallback(nullptr, 0);
+                    goto done;
+                }
+                {
+                    std::lock_guard lock(mutex_);
+                    gotFrame = frames_ > 0;
+                }
+                if (gotFrame || std::chrono::steady_clock::now() >= deadline) break;
+            }
+            if (gotFrame) {
+                WaitForSingleObject(stopEvent_, INFINITE);   // frames arrive on the streaming thread
+                control->Stop();
+                grabber->SetCallback(nullptr, 0);
+                goto done;
+            }
             control->Stop();
             grabber->SetCallback(nullptr, 0);
+            {
+                std::lock_guard lock(mutex_);
+                running_ = false;
+            }
+            if (pass == 1) {
+                fail("A câmera conectou mas não está enviando imagem. Reinicie-a no programa de origem (ex.: OBS) ou verifique se outro programa a está usando.");
+                goto done;
+            }
+            // pass 0 connected but never delivered a frame: fall through to pass 1 and retry
+            // without forcing RGB32.
         }
     } catch (...) {
         fail("Erro inesperado ao capturar o dispositivo.");

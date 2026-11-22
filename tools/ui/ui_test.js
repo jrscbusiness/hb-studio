@@ -406,6 +406,23 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await page.locator('#pgm-res').textContent()).includes('1280×720'), 'PROGRAM resolution readout follows the real active output size (s.pw/s.ph), not a hardcoded 1920×1080');
   await setState({});
 
+  console.log('\n[5a3] CONFIG: painel de Registro (logs)');
+  await tab('cfg');
+  const logLines = Array.from({ length: 12 }, (_, i) => ({ t: `12:00:0${i % 10} [INFO] [cam] linha ${i}`, l: i === 5 ? 'WARNING' : i === 9 ? 'ERROR' : 'INFO' }));
+  await setState({ log: logLines });
+  await page.waitForTimeout(100);
+  ok((await page.locator('#log-cfg div').count()) === 12, 'the CONFIG log panel shows every line sent, not just the last 9 like the small sidebar widget');
+  ok((await page.locator('#log-cfg div.w').count()) === 1, 'a WARNING line gets the warning style');
+  ok((await page.locator('#log-cfg div.e').count()) === 1, 'an ERROR line gets the error style');
+  await clearSent();
+  await page.evaluate(() => { navigator.clipboard.writeText = t => { window.__copied = t; return Promise.resolve(); }; });
+  await page.locator('#log-cfg-copy').click();
+  await page.waitForTimeout(50);
+  const copied = await page.evaluate(() => window.__copied);
+  ok(typeof copied === 'string' && copied.split('\n').length === 12 && copied.includes('linha 5'), 'COPIAR REGISTRO copies every visible log line as plain text');
+  ok((await page.locator('#log-cfg-note').textContent()).includes('copiado'), 'copying confirms success to the user');
+  await setState({});
+
   console.log('\n[5b] ÁUDIO: canais, efeitos, gravação');
   const AUDIO = () => ({ t: 'audio', ver: 1, strips: Array.from({ length: 8 }, (_, i) => ({ i, name: ['MIC 1', 'MIC 2', 'LINHA', 'SISTEMA', 'FAIXA 5', 'FAIXA 6', 'FAIXA 7', 'FAIXA 8'][i],
       input: { kind: i === 0 ? 'device' : 'none', id: i === 0 ? 'cap1' : '', name: i === 0 ? 'Microfone USB' : '', state: i === 0 ? 'online' : 'off', msg: '' },
