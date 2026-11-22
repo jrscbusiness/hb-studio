@@ -544,6 +544,14 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok(bgAfter !== bgBefore, 'TEMA: a cor de fundo realmente muda ao ligar o modo escuro');
   await page.locator('#theme-seg button[data-th=light]').click();
   ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'light', 'TEMA: escolher CLARO volta ao claro');
+  const sentT1 = await page.evaluate(() => window.__sent.length);
+  const bgBeforeGray = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await page.locator('#theme-seg button[data-th=gray]').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sentT1)).includes('uitheme|gray'), 'TEMA: escolher CINZA avisa o host (uitheme|gray)');
+  ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'gray', 'TEMA: atributo data-theme="gray" aplicado');
+  const bgAfterGray = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  ok(bgAfterGray !== bgBeforeGray, 'TEMA CINZA: a cor de fundo muda e é diferente do claro');
+  ok(bgAfterGray !== bgAfter, 'TEMA CINZA: tem cor própria, diferente do escuro (não é um alias dele)');
   await page.locator('#theme-seg button[data-th=system]').click();
   ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === null, 'TEMA: "Sistema" remove o atributo (volta a seguir o SO)');
 

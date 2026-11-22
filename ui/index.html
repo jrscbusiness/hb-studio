@@ -36,6 +36,17 @@
   --navy:#E8EEFF; --surface:#16233F; --surface-2:#1C2C4D; --glass:rgba(17,27,51,.78); --on-accent:#FFFFFF;
   --warn-ink:#F5C65A; --warn-bg:#3A2E12; --warn-line:#6B5522;
 }
+/* Tons de cinza: a neutral, low-contrast theme for long sessions - no blue tint in the
+   backgrounds (unlike dark, which leans navy), and avoids both the dark theme's near-black and
+   the light theme's near-white, which are the two biggest sources of eye strain in long sessions.
+   The accent stays a soft, desaturated blue so live/selected states are still readable. */
+:root[data-theme="gray"]{
+  --bg:#3A3A3D; --panel:#454548; --line:#57575B; --line-2:#67676C;
+  --ink:#E6E6E8; --ink-2:#B6B6BA; --muted:#8C8C91;
+  --blue:#8CA8D8; --blue-2:#A7C0E8; --sky:#52627C; --mist:#4C4C50;
+  --navy:#E6E6E8; --surface:#454548; --surface-2:#505054; --glass:rgba(69,69,72,.78); --on-accent:#1A1A1C;
+  --warn-ink:#F0C65A; --warn-bg:#473C20; --warn-line:#6B5E33;
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{
@@ -688,7 +699,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       <div class="card"><h3><span class="cap">Aparência</span></h3>
         <div class="body">
           <div class="dur"><span class="cap" style="width:62px">Tema</span>
-            <div class="seg" id="theme-seg"><button data-th="light">CLARO</button><button data-th="dark">ESCURO</button><button data-th="system" class="on">SISTEMA</button></div>
+            <div class="seg" id="theme-seg"><button data-th="light">CLARO</button><button data-th="dark">ESCURO</button><button data-th="gray">CINZA</button><button data-th="system" class="on">SISTEMA</button></div>
           </div>
           <p class="note" style="margin-top:10px">“Sistema” segue a preferência de tema claro/escuro do Windows. O tema escuro é nativo do HB Studio — não precisa instalar nenhum plugin.</p>
         </div>
@@ -1214,7 +1225,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   // ---------- native dark/light mode (built in; no plugin needed) ----------
   (() => {
     let pref = 'system';
-    try { const s = localStorage.getItem('hb.theme'); if (s === 'light' || s === 'dark' || s === 'system') pref = s; } catch (e) {}
+    try { const s = localStorage.getItem('hb.theme'); if (s === 'light' || s === 'dark' || s === 'gray' || s === 'system') pref = s; } catch (e) {}
     const apply = p => {
       if (p === 'system') document.documentElement.removeAttribute('data-theme');
       else document.documentElement.setAttribute('data-theme', p);
