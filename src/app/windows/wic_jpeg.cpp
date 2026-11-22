@@ -57,4 +57,35 @@ bool JpegEncoder::encode(const video::Frame& f, int quality, std::vector<std::ui
     return true;
 }
 
+bool JpegDecoder::init() {
+    return SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                      IID_PPV_ARGS(&factory_)));
+}
+
+bool JpegDecoder::decode(const std::uint8_t* jpeg, std::size_t len, int width, int height, std::vector<std::uint8_t>& out) {
+    if (!factory_ || !jpeg || len == 0 || width <= 0 || height <= 0) return false;
+    ComPtr<IWICStream> stream;
+    if (FAILED(factory_->CreateStream(&stream)) ||
+        FAILED(stream->InitializeFromMemory(const_cast<BYTE*>(jpeg), static_cast<DWORD>(len))))
+        return false;
+    ComPtr<IWICBitmapDecoder> decoder;
+    if (FAILED(factory_->CreateDecoderFromStream(stream.Get(), nullptr, WICDecodeMetadataCacheOnDemand, &decoder)))
+        return false;
+    ComPtr<IWICBitmapFrameDecode> frame;
+    if (FAILED(decoder->GetFrame(0, &frame))) return false;
+    UINT w = 0, h = 0;
+    if (FAILED(frame->GetSize(&w, &h)) || static_cast<int>(w) != width || static_cast<int>(h) != height)
+        return false;   // the device's own MJPEG frame size must match what the capture graph negotiated
+    ComPtr<IWICFormatConverter> conv;
+    if (FAILED(factory_->CreateFormatConverter(&conv)) ||
+        FAILED(conv->Initialize(frame.Get(), GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0.0,
+                                WICBitmapPaletteTypeCustom)))
+        return false;
+    std::vector<std::uint8_t> buf(static_cast<std::size_t>(width) * height * 4);
+    if (FAILED(conv->CopyPixels(nullptr, static_cast<UINT>(width) * 4, static_cast<UINT>(buf.size()), buf.data())))
+        return false;
+    out = std::move(buf);
+    return true;
+}
+
 }  // namespace hb::win

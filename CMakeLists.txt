@@ -35,6 +35,7 @@ add_library(hb_core STATIC
   src/core/hardware_profile.cpp
   src/video/program_output.cpp
   src/video/synthetic_source.cpp
+  src/video/pixel_convert.cpp
   src/switcher/switcher.cpp
   src/app/engine.cpp
   src/app/ptz_settings.cpp
@@ -138,6 +139,7 @@ if(HB_BUILD_TESTS)
     tests/json_sha_test.cpp
     tests/hardware_profile_test.cpp
     tests/program_output_test.cpp
+    tests/pixel_convert_test.cpp
     tests/switcher_test.cpp
     tests/engine_test.cpp
     tests/ptz_settings_test.cpp

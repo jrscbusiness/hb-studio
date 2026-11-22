@@ -8,8 +8,10 @@
 #include <cwchar>
 #include <map>
 
+#include "app/windows/wic_jpeg.hpp"
 #include "app/windows/win_util.hpp"
 #include "video/frame_ops.hpp"
+#include "video/pixel_convert.hpp"
 
 using Microsoft::WRL::ComPtr;
 
@@ -206,40 +208,82 @@ void DShowSource::run() {
 
             ComPtr<ISampleGrabber> grabber;
             grabberFilter.As(&grabber);
-            AM_MEDIA_TYPE want{};
-            want.majortype = MEDIATYPE_Video;
-            want.subtype = MEDIASUBTYPE_RGB32;   // forces a colour converter into the graph: BGRA out
-            if (!grabber || FAILED(grabber->SetMediaType(&want))) { fail("SampleGrabber indisponível."); goto done; }
+            if (!grabber) { fail("SampleGrabber indisponível."); goto done; }
 
             // TODO(camera-resolution): if requested_ is non-empty, QueryInterface the capture pin
             // for IAMStreamConfig and SetFormat() here, before RenderStream connects it - falling
             // back to automatic (today's behaviour) if the exact format isn't supported.
-            // capture pin first, then preview, then any pin (software cameras differ)
-            HRESULT hr = cgb->RenderStream(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());
-            if (FAILED(hr)) hr = cgb->RenderStream(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());
-            if (FAILED(hr)) hr = cgb->RenderStream(nullptr, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());
+            auto tryConnect = [&] {
+                HRESULT h = cgb->RenderStream(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());
+                if (FAILED(h)) h = cgb->RenderStream(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());
+                if (FAILED(h)) h = cgb->RenderStream(nullptr, &MEDIATYPE_Video, src.Get(), grabberFilter.Get(), nullFilter.Get());
+                return h;
+            };
+
+            AM_MEDIA_TYPE wantRgb32{};
+            wantRgb32.majortype = MEDIATYPE_Video;
+            wantRgb32.subtype = MEDIASUBTYPE_RGB32;   // forces a colour converter into the graph: BGRA out
+            grabber->SetMediaType(&wantRgb32);
+            HRESULT hr = tryConnect();
             if (FAILED(hr)) {
-                char b[96];
-                snprintf(b, sizeof b, "Não foi possível conectar o vídeo do dispositivo (0x%08lX).", static_cast<unsigned long>(hr));
+                // Some capture filters (DroidCam's is a known real-world example) refuse to
+                // connect at all once forced into RGB32 - they only ever expose one native,
+                // often packed/compressed layout and won't let DirectShow insert a converter
+                // ahead of it. Retry with no subtype constraint, so intelligent-connect accepts
+                // whatever the device natively offers; onBuffer() converts that raw layout to
+                // BGRA itself (see RawFormat) instead of relying on a DirectShow converter filter.
+                AM_MEDIA_TYPE wantAny{};
+                wantAny.majortype = MEDIATYPE_Video;
+                grabber->SetMediaType(&wantAny);
+                hr = tryConnect();
+            }
+            if (FAILED(hr)) {
+                char b[192];
+                snprintf(b, sizeof b,
+                        "Não foi possível conectar o vídeo do dispositivo (0x%08lX). Se for uma câmera incomum "
+                        "(ex.: DroidCam), tente usá-la através do OBS Virtual Camera.", static_cast<unsigned long>(hr));
                 fail(b);
                 goto done;
             }
 
             AM_MEDIA_TYPE mt{};
-            if (SUCCEEDED(grabber->GetConnectedMediaType(&mt)) && mt.formattype == FORMAT_VideoInfo && mt.pbFormat &&
-                mt.cbFormat >= sizeof(VIDEOINFOHEADER)) {
+            const bool haveMt = SUCCEEDED(grabber->GetConnectedMediaType(&mt));
+            if (haveMt && mt.formattype == FORMAT_VideoInfo && mt.pbFormat && mt.cbFormat >= sizeof(VIDEOINFOHEADER)) {
                 const auto* vih = reinterpret_cast<const VIDEOINFOHEADER*>(mt.pbFormat);
                 std::lock_guard lock(mutex_);
                 width_ = vih->bmiHeader.biWidth;
                 height_ = std::abs(vih->bmiHeader.biHeight);
                 bottomUp_ = vih->bmiHeader.biHeight > 0;
             }
+            RawFormat negotiated = RawFormat::Rgb32;
+            bool knownFormat = haveMt;
+            if (haveMt) {
+                if (mt.subtype == MEDIASUBTYPE_RGB32) negotiated = RawFormat::Rgb32;
+                else if (mt.subtype == MEDIASUBTYPE_YUY2) negotiated = RawFormat::Yuy2;
+                else if (mt.subtype == MEDIASUBTYPE_UYVY) negotiated = RawFormat::Uyvy;
+                else if (mt.subtype == MEDIASUBTYPE_NV12) negotiated = RawFormat::Nv12;
+                else if (mt.subtype == MEDIASUBTYPE_MJPG) negotiated = RawFormat::Mjpg;
+                else knownFormat = false;
+            }
             freeMediaType(mt);
+            if (!knownFormat) {
+                fail("Formato de vídeo da câmera não suportado por este aplicativo. Tente usá-la através do OBS Virtual Camera.");
+                goto done;
+            }
             {
                 std::lock_guard lock(mutex_);
+                rawFormat_ = negotiated;
                 if (width_ <= 0 || height_ <= 0 || width_ > 16384 || height_ > 16384) {
                     failed_ = true;
                     error_ = "Formato de vídeo inesperado.";
+                }
+            }
+            if (negotiated == RawFormat::Mjpg) {
+                jpegDecoder_ = std::make_unique<JpegDecoder>();
+                if (!jpegDecoder_->init()) {
+                    std::lock_guard lock(mutex_);
+                    failed_ = true;
+                    error_ = "Decodificador de vídeo MJPEG indisponível neste Windows.";
                 }
             }
             if (failed_) goto done;
@@ -279,23 +323,50 @@ done:
 void DShowSource::onBuffer(const std::uint8_t* data, long length) {
     int w, h;
     bool bottomUp;
+    RawFormat fmt;
     {
         std::lock_guard lock(mutex_);
         w = width_;
         h = height_;
         bottomUp = bottomUp_;
+        fmt = rawFormat_;
     }
-    const std::size_t stride = static_cast<std::size_t>(w) * 4;
-    if (w <= 0 || h <= 0 || !data || length < 0 || static_cast<std::size_t>(length) < stride * static_cast<std::size_t>(h)) return;
+    if (w <= 0 || h <= 0 || !data || length < 0) return;
+    const std::size_t len = static_cast<std::size_t>(length);
 
     auto f = std::make_shared<video::Frame>();
     video::prepareFrame(*f, w, h);
-    for (int y = 0; y < h; ++y) {
-        const std::uint8_t* s = data + stride * static_cast<std::size_t>(bottomUp ? h - 1 - y : y);
-        std::uint8_t* d = f->data.data() + stride * static_cast<std::size_t>(y);
-        std::memcpy(d, s, stride);
-        for (int x = 0; x < w; ++x) d[x * 4 + 3] = 255;   // many cameras leave alpha at 0
+
+    if (fmt == RawFormat::Rgb32) {
+        const std::size_t stride = static_cast<std::size_t>(w) * 4;
+        if (len < stride * static_cast<std::size_t>(h)) return;
+        for (int y = 0; y < h; ++y) {
+            const std::uint8_t* s = data + stride * static_cast<std::size_t>(bottomUp ? h - 1 - y : y);
+            std::uint8_t* d = f->data.data() + stride * static_cast<std::size_t>(y);
+            std::memcpy(d, s, stride);
+            for (int x = 0; x < w; ++x) d[x * 4 + 3] = 255;   // many cameras leave alpha at 0
+        }
+    } else if (fmt == RawFormat::Yuy2 || fmt == RawFormat::Uyvy) {
+        // Packed 4:2:2, tightly packed rows (no padding - the common case for a capture device).
+        // Orientation is assumed top-down; unlike the RGB32 path above, bottomUp_ isn't honoured
+        // here yet (bottom-up delivery is a legacy RGB/BMP convention, not something real-world
+        // YUV capture devices are expected to do - if one ever does, this would need revisiting).
+        const std::size_t stride = static_cast<std::size_t>(w) * 2;
+        if (len < stride * static_cast<std::size_t>(h)) return;
+        if (fmt == RawFormat::Yuy2) video::convertYuy2ToBgra(data, w, h, static_cast<int>(stride), f->data.data());
+        else video::convertUyvyToBgra(data, w, h, static_cast<int>(stride), f->data.data());
+    } else if (fmt == RawFormat::Nv12) {
+        const std::size_t ySize = static_cast<std::size_t>(w) * h;
+        const std::size_t uvSize = static_cast<std::size_t>(w) * ((h + 1) / 2);   // w bytes/row, h/2 rows
+        if (len < ySize + uvSize) return;
+        video::convertNv12ToBgra(data, w, data + ySize, w, w, h, f->data.data());
+    } else if (fmt == RawFormat::Mjpg) {
+        if (!jpegDecoder_ || !jpegDecoder_->decode(data, len, w, h, convertScratch_)) return;
+        std::memcpy(f->data.data(), convertScratch_.data(), f->data.size());
+    } else {
+        return;
     }
+
     const auto now = std::chrono::steady_clock::now();
     std::lock_guard lock(mutex_);
     latest_ = std::move(f);

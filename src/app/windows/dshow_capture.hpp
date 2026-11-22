@@ -13,6 +13,8 @@
 
 namespace hb::win {
 
+class JpegDecoder;   // wic_jpeg.hpp; only needed Windows-side, kept out of this header's includes
+
 struct VideoDevice {
     std::string id;     // stable id (device path, or name for devices without one)
     std::string name;   // friendly name, e.g. "OBS Virtual Camera"
@@ -84,6 +86,15 @@ private:
     double fps_ = 0;
     int width_ = 0, height_ = 0;
     bool bottomUp_ = true;
+
+    // Which raw layout the connected pin actually negotiated. RGB32 is requested first (today's
+    // established, zero-conversion-cost path); if no connection strategy accepts it, run() retries
+    // without forcing a subtype and converts whatever the device natively offers - some capture
+    // filters (DroidCam's being a known example) only ever expose one of these and refuse to
+    // connect at all otherwise, which used to surface as a flat, unhelpful "could not connect".
+    enum class RawFormat { Rgb32, Yuy2, Uyvy, Nv12, Mjpg } rawFormat_ = RawFormat::Rgb32;
+    std::unique_ptr<JpegDecoder> jpegDecoder_;   // lazily constructed only if rawFormat_ == Mjpg
+    std::vector<std::uint8_t> convertScratch_;   // reused across onBuffer() calls (MJPG decode only)
 };
 
 }  // namespace hb::win
