@@ -266,6 +266,31 @@ void DShowSource::run() {
                 hr = tryConnect();
             }
             if (FAILED(hr)) {
+                // Last resort: some drivers reject every generically-constrained connect attempt
+                // above yet work fine in other programs (DroidCam's virtual camera is a confirmed
+                // real-world example: OBS opens it without trouble) - the difference is usually
+                // that those programs request the pin's own exact, concrete native format instead
+                // of a generic constraint for "intelligent connect" to resolve. Ask the capture
+                // pin for its own default format via IAMStreamConfig and request precisely that.
+                ComPtr<IAMStreamConfig> streamConfig;
+                HRESULT fi = cgb->FindInterface(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, src.Get(), IID_PPV_ARGS(&streamConfig));
+                if (FAILED(fi)) fi = cgb->FindInterface(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video, src.Get(), IID_PPV_ARGS(&streamConfig));
+                if (FAILED(fi)) fi = cgb->FindInterface(nullptr, &MEDIATYPE_Video, src.Get(), IID_PPV_ARGS(&streamConfig));
+                if (SUCCEEDED(fi) && streamConfig) {
+                    int count = 0, size = 0;
+                    if (SUCCEEDED(streamConfig->GetNumberOfCapabilities(&count, &size)) && count > 0 && size > 0) {
+                        std::vector<BYTE> caps(static_cast<std::size_t>(size));
+                        AM_MEDIA_TYPE* nativeMt = nullptr;
+                        if (SUCCEEDED(streamConfig->GetStreamCaps(0, &nativeMt, caps.data())) && nativeMt) {
+                            grabber->SetMediaType(nativeMt);
+                            hr = tryConnect();
+                            freeMediaType(*nativeMt);
+                            CoTaskMemFree(nativeMt);
+                        }
+                    }
+                }
+            }
+            if (FAILED(hr)) {
                 char b[192];
                 snprintf(b, sizeof b,
                         "Não foi possível conectar o vídeo do dispositivo (0x%08lX). Se for uma câmera incomum "
@@ -322,6 +347,18 @@ void DShowSource::run() {
             grabber->SetBufferSamples(FALSE);
             grabber->SetOneShot(FALSE);
             grabber->SetCallback(&cb, 1);   // 1 = BufferCB
+
+            // Run the graph unsynchronized (no reference clock). By default the graph tries to
+            // pace playback against a clock, usually taken from a live source filter if it offers
+            // one; several real-world virtual cameras (OBS Virtual Camera is a confirmed example -
+            // its symptom was exactly this: one frame gets through, then the feed appears to
+            // "freeze and vanish") expose a clock that free-runs or reports degenerate timestamps,
+            // which makes the graph stall waiting for a sample to become "due" instead of just
+            // passing samples through as they arrive. SetSyncSource(nullptr) disables that pacing
+            // entirely - standard practice for a capture graph with no visual renderer to pace to.
+            ComPtr<IMediaFilter> mediaFilter;
+            graph.As(&mediaFilter);
+            if (mediaFilter) mediaFilter->SetSyncSource(nullptr);
 
             ComPtr<IMediaControl> control;
             graph.As(&control);
