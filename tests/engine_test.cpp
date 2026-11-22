@@ -16,17 +16,45 @@ TEST(Engine, ProducesProgramAndUiFrames) {
     EXPECT_EQ(s.sourcesMax >= s.sourcesRecommended, true);
     EXPECT_GT(s.produced, 5u);
 
+    const auto& defaultPreset = app::Engine::previewQualityPresets()[app::Engine::kDefaultPreviewQualityIndex];
     video::Frame f;
     EXPECT_TRUE(e.renderUiFrame("pgm", f));
-    EXPECT_EQ(f.width, app::Engine::kMonitorW);
+    EXPECT_EQ(f.width, defaultPreset.monitorW);
     EXPECT_TRUE(e.renderUiFrame("pvw", f));
     EXPECT_TRUE(e.renderUiFrame("s7", f));
-    EXPECT_EQ(f.width, app::Engine::kTileW);
+    EXPECT_EQ(f.width, defaultPreset.tileW);
     EXPECT_TRUE(e.renderUiFrame("s15", f));   // 2 banks of 8 (kSourceCount == 16): two-digit id works
     EXPECT_FALSE(e.renderUiFrame("s16", f));
     EXPECT_FALSE(e.renderUiFrame("s-1", f));
     EXPECT_FALSE(e.renderUiFrame("s", f));
     EXPECT_FALSE(e.renderUiFrame("nope", f));
+    e.stop();
+}
+
+TEST(Engine, PreviewQualityIsSelectableAndAppliesImmediately) {
+    app::Engine e({320, 180, {60, 1}});
+    e.start();
+    std::this_thread::sleep_for(150ms);
+    EXPECT_EQ(e.previewQuality(), std::string("alta"));   // default preserves pre-existing behaviour
+
+    EXPECT_FALSE(e.setPreviewQuality("nao-existe"));
+    EXPECT_EQ(e.previewQuality(), std::string("alta"));   // rejected: unchanged
+
+    ASSERT_TRUE(e.setPreviewQuality("baixa"));
+    EXPECT_EQ(e.previewQuality(), std::string("baixa"));
+    video::Frame f;
+    EXPECT_TRUE(e.renderUiFrame("pgm", f));
+    const auto& baixa = app::Engine::previewQualityPresets()[0];
+    EXPECT_EQ(baixa.id, std::string("baixa"));
+    EXPECT_EQ(f.width, baixa.monitorW);
+    EXPECT_TRUE(e.renderUiFrame("s0", f));
+    EXPECT_EQ(f.width, baixa.tileW);
+
+    ASSERT_TRUE(e.setPreviewQuality("maxima"));
+    const auto& maxima = app::Engine::previewQualityPresets().back();
+    EXPECT_EQ(maxima.id, std::string("maxima"));
+    EXPECT_TRUE(e.renderUiFrame("pgm", f));
+    EXPECT_EQ(f.width, maxima.monitorW);
     e.stop();
 }
 

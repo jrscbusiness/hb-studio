@@ -139,6 +139,7 @@ public:
             return false;
         }
         configureGopBestEffort();
+        configureLowLatencyBestEffort();
 
         mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
         mft_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
@@ -268,6 +269,48 @@ private:
         v.ulVal = gopFrames();
         codec->SetValue(&CODECAPI_AVEncMPVGOPSize, &v);  // best-effort; ignored/rejected by many MFTs, fine either way
         VariantClear(&v);
+    }
+
+    // Tunes the encoder for live streaming latency rather than offline-encode efficiency. None of
+    // this is required to produce valid H.264 - it is why a live stream can visibly lag or stutter
+    // even when the network and CPU both have headroom:
+    //  - AVLowLatencyMode / AVEncCommonLowLatency: tells the MFT to skip internal look-ahead
+    //    buffering (several encoders, hardware ones especially, buffer a handful of frames ahead
+    //    by default to improve compression, which shows up as end-to-end delay on a live stream).
+    //  - AVEncCommonRateControlMode = CBR: a steady bitrate the network path can pace against,
+    //    instead of VBR bursts that can momentarily exceed the upload link and force buffering
+    //    downstream (on the platform's ingest side or the viewer's player).
+    //  - AVEncMPVDefaultBPictureCount = 0: B-frames require buffering future frames to encode a
+    //    past one out of order, which is pure added latency with no benefit for a live source.
+    //  - AVEncCommonRealTime: tells the encoder it must keep up with a live clock rather than
+    //    prioritizing quality, so it degrades quality under load instead of falling behind and
+    //    accumulating a backlog (which looks exactly like "lag e travamento").
+    // Every SetValue here is independently best-effort: hardware MFTs commonly reject or ignore
+    // properties they don't implement, and that must never fail the whole encoder.
+    void configureLowLatencyBestEffort() {
+        ComPtr<ICodecAPI> codec;
+        if (FAILED(mft_.As(&codec)) || !codec) return;
+        auto setBool = [&](const GUID& key, bool val) {
+            VARIANT v;
+            VariantInit(&v);
+            v.vt = VT_BOOL;
+            v.boolVal = val ? VARIANT_TRUE : VARIANT_FALSE;
+            codec->SetValue(&key, &v);
+            VariantClear(&v);
+        };
+        auto setU32 = [&](const GUID& key, ULONG val) {
+            VARIANT v;
+            VariantInit(&v);
+            v.vt = VT_UI4;
+            v.ulVal = val;
+            codec->SetValue(&key, &v);
+            VariantClear(&v);
+        };
+        setBool(CODECAPI_AVLowLatencyMode, true);
+        setBool(CODECAPI_AVEncCommonLowLatency, true);
+        setBool(CODECAPI_AVEncCommonRealTime, true);
+        setU32(CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_CBR);
+        setU32(CODECAPI_AVEncMPVDefaultBPictureCount, 0);
     }
 
     ComPtr<IMFSample> buildInputSample(const std::uint8_t* bgra, int stride, std::uint32_t timestampMs) {

@@ -278,6 +278,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (f && std::getline(f, v) && (v == "dark" || v == "light" || v == "system")) themePref = v;
     }
 
+    // ---- CONFIG > Qualidade do Preview: unlike outputFormat above, this applies live (no
+    // restart) since it only changes the size of the small JPEG preview frames, not the real
+    // Program Output - so it's safe to just set it straight on the already-constructed engine.
+    const std::string previewQPath = mediaDir.empty() ? std::string() : mediaDir + "\\previewquality.txt";
+    if (!previewQPath.empty()) {
+        std::ifstream f(previewQPath, std::ios::binary);
+        std::string v;
+        if (f && std::getline(f, v)) engine.setPreviewQuality(v);   // unknown/corrupt id: keeps the default
+    }
+
     std::mutex devMutex;
     std::map<int, std::shared_ptr<win::DShowSource>> devices;   // slot -> running capture (keeps it alive)
     std::map<int, std::shared_ptr<hb::ndi::NdiSource>> ndiDevices;  // slot -> running NDI receiver
@@ -523,6 +533,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postXmitDest();
             postXmitStatus();
             postOutFmt();
+            host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "system")) {
             // Native dark/light mode: built into the app, no plugin needed. The web page applies
@@ -777,6 +788,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 postOutFmt();
                 toast("Formato salvo: " + std::to_string(w) + "×" + std::to_string(h) + " · " + std::to_string(fn / fd) +
                      " fps. Reinicie o HB Studio para aplicar.");
+            }
+        } else if (c == "previewq" && a.size() >= 2) {
+            if (engine.setPreviewQuality(a[1])) {
+                if (!previewQPath.empty()) {
+                    std::ofstream f(previewQPath, std::ios::binary | std::ios::trunc);
+                    f << a[1];
+                }
+                host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(a[1]) + "\"}");
             }
         } else if (c == "pluginpick") {
             // Native file dialog (UI thread). The chosen file is only INSPECTED; nothing is installed yet.

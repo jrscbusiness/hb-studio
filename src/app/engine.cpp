@@ -1,8 +1,38 @@
 #include "app/engine.hpp"
 
+#include <algorithm>
+
 #include "video/frame_ops.hpp"
 
 namespace hb::app {
+
+const std::vector<PreviewQualityPreset>& Engine::previewQualityPresets() {
+    static const std::vector<PreviewQualityPreset> kPresets = {
+        {"baixa", "Baixa (mais leve)", 320, 180, 96, 54},
+        {"media", "Média", 480, 270, 144, 81},
+        {"alta", "Alta (padrão)", 640, 360, 192, 108},
+        {"maxima", "Máxima (computadores potentes)", 960, 540, 256, 144},
+    };
+    return kPresets;
+}
+
+std::string Engine::previewQuality() const {
+    const auto& presets = previewQualityPresets();
+    const int i = previewQualityIndex_.load();
+    return (i >= 0 && static_cast<std::size_t>(i) < presets.size()) ? presets[static_cast<std::size_t>(i)].id
+                                                                     : presets[kDefaultPreviewQualityIndex].id;
+}
+
+bool Engine::setPreviewQuality(const std::string& id) {
+    const auto& presets = previewQualityPresets();
+    for (std::size_t i = 0; i < presets.size(); ++i) {
+        if (id == presets[i].id) {
+            previewQualityIndex_.store(static_cast<int>(i));
+            return true;
+        }
+    }
+    return false;
+}
 
 Engine::Engine(video::ProgramFormat format) {
     log_ = std::make_shared<core::MemorySink>(500);
@@ -84,14 +114,16 @@ video::SlotSource::Info Engine::slotInfo(int slot) const {
 
 bool Engine::renderUiFrame(const std::string& id, video::Frame& out) {
     const auto uiIndex = program_->framesProduced();
+    const auto& preset = previewQualityPresets()[static_cast<std::size_t>(
+        std::clamp(previewQualityIndex_.load(), 0, static_cast<int>(previewQualityPresets().size()) - 1))];
     if (id == "pgm") {
         auto latest = program_->latest();
         if (!latest) return false;
-        video::downscaleBox(*latest, out, kMonitorW, kMonitorH);
+        video::downscaleBox(*latest, out, preset.monitorW, preset.monitorH);
         return true;
     }
     if (id == "pvw") {
-        video::prepareFrame(out, kMonitorW, kMonitorH);
+        video::prepareFrame(out, preset.monitorW, preset.monitorH);
         switcher_->renderPreview(out, uiIndex);
         return true;
     }
@@ -104,7 +136,7 @@ bool Engine::renderUiFrame(const std::string& id, video::Frame& out) {
             i = i * 10 + (id[k] - '0');
         }
         if (i >= kSourceCount) return false;
-        video::prepareFrame(out, kTileW, kTileH);
+        video::prepareFrame(out, preset.tileW, preset.tileH);
         sources_[static_cast<std::size_t>(i)]->render(out, uiIndex);
         return true;
     }

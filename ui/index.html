@@ -717,6 +717,9 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       <div class="card"><h3><span class="cap">Formatos de saída comuns</span></h3>
         <div class="body"><div id="outfmt-list"></div>
         <p class="note" style="margin-top:10px" id="outfmt-note"></p></div></div>
+      <div class="card"><h3><span class="cap">Qualidade do Preview</span></h3>
+        <div class="body"><div id="previewq-list"></div>
+        <p class="note" style="margin-top:10px">Controla o tamanho dos monitores PROGRAM/PREVIEW e das miniaturas das câmeras na tela — não afeta a resolução real da transmissão/gravação. Baixe para computadores mais fracos ou com muitas câmeras; a mudança vale na hora, sem precisar reiniciar.</p></div></div>
       <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
         <div class="body">
           <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
@@ -1275,6 +1278,26 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     const name = $('#out-ndi-name').value.trim() || 'HB Studio Program';
     send('ndiout', ndiOutEnabled ? 'off' : 'on', name);
   });
+
+  // ---------- CONFIG: Qualidade do Preview ----------
+  // Mirrors Engine::previewQualityPresets() (src/app/engine.cpp) - keep both lists in sync.
+  const previewQPresets = [
+    { id: 'baixa', label: 'Baixa (mais leve)', desc: '320×180' },
+    { id: 'media', label: 'Média', desc: '480×270' },
+    { id: 'alta', label: 'Alta (padrão)', desc: '640×360' },
+    { id: 'maxima', label: 'Máxima (computadores potentes)', desc: '960×540' },
+  ];
+  function renderPreviewQ(id) {
+    const box = $('#previewq-list'); box.innerHTML = '';
+    previewQPresets.forEach(p => {
+      const f = document.createElement('div'); f.className = 'fmt' + (id === p.id ? ' on' : ''); f.setAttribute('role', 'radio'); f.tabIndex = 0;
+      f.innerHTML = `<span class="rd"></span><div><b>${p.label}</b><em>${p.desc}</em></div>`;
+      const pick = () => send('previewq', p.id);
+      f.onclick = pick; f.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+      box.appendChild(f);
+    });
+  }
+  renderPreviewQ('alta');   // shows the preset list immediately, before any previewq message arrives
   $('#log-cfg-copy').addEventListener('click', () => {
     const text = lastLog.map(l => l.t).join('\n');
     const note = $('#log-cfg-note');
@@ -1659,6 +1682,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
     else if (d.t === 'devformats') renderCamFormats(d);
     else if (d.t === 'outfmt') renderOutFmt(d);
+    else if (d.t === 'previewq') renderPreviewQ(d.id);
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }

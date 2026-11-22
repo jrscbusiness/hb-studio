@@ -423,6 +423,19 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await page.locator('#log-cfg-note').textContent()).includes('copiado'), 'copying confirms success to the user');
   await setState({});
 
+  console.log('\n[5a4] CONFIG: Qualidade do Preview (selecionável, aplica sem reiniciar)');
+  const pqRows = await page.locator('#previewq-list .fmt').count();
+  ok(pqRows === 4, 'four preview-quality presets are listed');
+  ok((await page.locator('#previewq-list .fmt.on').count()) === 1, '"alta" (the default) is marked selected before any previewq message arrives');
+  await clearSent();
+  const pqBaixa = page.locator('#previewq-list .fmt', { hasText: 'Baixa' });
+  await pqBaixa.click();
+  ok((await sent()).includes('previewq|baixa'), 'clicking a preset sends previewq with its id');
+  await page.evaluate(() => window.__hbMessage({ t: 'previewq', id: 'baixa' }));
+  ok((await pqBaixa.evaluate(e => e.classList.contains('on'))), 'the chosen preset becomes the one marked selected');
+  ok((await page.locator('#previewq-list .fmt.on').count()) === 1, 'only one preset is marked selected at a time');
+  await page.evaluate(() => window.__hbMessage({ t: 'previewq', id: 'alta' }));
+
   console.log('\n[5b] ÁUDIO: canais, efeitos, gravação');
   const AUDIO = () => ({ t: 'audio', ver: 1, strips: Array.from({ length: 8 }, (_, i) => ({ i, name: ['MIC 1', 'MIC 2', 'LINHA', 'SISTEMA', 'FAIXA 5', 'FAIXA 6', 'FAIXA 7', 'FAIXA 8'][i],
       input: { kind: i === 0 ? 'device' : 'none', id: i === 0 ? 'cap1' : '', name: i === 0 ? 'Microfone USB' : '', state: i === 0 ? 'online' : 'off', msg: '' },

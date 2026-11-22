@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <mutex>
@@ -14,13 +15,35 @@
 
 namespace hb::app {
 
+// One entry of the PVW/PGM monitor and input-tile render sizes used for the UI's own small,
+// JPEG-encoded preview images (the "Qualidade do Preview" setting in CONFIG) - entirely separate
+// from the Program Output's real resolution (set elsewhere, applies on restart). This exists
+// because every one of these UI frames is decoded from its source, composited, and JPEG-encoded
+// on every tick regardless of how small the result ends up on screen; a weaker computer with many
+// large sources spends real, avoidable CPU on this unless the operator can turn it down.
+struct PreviewQualityPreset {
+    const char* id;
+    const char* label;
+    int monitorW, monitorH;   // PVW/PGM monitors
+    int tileW, tileH;         // input tiles
+};
+
 // Application layer: owns the event bus, logger, test sources, switcher and
 // Program Output, independent of any window. The UI only calls this class.
 class Engine {
 public:
     static constexpr int kSourceCount = 16;  // 2 banks of 8 (see docs/ORCHESTRATION.md / UI bank selector)
-    static constexpr int kMonitorW = 640, kMonitorH = 360;  // PVW/PGM monitors in the UI
-    static constexpr int kTileW = 192, kTileH = 108;        // input tiles
+
+    // Index 2 ("alta") matches this app's established defaults (640x360 / 192x108) exactly, so a
+    // fresh install or one that never touched this setting behaves exactly as before this existed.
+    static const std::vector<PreviewQualityPreset>& previewQualityPresets();
+    static constexpr int kDefaultPreviewQualityIndex = 2;
+
+    // Returns the currently selected preset's id (e.g. "alta").
+    std::string previewQuality() const;
+    // false if `id` doesn't match any preset in previewQualityPresets(); true and applied (takes
+    // effect on the very next UI frame - no restart needed, unlike the Program Output resolution).
+    bool setPreviewQuality(const std::string& id);
 
     struct Snapshot {
         switcher::Switcher::State sw;
@@ -72,6 +95,11 @@ private:
     std::chrono::steady_clock::time_point lastSample_{};
     double fps_ = 0;
     video::Frame pgmFull_;
+
+    // Read every tick by renderUiFrame() (the feeder thread) and written occasionally by the UI
+    // message handler (a different thread) when the operator changes the setting - atomics avoid
+    // taking mutex_ on every single preview frame for something that changes this rarely.
+    std::atomic<int> previewQualityIndex_{kDefaultPreviewQualityIndex};
 };
 
 }  // namespace hb::app
