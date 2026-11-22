@@ -82,6 +82,28 @@ if(WIN32)
   # ---- Graphical application + installer (needs the WebView2 SDK, see CI / BUILD.md) ----
   set(HB_VERSION "0.3.0")
   string(REPLACE "." "," HB_VER_COMMA "${HB_VERSION},0")
+  # A plain "0.3.0" never changes between builds, so there was no way for anyone - including the
+  # person who just downloaded a fresh installer - to tell a brand new build apart from an old one
+  # just by looking at the version shown in the app or the installer. Append the short commit hash
+  # this build was made from (falls back to the bare version if git isn't available, e.g. a source
+  # tarball with no .git directory) to HB_VERSION_DISPLAY, used everywhere the version is shown to
+  # a person; HB_VER_COMMA (the binary FILEVERSION/PRODUCTVERSION resource fields, which must stay
+  # strictly numeric) is still derived from the clean, unsuffixed HB_VERSION above.
+  find_package(Git QUIET)
+  set(HB_GIT_HASH "")
+  if(GIT_EXECUTABLE)
+    execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --short=7 HEAD
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE HB_GIT_HASH
+      OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE HB_GIT_RESULT)
+    if(NOT HB_GIT_RESULT EQUAL 0)
+      set(HB_GIT_HASH "")
+    endif()
+  endif()
+  if(HB_GIT_HASH)
+    set(HB_VERSION_DISPLAY "${HB_VERSION}+${HB_GIT_HASH}")
+  else()
+    set(HB_VERSION_DISPLAY "${HB_VERSION}")
+  endif()
   set(HB_WEBVIEW2_DIR "${CMAKE_SOURCE_DIR}/third_party/webview2" CACHE PATH "Microsoft.Web.WebView2 NuGet package, extracted")
   if(EXISTS "${HB_WEBVIEW2_DIR}/build/native/include/WebView2.h")
     set(HB_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
@@ -102,7 +124,7 @@ if(WIN32)
       "${CMAKE_BINARY_DIR}/rc/app.rc" src/app/windows/rc/app.manifest)
     set_target_properties(hb_studio PROPERTIES OUTPUT_NAME HBStudio)
     target_include_directories(hb_studio PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
-    target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION}")
+    target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION_DISPLAY}")
     target_link_libraries(hb_studio PRIVATE hb_core hb_plugins hb_media hb_ndi hb_vcam_sender hb_streaming hb_streaming_win mfplat mf mfuuid comdlg32 ${HB_WIN_LIBS})
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
@@ -114,7 +136,7 @@ if(WIN32)
       "${CMAKE_BINARY_DIR}/rc/setup.rc" src/app/windows/rc/setup.manifest)
     set_target_properties(hb_setup PROPERTIES OUTPUT_NAME HBStudio-Setup)
     target_include_directories(hb_setup PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
-    target_compile_definitions(hb_setup PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION}")
+    target_compile_definitions(hb_setup PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION_DISPLAY}")
     target_link_libraries(hb_setup PRIVATE ${HB_WIN_LIBS})
     target_link_options(hb_setup PRIVATE /MANIFESTUAC:NO)
     add_dependencies(hb_setup hb_studio hb_vcam_source)

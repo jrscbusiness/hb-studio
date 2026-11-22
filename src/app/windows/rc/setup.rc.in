@@ -12,9 +12,9 @@ VS_VERSION_INFO VERSIONINFO
 BEGIN BLOCK "StringFileInfo" BEGIN BLOCK "041604B0" BEGIN
   VALUE "CompanyName", "HB Studio"
   VALUE "FileDescription", "Instalador do HB Studio"
-  VALUE "FileVersion", "@HB_VERSION@"
+  VALUE "FileVersion", "@HB_VERSION_DISPLAY@"
   VALUE "ProductName", "HB Studio"
-  VALUE "ProductVersion", "@HB_VERSION@"
+  VALUE "ProductVersion", "@HB_VERSION_DISPLAY@"
   VALUE "OriginalFilename", "HBStudio-Setup.exe"
   VALUE "LegalCopyright", "Copyright (c) 2026 Rafael Campos"
 END END
