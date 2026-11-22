@@ -173,34 +173,43 @@ void DShowSource::stop() {
 
 void DShowSource::run() {
     const HRESULT ci = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    // Permanent: a system-level problem that retrying cannot fix (missing DirectShow component,
+    // structurally unsupported pixel format, missing MJPEG decoder). Stops the loop for good.
     auto fail = [this](const std::string& msg) {
         std::lock_guard lock(mutex_);
         failed_ = true;
         error_ = msg;
     };
-    try {
-        // 1) find the device again by id
-        ComPtr<IMoniker> moniker;
-        for (auto& f : enumerateMonikers())
-            if (f.dev.id == id_) { moniker = f.moniker; break; }
-        if (!moniker) { fail("Dispositivo não encontrado (desconectado?)."); goto done; }
+    // Transient: something that commonly self-heals (device mid-initialization, another program
+    // briefly holding it, a virtual camera whose upstream feed hiccups or hasn't started yet).
+    // Leaves failed_ false so status() keeps reporting Connecting/NoSignal (not a dead-end Error)
+    // while run() keeps retrying in the background.
+    auto retryMsg = [this](const std::string& msg) {
+        std::lock_guard lock(mutex_);
+        error_ = msg;
+    };
+    // Waits `ms` unless stop() is requested first. Returns true if a stop was requested.
+    auto waitOrStop = [this](DWORD ms) { return WaitForSingleObject(stopEvent_, ms) == WAIT_OBJECT_0; };
 
-        // Two passes. Pass 0 forces RGB32 (today's established, zero-conversion-cost path),
-        // falling back to no subtype constraint if the pin negotiation itself fails outright
-        // (DroidCam's "ERRO" symptom). Some sources (OBS Virtual Camera is a confirmed real-world
-        // example) negotiate successfully - the pin connects, Run() succeeds - but then never
-        // actually push a single sample through it. That is DirectShow's connection succeeding
-        // while the filter itself silently stalls, and it is indistinguishable from "working, just
-        // hasn't produced a frame yet" until a grace period passes. So after Run(), each pass
-        // watches frames_ for a few seconds; if nothing ever arrives, the whole graph is torn down
-        // and pass 1 retries with no subtype constraint at all, letting intelligent-connect pick a
-        // different path from scratch rather than reusing the (apparently dead) RGB32 negotiation.
-        for (int pass = 0; pass < 2 && !failed_; ++pass) {
-            const bool forceRgb32 = (pass == 0);
+    try {
+        bool forceRgb32 = true;   // alternated on every retry, so persistence eventually tries both
+        for (;;) {
+            if (waitOrStop(0)) break;
+
+            ComPtr<IMoniker> moniker;
+            for (auto& f : enumerateMonikers())
+                if (f.dev.id == id_) { moniker = f.moniker; break; }
+            if (!moniker) {
+                retryMsg("Dispositivo não encontrado (desconectado?).");
+                if (waitOrStop(1500)) break;
+                continue;
+            }
+
             ComPtr<IBaseFilter> src;
             if (FAILED(moniker->BindToObject(nullptr, nullptr, IID_PPV_ARGS(&src))) || !src) {
-                fail("Não foi possível abrir o dispositivo (em uso por outro programa?).");
-                goto done;
+                retryMsg("Não foi possível abrir o dispositivo (em uso por outro programa?).");
+                if (waitOrStop(1500)) break;
+                continue;
             }
             ComPtr<IGraphBuilder> graph;
             ComPtr<ICaptureGraphBuilder2> cgb;
@@ -210,7 +219,7 @@ void DShowSource::run() {
                 FAILED(CoCreateInstance(kClsidSampleGrabber, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&grabberFilter))) ||
                 FAILED(CoCreateInstance(kClsidNullRenderer, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&nullFilter)))) {
                 fail("Componentes de vídeo do Windows (DirectShow) indisponíveis.");
-                goto done;
+                break;
             }
             cgb->SetFiltergraph(graph.Get());
             graph->AddFilter(src.Get(), L"Source");
@@ -219,7 +228,7 @@ void DShowSource::run() {
 
             ComPtr<ISampleGrabber> grabber;
             grabberFilter.As(&grabber);
-            if (!grabber) { fail("SampleGrabber indisponível."); goto done; }
+            if (!grabber) { fail("SampleGrabber indisponível."); break; }
 
             // TODO(camera-resolution): if requested_ is non-empty, QueryInterface the capture pin
             // for IAMStreamConfig and SetFormat() here, before RenderStream connects it - falling
@@ -261,8 +270,10 @@ void DShowSource::run() {
                 snprintf(b, sizeof b,
                         "Não foi possível conectar o vídeo do dispositivo (0x%08lX). Se for uma câmera incomum "
                         "(ex.: DroidCam), tente usá-la através do OBS Virtual Camera.", static_cast<unsigned long>(hr));
-                fail(b);
-                goto done;
+                retryMsg(b);
+                forceRgb32 = !forceRgb32;
+                if (waitOrStop(1500)) break;
+                continue;
             }
 
             AM_MEDIA_TYPE mt{};
@@ -287,7 +298,7 @@ void DShowSource::run() {
             freeMediaType(mt);
             if (!knownFormat) {
                 fail("Formato de vídeo da câmera não suportado por este aplicativo. Tente usá-la através do OBS Virtual Camera.");
-                goto done;
+                break;
             }
             {
                 std::lock_guard lock(mutex_);
@@ -297,7 +308,7 @@ void DShowSource::run() {
                     error_ = "Formato de vídeo inesperado.";
                 }
             }
-            if (negotiated == RawFormat::Mjpg) {
+            if (negotiated == RawFormat::Mjpg && !jpegDecoder_) {
                 jpegDecoder_ = std::make_unique<JpegDecoder>();
                 if (!jpegDecoder_->init()) {
                     std::lock_guard lock(mutex_);
@@ -305,7 +316,7 @@ void DShowSource::run() {
                     error_ = "Decodificador de vídeo MJPEG indisponível neste Windows.";
                 }
             }
-            if (failed_) goto done;
+            if (failed_) break;
 
             GrabCb cb(this);
             grabber->SetBufferSamples(FALSE);
@@ -316,40 +327,42 @@ void DShowSource::run() {
             graph.As(&control);
             if (!control || FAILED(control->Run())) {
                 grabber->SetCallback(nullptr, 0);
-                fail("O dispositivo não iniciou. Verifique Configurações › Privacidade e segurança › Câmera (permitir apps da área de trabalho) ou se outro programa o usa.");
-                goto done;
+                retryMsg("O dispositivo não iniciou. Verifique Configurações › Privacidade e segurança › Câmera (permitir apps da área de trabalho) ou se outro programa o usa.");
+                if (waitOrStop(1500)) break;
+                continue;
             }
             {
                 std::lock_guard lock(mutex_);
                 running_ = true;
                 runningSince_ = std::chrono::steady_clock::now();
-                frames_ = 0;       // count arrivals fresh for this pass's grace-period check below
+                frames_ = 0;       // count arrivals fresh for this connection attempt
                 fpsFrames_ = 0;
                 fps_ = 0;
             }
 
-            // Grace period: poll in short slices (instead of one INFINITE wait) so a connection
-            // that never delivers a frame can be detected and retried without the caller having
-            // to stop() first.
-            bool gotFrame = false;
-            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+            // Persistent watchdog, polled in short slices instead of one INFINITE wait, so two
+            // real-world failure shapes are both caught instead of leaving the UI stuck forever:
+            //  - connected but never delivered a single frame (some sources, e.g. a DirectShow
+            //    filter exposed by an NDI/virtual-camera tool with nothing actually feeding it);
+            //  - delivered a frame or two and then silently stopped (OBS Virtual Camera's
+            //    confirmed real-world symptom: the preview flashes for an instant, then "sem
+            //    sinal" forever) - today's established stale-frame threshold (1500ms, used by
+            //    status()) is too twitchy to tear down a whole graph over, so a longer stall
+            //    (5s) is required here before reconnecting.
+            bool stalled = false;
             for (;;) {
-                if (WaitForSingleObject(stopEvent_, 250) == WAIT_OBJECT_0) {
+                if (waitOrStop(250)) {
                     control->Stop();
                     grabber->SetCallback(nullptr, 0);
-                    goto done;
+                    { std::lock_guard lock(mutex_); running_ = false; }
+                    goto stopped;
                 }
-                {
-                    std::lock_guard lock(mutex_);
-                    gotFrame = frames_ > 0;
-                }
-                if (gotFrame || std::chrono::steady_clock::now() >= deadline) break;
-            }
-            if (gotFrame) {
-                WaitForSingleObject(stopEvent_, INFINITE);   // frames arrive on the streaming thread
-                control->Stop();
-                grabber->SetCallback(nullptr, 0);
-                goto done;
+                const auto now = std::chrono::steady_clock::now();
+                std::lock_guard lock(mutex_);
+                const bool everGotFrame = frames_ > 0;
+                const auto sinceLastFrame = everGotFrame ? (now - lastFrame_) : (now - runningSince_);
+                const auto threshold = everGotFrame ? std::chrono::seconds(5) : std::chrono::seconds(4);
+                if (sinceLastFrame > threshold) { stalled = true; break; }
             }
             control->Stop();
             grabber->SetCallback(nullptr, 0);
@@ -357,17 +370,17 @@ void DShowSource::run() {
                 std::lock_guard lock(mutex_);
                 running_ = false;
             }
-            if (pass == 1) {
-                fail("A câmera conectou mas não está enviando imagem. Reinicie-a no programa de origem (ex.: OBS) ou verifique se outro programa a está usando.");
-                goto done;
+            if (stalled) {
+                retryMsg("A câmera conectou mas não está enviando imagem (ou parou de enviar). Tentando reconectar automaticamente...");
+                forceRgb32 = !forceRgb32;
+                if (waitOrStop(800)) break;
+                continue;
             }
-            // pass 0 connected but never delivered a frame: fall through to pass 1 and retry
-            // without forcing RGB32.
         }
     } catch (...) {
         fail("Erro inesperado ao capturar o dispositivo.");
     }
-done:
+stopped:
     {
         std::lock_guard lock(mutex_);
         running_ = false;
@@ -467,7 +480,11 @@ video::SourceStatus DShowSource::status() const {
         s.state = S::Error;
         s.message = error_;
     } else if (!running_) {
+        // Between reconnect attempts, error_ may hold a transient retry message (set by run()'s
+        // retryMsg helper) - surface it so the camera list shows what's happening instead of a
+        // silent "conectando" that never seems to change.
         s.state = S::Connecting;
+        s.message = error_;
     } else if (frames_ == 0) {
         s.state = (now - runningSince_) < std::chrono::seconds(3) ? S::Connecting : S::NoSignal;
         if (s.state == S::NoSignal) s.message = "Sem imagem. Se for uma câmera virtual (ex.: OBS), inicie-a no programa de origem.";

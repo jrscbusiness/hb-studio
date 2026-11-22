@@ -62,13 +62,20 @@ TEST(NdiSource, GoesFromConnectingToOnlineWhenFramesArrive) {
     src.stop();
 }
 
-TEST(NdiSource, ErrorWhenReceiverCannotBeCreated) {
+TEST(NdiSource, RetriesWhenReceiverCannotBeCreated) {
+    // A source that is simply off right now (or the network hiccupped) must not become a
+    // permanent dead end: NdiSource keeps calling recvCreate in the background instead of giving
+    // up after the first failure.
     auto backend = std::make_shared<FakeNdiBackend>();
     backend->failRecvCreate = true;
     NdiSource src(makeSource(), backend);
     src.start();
-    ASSERT_TRUE(waitUntil([&] { return src.status().state == video::SourceStatus::State::Error; }));
-    EXPECT_FALSE(src.status().message.empty());
+    ASSERT_TRUE(waitUntil([&] { return !src.status().message.empty(); }));
+    EXPECT_NE(src.status().state, video::SourceStatus::State::Error);
+    const int callsSoFar = backend->recvCreateCalls.load();
+    ASSERT_TRUE(waitUntil([&] { return backend->recvCreateCalls.load() > callsSoFar; }, 3000ms))
+        << "must keep retrying recvCreate rather than giving up permanently";
+    EXPECT_NE(src.status().state, video::SourceStatus::State::Error);
     // render() must still be safe and never block/throw even though the source never connected.
     auto f = frame();
     EXPECT_NO_THROW(src.render(f, 0));
@@ -84,15 +91,20 @@ TEST(NdiSource, UnavailableBackendGivesAClearError) {
     src.stop();
 }
 
-TEST(NdiSource, HardErrorFromBackendIsReportedAndStopsCallingIt) {
+TEST(NdiSource, HardErrorFromBackendTriggersReconnectAndKeepsRetrying) {
+    // A hard error from one capture call used to be treated as terminal for the whole source.
+    // It's now treated as "this receiver instance is dead": NdiSource destroys it and creates a
+    // fresh one instead of leaving the camera stuck forever.
     auto backend = std::make_shared<FakeNdiBackend>();
     backend->mode = 2;  // hard error from the very first capture call
     NdiSource src(makeSource(), backend);
     src.start();
-    ASSERT_TRUE(waitUntil([&] { return src.status().state == video::SourceStatus::State::Error; }));
-    const int callsAtError = backend->captureCalls.load();
-    std::this_thread::sleep_for(100ms);
-    EXPECT_EQ(backend->captureCalls.load(), callsAtError) << "must not keep calling capture after a hard failure";
+    ASSERT_TRUE(waitUntil([&] { return backend->recvDestroyCalls.load() >= 1; }, 3000ms));
+    EXPECT_NE(src.status().state, video::SourceStatus::State::Error);
+    EXPECT_FALSE(src.status().message.empty());
+    const int recreatesSoFar = backend->recvCreateCalls.load();
+    ASSERT_TRUE(waitUntil([&] { return backend->recvCreateCalls.load() > recreatesSoFar; }, 3000ms))
+        << "must keep reconnecting rather than giving up after one hard error";
     auto f = frame();
     EXPECT_NO_THROW(src.render(f, 0));
     src.stop();
