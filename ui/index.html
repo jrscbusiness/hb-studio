@@ -69,14 +69,29 @@ button:disabled{cursor:not-allowed}
 /* ---------- layout ---------- */
 .app{height:100%;display:grid;grid-template-rows:60px 1fr 30px;min-width:900px}
 header{
-  display:grid;grid-template-columns:minmax(170px,260px) 1fr auto;align-items:center;padding:0 22px;
+  display:grid;grid-template-columns:minmax(110px,260px) minmax(0,1fr) auto;align-items:center;padding:0 22px;gap:8px;
   border-bottom:1px solid var(--line); background:var(--glass); backdrop-filter:blur(14px);
 }
 .brand{display:flex;align-items:center;gap:12px}
 .brand svg{width:30px;height:30px}
 .brand b{font-weight:700;letter-spacing:.34em;font-size:14px}
 .brand i{font-style:normal;color:var(--blue)}
-nav{display:flex;justify-content:center;gap:4px;position:relative}
+nav{display:flex;justify-content:center;gap:4px;position:relative;min-width:0;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{flex:none}
+/* centre the tabs when they fit, but never push the first ones out of reach when they overflow
+   (justify-content:center would clip them to the left of the scroll origin, unreachable) */
+nav{justify-content:flex-start}
+nav button:first-child{margin-left:auto}
+nav button:last-child{margin-right:auto}
+/* 9 tabs no longer fit at laptop widths with the roomy desktop spacing: tighten progressively so the
+   header never makes the whole page wider than the window (that clipped the right-hand controls). */
+@media (max-width:1600px){nav button{padding:8px 9px;letter-spacing:.05em;font-size:11px}}
+@media (max-width:1400px){nav button{padding:8px 5px;letter-spacing:0;font-size:10px}.brand b{display:none}}
+@media (max-width:1150px){nav button{padding:8px 3px;letter-spacing:0;font-size:9.5px}}
+/* the right-hand status chips are the other wide thing in the header: drop their small captions on
+   laptop widths (the values - fps, profile, ON/OFF - stay) so all 9 tabs remain visible */
+@media (max-width:1600px){.chips .chip .k{display:none}.chips .chip .dot+.k{display:none}}
 nav button{padding:8px 18px;border-radius:10px;font-size:11.5px;letter-spacing:.16em;font-weight:600;color:var(--muted);transition:.18s}
 nav button:hover{color:var(--ink);background:var(--mist)}
 nav button.on{color:var(--blue);background:var(--mist);box-shadow:inset 0 -2px 0 var(--blue)}
@@ -482,6 +497,25 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .fmt .ext{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;flex:none}
 .recstat{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;margin-top:10px}
 .recstat .k{color:var(--muted)}.recstat .v{font-family:var(--mono);text-align:right}
+/* FEATURE: multitrack */
+.mt-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 18px;margin-top:8px}
+.mt-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mt-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);font-size:12px;color:var(--ink);cursor:pointer;user-select:none}
+.mt-chip input{accent-color:var(--blue);margin:0}
+.mt-chip.on{border-color:var(--blue);background:var(--mist)}
+.mt-chip.off{color:var(--muted)}
+.mt-set{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.mt-set label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--ink-2);font-weight:600}
+.mt-set select,.mt-set input[type=number]{height:30px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12px;color:var(--ink);background:var(--surface);min-width:0;width:100%}
+.mt-est{margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);font-size:12px;color:var(--ink-2);line-height:1.5}
+.mt-est b{color:var(--ink)}
+.mt-est.warning,.mt-est.blocked{background:var(--warn-bg);border-color:var(--warn-line);color:var(--ink)}
+.mt-trk{display:grid;grid-template-columns:70px minmax(0,1fr) 90px 70px 70px 70px;gap:4px 10px;font-size:11.5px;align-items:center;padding:3px 0;border-bottom:1px solid var(--line)}
+.mt-trk .n{font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-trk .e{color:var(--warn-ink)}
+.mt-trk.h{color:var(--muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
+@media (max-width:1100px){.mt-grid{grid-template-columns:1fr 1fr}}
+
 .recbtn{height:34px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);padding:0 14px;display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.1em;font-size:11px;color:var(--ink-2)}
 .recbtn i{width:10px;height:10px;border-radius:50%;background:#B3261E}
 .recbtn:hover{border-color:#B3261E}
@@ -612,6 +646,52 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .mk-cfg{display:flex;gap:8px;flex-wrap:wrap}
 .mk-cfg input{flex:1 1 220px}
 /* /FEATURE: marketplace */
+/* FEATURE: chat */
+.chatwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;height:100%;min-height:0;padding:2px}
+.chatwrap.compact{grid-template-columns:minmax(0,1fr)}
+.chatwrap.compact .chatside{display:none}
+.chatmain{display:flex;flex-direction:column;min-height:0;min-width:0}
+.chatmain .body{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}
+.chat-tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chat-tools .btn{height:30px;font-size:10.5px;letter-spacing:.08em;padding:0 10px}
+.chat-tools .btn.on,.chatplat .btn.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+.chat-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chat-filters input[type=text],.chatside input[type=text],.chatside input[type=password]{height:30px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;font-size:12px;color:var(--ink);min-width:0;user-select:text}
+.chat-filters input[type=text]{flex:1;min-width:120px}
+.chat-filters label{display:flex;gap:5px;align-items:center;font-size:11.5px;color:var(--ink-2)}
+.cchip{display:inline-block;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fff;flex:none;line-height:16px;border:1px solid transparent;opacity:.95}
+.cchip.p-youtube{background:#D62B27}.cchip.p-facebook{background:#1877F2}.cchip.p-instagram{background:#C13584}.cchip.p-twitch{background:#9146FF}
+button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var(--line-2)}
+#chat-feed{flex:1;min-height:80px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:4px;user-select:text}
+.cm{display:flex;gap:7px;align-items:baseline;padding:4px 8px;border-radius:8px;cursor:pointer;line-height:1.35;font-size:13px;min-width:0}
+.cm:hover{background:var(--mist)}
+.cm.pinned{outline:2px solid var(--blue);background:var(--mist)}
+.cm .ct{font-family:var(--mono);font-size:10.5px;color:var(--muted);flex:none}
+.cm .ca{font-weight:700;flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cm .cx{min-width:0;overflow-wrap:anywhere}
+.cm .cb{font-size:9.5px;font-weight:700;color:var(--on-accent);background:var(--blue);border-radius:4px;padding:0 4px;flex:none}
+.cm .cmute{margin-left:auto;flex:none;visibility:hidden;font-size:11px;color:var(--muted);padding:0 4px;border-radius:5px}
+.cm:hover .cmute{visibility:visible}.cm .cmute:hover{color:var(--ink);background:var(--line)}
+.chatwrap.compact .cm{font-size:12px;padding:2px 6px}
+.chat-hint{font-size:11px;color:var(--muted)}
+.chatside{overflow:auto;min-height:0}
+.chatplat{border:1px solid var(--line);border-radius:12px;padding:9px 10px;background:var(--surface);margin-bottom:8px}
+.chatplat .hd{display:flex;gap:7px;align-items:center}
+.chatplat .st{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.08em;color:var(--ink-2);text-align:right}
+.chatplat .dot.s-connected{background:#2FB266}.chatplat .dot.s-backoff,.chatplat .dot.s-connecting{background:var(--warn)}
+.chatplat .dot.s-failed,.chatplat .dot.s-needs_auth{background:#D14343}.chatplat .dot.s-unavailable{background:var(--muted)}
+.chatplat .dt{font-size:11px;color:var(--ink-2);margin:5px 0;line-height:1.4;overflow-wrap:anywhere}
+.chatplat .er{font-size:10.5px;color:var(--warn-ink);overflow-wrap:anywhere}
+.chatplat .row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.chatplat .row .btn{height:28px;font-size:10px;letter-spacing:.07em;flex:1;min-width:0;padding:0 6px}
+.chatplat .cfg{display:none;margin-top:8px;gap:5px;flex-direction:column}
+.chatplat.open .cfg{display:flex}
+.chatplat .cfg label{font-size:10.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
+.chatplat .cfg input{width:100%}
+.chat-muted{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.chat-muted button{font-size:11px;border:1px solid var(--line-2);border-radius:8px;padding:2px 8px;background:var(--surface);color:var(--ink-2)}
+@media (max-width:1180px){.chatwrap{grid-template-columns:minmax(0,1fr) 270px}}
+/* /FEATURE: chat */
 </style>
 </head>
 <body>
@@ -624,6 +704,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     <nav id="tabs">
       <button data-v="xmit">TRANSMISSÃO</button>
       <button data-v="gfx">GRÁFICOS</button><!-- FEATURE: overlays -->
+      <button data-v="chat">CHAT</button><!-- FEATURE: chat -->
       <button class="on" data-v="prod">PRODUÇÃO</button>
       <button data-v="cam">CÂMERAS</button>
       <button data-v="tp">TELEPROMPTER</button><!-- FEATURE: teleprompter -->
@@ -821,6 +902,39 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       </div>
     </section>
 
+    <!-- FEATURE: chat -->
+    <section class="view" id="v-chat">
+      <div class="chatwrap" id="chat-wrap">
+        <div class="card chatmain">
+          <h3><span class="cap">Chat unificado</span><span class="cap mono" id="chat-count">0 mensagens</span></h3>
+          <div class="body">
+            <div class="chat-tools">
+              <button class="btn sm" id="chat-pause" title="Pausar a rolagem automática">PAUSAR ROLAGEM</button>
+              <button class="btn sm" id="chat-compact" title="Modo compacto: esconde o painel de conexões">COMPACTO</button>
+              <button class="btn sm" id="chat-unpin" title="Tira a mensagem destacada da transmissão">LIMPAR DESTAQUE</button>
+              <button class="btn sm" id="chat-clear" title="Limpa a lista (não apaga nada nas plataformas)">LIMPAR LISTA</button>
+            </div>
+            <div class="chat-filters" id="chat-filters">
+              <button class="cchip p-youtube" data-p="youtube">YOUTUBE</button>
+              <button class="cchip p-facebook" data-p="facebook">FACEBOOK</button>
+              <button class="cchip p-instagram" data-p="instagram">INSTAGRAM</button>
+              <button class="cchip p-twitch" data-p="twitch">TWITCH</button>
+              <label><input type="checkbox" id="chat-hidecmd">ocultar comandos</label>
+              <label><input type="checkbox" id="chat-hidebot">ocultar bots</label>
+              <input type="text" id="chat-search" placeholder="Buscar autor ou texto" aria-label="Buscar no chat" maxlength="80">
+            </div>
+            <div id="chat-feed" role="log" aria-live="off"></div>
+            <div class="chat-hint">Clique em uma mensagem para destacá-la no ar (precisa de um elemento “Chat fixado” em GRÁFICOS). Silenciar um usuário só vale aqui, não nas plataformas.</div>
+          </div>
+        </div>
+        <div class="card chatside">
+          <h3><span class="cap">Conexões</span></h3>
+          <div class="body" id="chat-plats"></div>
+        </div>
+      </div>
+    </section>
+    <!-- /FEATURE: chat -->
+
     <!-- FEATURE: teleprompter -->
     <section class="view" id="v-tp">
       <div class="card">
@@ -905,6 +1019,28 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
             <div id="fmt-video"></div><div id="fmt-audio"></div>
           </div>
         </div>
+        <!-- FEATURE: multitrack -->
+        <div class="card" id="mt-card" style="grid-column:1/-1"><h3><span class="cap">Multipista (ISO)</span><button class="btn sm" id="mt-open" style="flex:none">ABRIR PASTA</button></h3>
+          <div class="body">
+            <p class="note">Grava cada câmera (limpa, sem overlays) e cada canal do mixer em arquivos separados, numa pasta por sessão com <b>program</b>, <b>iso\</b>, <b>audio\</b> e <b>session.json</b> (sincronismo). Padrão: nada além do Program.</p>
+            <div class="mt-grid">
+              <div><span class="cap">Câmeras</span><div class="mt-list" id="mt-cams"></div></div>
+              <div><span class="cap">Canais de áudio</span><div class="mt-list" id="mt-chans"></div></div>
+              <div class="mt-set">
+                <label>Resolução<select id="mt-res"><option value="native">Nativa da câmera</option><option value="1080">1080p</option><option value="720">720p</option><option value="540">540p</option></select></label>
+                <label>Quadros/s<select id="mt-fps"><option value="program">Igual ao Program</option><option>24</option><option>25</option><option>30</option><option>50</option><option>60</option></select></label>
+                <label>Formato do áudio<select id="mt-afmt"></select></label>
+                <label>Ponto do áudio<select id="mt-tap"><option value="pre">Antes do fader</option><option value="post">Depois do fader</option></select></label>
+                <label>Vídeo (kbps, 0 = auto)<input type="number" id="mt-vkbps" min="0" max="100000" step="500"></label>
+                <label>Dividir a cada (min, 0 = não)<input type="number" id="mt-rotmin" min="0" max="1440"></label>
+                <label style="grid-column:1/-1;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="mt-expert"> Modo avançado: permitir acima do limite seguro</label>
+              </div>
+            </div>
+            <div class="mt-est" id="mt-est"></div>
+            <div id="mt-tracks" style="margin-top:10px"></div>
+          </div>
+        </div>
+        <!-- /FEATURE: multitrack -->
         <div class="col">
           <div class="card"><h3><span class="cap">Gravação</span><button class="recbtn" id="rec-btn2" style="flex:none"><i></i><span>GRAVAR</span></button></h3>
             <div class="body">
@@ -1504,6 +1640,7 @@ body.cur{cursor:default}
   $$('#tabs button').forEach(b => b.addEventListener('click', () => {
     $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
     $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.v));
+    try { b.scrollIntoView({block: 'nearest', inline: 'nearest'}); } catch (e) {}   // nav scrolls when the 10 tabs don't fit
   }));
   addEventListener('keydown', e => {
     if (e.repeat) return;
@@ -2363,6 +2500,48 @@ body.cur{cursor:default}
     $('#rec-stat').innerHTML = rows.map(r => `<span class="k">${r[0]}</span><span class="v">${esc(r[1])}</span>`).join('');
     $('#rec-err').textContent = recst.error ? 'Erro: ' + recst.error : '';
   }
+  // ---- FEATURE: multitrack ----
+  let miso = null;
+  const mtNum = (n, d) => Number(n).toFixed(d == null ? 1 : d).replace('.', ',');
+  function renderMultitrack(d) {
+    miso = d;
+    const lock = !!d.locked;
+    const chip = (kind, id, label, on, live, title) => `<label class="mt-chip${on ? ' on' : ''}${live ? '' : ' off'}" title="${esc(title || '')}"><input type="checkbox" data-mt="${kind}" data-id="${id}" ${on ? 'checked' : ''} ${lock ? 'disabled' : ''}>${esc(label)}</label>`;
+    $('#mt-cams').innerHTML = d.cams.length ? d.cams.map(c => chip('cam', c.slot, c.label + (c.device ? ' · ' + c.device : '') + (c.live ? '' : ' (sem sinal)'), c.sel, c.live, c.w ? c.w + '×' + c.h : '')).join('') : '<span class="note">Nenhuma câmera ao vivo.</span>';
+    $('#mt-chans').innerHTML = d.chans.map(c => chip('ch', c.strip, c.name, c.sel, true)).join('');
+    const fa = $('#mt-afmt'); if (document.activeElement !== fa) fa.innerHTML = d.formats.map(f => `<option value="${esc(f.id)}">${esc(f.label)}</option>`).join('');
+    const set = (id, v) => { const el = $(id); if (el && document.activeElement !== el) el.value = v; };
+    set('#mt-res', d.cfg.res); set('#mt-fps', d.cfg.fps); set('#mt-afmt', d.cfg.afmt); set('#mt-tap', d.cfg.tap); set('#mt-vkbps', d.cfg.vkbps); set('#mt-rotmin', d.cfg.rotmin);
+    $('#mt-expert').checked = !!d.cfg.expert;
+    for (const id of ['#mt-res', '#mt-fps', '#mt-afmt', '#mt-tap', '#mt-vkbps', '#mt-rotmin', '#mt-expert']) $(id).disabled = lock;
+    const e = d.est, nTracks = e.video + e.audio;
+    let h;
+    if (!nTracks) h = 'Nada selecionado: grava somente o Program, como sempre.';
+    else {
+      h = `<b>${e.video}</b> câmera(s) + <b>${e.audio}</b> canal(is): disco <b>${mtNum(e.mbps)} MB/s</b> (~${mtNum(e.gbh)} GB/h, com o Program)` +
+        (e.minutes >= 0 ? `, espaço para ~<b>${Math.round(e.minutes)} min</b>` : '') +
+        `<br>Carga de codificação estimada: <b>${Math.round(e.load)}%</b> do limite seguro (nível ${esc(e.tier)}${e.video ? ', até ' + e.maxCams + ' câmera(s) nesse formato' : ''}).`;
+    }
+    if (e.verdict === 'blocked') h += '<br><b>Bloqueado:</b> reduza o plano ou ative o modo avançado.';
+    else if (e.verdict === 'warning') h += '<br><b>Atenção:</b> perto ou acima do limite seguro.';
+    if (e.notes && e.notes.length) h += '<br>' + e.notes.map(esc).join('<br>');
+    const box = $('#mt-est'); box.className = 'mt-est ' + e.verdict; box.innerHTML = h;
+    const s = d.sess; let t = '';
+    if (s && s.tracks && s.tracks.length) {
+      t = '<div class="mt-trk h"><span>Trilha</span><span>Nome</span><span>Estado</span><span>Tempo</span><span>Perdidos</span><span>Repet./sil.</span></div>' +
+        s.tracks.map(k => `<div class="mt-trk"><span class="n">${esc(k.id)}</span><span class="n" title="${esc(k.error || '')}">${esc(k.name)}${k.error ? ' <span class="e">' + esc(k.error) + '</span>' : ''}</span><span>${esc({recording: 'gravando', finished: 'finalizada', error: 'erro', 'disk-stopped': 'parada: disco', 'not-started': '—'}[k.state] || k.state)}</span><span class="n">${fmtTime(k.seconds)}</span><span class="n">${k.dropped}</span><span class="n">${k.kind === 'video' ? k.repeated : k.silence}</span></div>`).join('');
+      if (s.warnings && s.warnings.length) t += '<p class="note err" style="margin-top:6px">' + s.warnings.map(esc).join('<br>') + '</p>';
+      if (s.active) t += `<p class="note" style="margin-top:6px">Espaço livre: ${fmtBytes(s.free || 0)} · pasta: ${esc(s.dir)}</p>`;
+    }
+    $('#mt-tracks').innerHTML = t;
+  }
+  $('#mt-cams').addEventListener('change', ev => { const c = ev.target; if (c.dataset.mt) send('rec', 'iso', c.dataset.mt, c.dataset.id, c.checked ? 1 : 0); });
+  $('#mt-chans').addEventListener('change', ev => { const c = ev.target; if (c.dataset.mt) send('rec', 'iso', c.dataset.mt, c.dataset.id, c.checked ? 1 : 0); });
+  for (const [id, key] of [['#mt-res', 'res'], ['#mt-fps', 'fps'], ['#mt-afmt', 'afmt'], ['#mt-tap', 'tap'], ['#mt-vkbps', 'vkbps'], ['#mt-rotmin', 'rotmin']])
+    $(id).addEventListener('change', ev => send('rec', 'iso', 'cfg', key, ev.target.value));
+  $('#mt-expert').addEventListener('change', ev => send('rec', 'iso', 'cfg', 'expert', ev.target.checked ? 1 : 0));
+  $('#mt-open').onclick = () => send('rec', 'iso', 'open');
+  // ---- /FEATURE ----
   const recToggle = () => send('rec', (recst.state === 'recording') ? 'stop' : 'start');
   $('#rec-btn').onclick = $('#rec-btn2').onclick = recToggle;
   $('#rc-pick').onclick = () => send('rec', 'pickfolder');
@@ -3105,6 +3284,168 @@ body.cur{cursor:default}
     if (d.ok) delete mkCtx[d.id];
   }
   // ---------- /FEATURE: marketplace ----------
+  // ---------- FEATURE: chat ---------- unified live chat (YouTube / Facebook / Instagram / Twitch), docs/CHAT.md
+  const chatPlats = [
+    {p: 'youtube', name: 'YouTube'}, {p: 'facebook', name: 'Facebook'},
+    {p: 'instagram', name: 'Instagram'}, {p: 'twitch', name: 'Twitch'},
+  ];
+  const chatStateLabel = {connected: 'CONECTADO', connecting: 'CONECTANDO', backoff: 'RECONECTANDO', needs_auth: 'PRECISA AUTORIZAR',
+    failed: 'ERRO', ended: 'ENCERRADO', unavailable: 'LIMITADO / INDISPONÍVEL', disconnected: 'DESCONECTADO'};
+  const chat = {msgs: [], max: 500, off: {}, hideCmd: false, hideBot: false, q: '', paused: false, compact: false, lastBatch: 0,
+    muted: [], pinned: 0, status: null, cfg: null, open: {}};
+  const chatFeed = $('#chat-feed');
+  const chatPass = m => !chat.off[m.p] && !(chat.hideCmd && m.cmd) && !(chat.hideBot && m.bot) && !chat.muted.includes(m.uk) &&
+    (!chat.q || (m.a + ' ' + m.x).toLowerCase().includes(chat.q));
+  const chatTime = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  // Message text is only ever assigned through textContent: chat content is hostile input.
+  function chatNode(m) {
+    const row = document.createElement('div'); row.className = 'cm' + (chat.pinned === m.n ? ' pinned' : ''); row.dataset.n = m.n;
+    const t = document.createElement('span'); t.className = 'ct'; t.textContent = chatTime(m.ts);
+    const c = document.createElement('span'); c.className = 'cchip p-' + m.p; c.textContent = (chatPlats.find(x => x.p === m.p) || {name: m.p}).name.toUpperCase();
+    const a = document.createElement('span'); a.className = 'ca'; a.textContent = m.a;
+    row.append(t, c);
+    if (m.b & 3) { const b = document.createElement('span'); b.className = 'cb'; b.textContent = (m.b & 2) ? 'DONO' : 'MOD'; row.append(b); }
+    const x = document.createElement('span'); x.className = 'cx'; x.textContent = m.x;
+    const mu = document.createElement('span'); mu.className = 'cmute'; mu.textContent = '⊘'; mu.title = 'Silenciar este usuário (só aqui)';
+    mu.dataset.mute = m.n;
+    row.append(a, x, mu);
+    return row;
+  }
+  const chatNearBottom = () => chatFeed.scrollHeight - chatFeed.scrollTop - chatFeed.clientHeight < 48;
+  const chatCount = () => { $('#chat-count').textContent = chat.msgs.length + (chat.msgs.length === 1 ? ' mensagem' : ' mensagens'); };
+  function chatRenderAll() {
+    chatFeed.textContent = '';
+    const frag = document.createDocumentFragment();
+    chat.msgs.filter(chatPass).slice(-300).forEach(m => frag.appendChild(chatNode(m)));
+    chatFeed.appendChild(frag);
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+    chatCount();
+  }
+  function chatAppend(list) {
+    const stick = !chat.paused && chatNearBottom();
+    list.filter(chatPass).forEach(m => chatFeed.appendChild(chatNode(m)));
+    while (chatFeed.childElementCount > 300) chatFeed.removeChild(chatFeed.firstChild);
+    if (stick) chatFeed.scrollTop = chatFeed.scrollHeight;
+    chatCount();
+  }
+  let chatResync = false;
+  function chatBatch(d) {
+    const gap = !d.reset && chat.lastBatch && d.seq !== chat.lastBatch + 1;
+    chat.lastBatch = d.seq;
+    if (d.reset) chat.msgs = [];
+    const list = d.msgs || [];
+    chat.msgs = chat.msgs.concat(list).slice(-chat.max);
+    if (d.reset) chatRenderAll(); else chatAppend(list);
+    if (gap && !chatResync) { chatResync = true; send('chatget'); setTimeout(() => { chatResync = false; }, 2000); }   // missed a batch: ask for the history again
+  }
+  function chatRenderPlats() {
+    const box = $('#chat-plats');
+    if (box.contains(document.activeElement) && document.activeElement.matches('input[type=text],input[type=password]')) return;   // never rebuild a form being typed in
+    box.textContent = '';
+    const st = chat.status || {platforms: []}, cfg = chat.cfg || {};
+    chatPlats.forEach(pl => {
+      const s = (st.platforms || []).find(x => x.p === pl.p) || {state: 'disconnected', detail: '', error: ''};
+      const card = document.createElement('div'); card.className = 'chatplat' + (chat.open[pl.p] ? ' open' : ''); card.dataset.p = pl.p;
+      const hd = document.createElement('div'); hd.className = 'hd';
+      const chip = document.createElement('span'); chip.className = 'cchip p-' + pl.p; chip.textContent = pl.name.toUpperCase();
+      const dot = document.createElement('span'); dot.className = 'dot s-' + s.state;
+      const lab = document.createElement('span'); lab.className = 'st'; lab.textContent = chatStateLabel[s.state] || s.state;
+      hd.append(chip, dot, lab); card.appendChild(hd);
+      const dt = document.createElement('div'); dt.className = 'dt'; dt.textContent = s.detail || ''; card.appendChild(dt);
+      if (s.error && s.state !== 'connected') { const er = document.createElement('div'); er.className = 'er'; er.textContent = s.error; card.appendChild(er); }
+      if (pl.p === 'youtube' && s.quota) { const q = document.createElement('div'); q.className = 'dt'; q.textContent = '≈ ' + s.quota + ' unidades de cota usadas nesta sessão (limite padrão: 10.000/dia)'; card.appendChild(q); }
+      const row = document.createElement('div'); row.className = 'row';
+      const mk = (txt, act, cls) => { const b = document.createElement('button'); b.className = 'btn sm' + (cls ? ' ' + cls : ''); b.textContent = txt; b.dataset.act = act; row.appendChild(b); return b; };
+      mk(s.want ? 'DESCONECTAR' : 'CONECTAR', s.want ? 'disconnect' : 'connect', s.want ? 'on' : '');
+      if (pl.p !== 'instagram') mk(chat.open[pl.p] ? 'FECHAR' : 'CONFIGURAR', 'cfg');
+      card.appendChild(row);
+      const f = document.createElement('div'); f.className = 'cfg';
+      const field = (id, label, type, val, ph) => { const l = document.createElement('label'); l.textContent = label; const i = document.createElement('input'); i.type = type; i.id = id; i.value = val || ''; i.placeholder = ph || ''; i.autocomplete = 'off'; i.maxLength = 300; l.appendChild(i); f.appendChild(l); };
+      const note = txt => { const n = document.createElement('div'); n.className = 'dt'; n.textContent = txt; f.appendChild(n); };
+      if (pl.p === 'youtube') {
+        const c = cfg.youtube || {};
+        field('chat-yt-video', 'ID ou link do vídeo ao vivo', 'text', c.videoId, 'ex.: dQw4w9WgXcQ');
+        field('chat-yt-cid', 'Client ID do Google (tipo “App para computador”)', 'text', c.clientId, 'xxxx.apps.googleusercontent.com');
+        field('chat-yt-sec', 'Client secret (opcional)', 'password', '', c.hasSecret ? c.secretHint + ' (salvo)' : '');
+        note(c.authorized ? 'Conta Google autorizada.' : 'Conta Google ainda não autorizada.');
+        if (st.auth && st.auth.message) note(st.auth.message);
+      } else if (pl.p === 'facebook') {
+        const c = cfg.facebook || {};
+        field('chat-fb-video', 'ID do vídeo ao vivo', 'text', c.liveVideoId, 'ex.: 1234567890');
+        field('chat-fb-tok', 'Token de acesso da Página', 'password', '', c.hasToken ? c.tokenHint + ' (salvo)' : '');
+      } else if (pl.p === 'twitch') {
+        field('chat-tw-ch', 'Canal', 'text', (cfg.twitch || {}).channel, 'nome do canal');
+        note('Leitura anônima: não precisa de login nem token.');
+      }
+      if (pl.p !== 'instagram') {
+        const r2 = document.createElement('div'); r2.className = 'row';
+        const add = (txt, act, cls) => { const b = document.createElement('button'); b.className = 'btn sm' + (cls ? ' ' + cls : ''); b.textContent = txt; b.dataset.act = act; r2.appendChild(b); };
+        add('SALVAR', 'save', 'primary');
+        if (pl.p === 'youtube') add('AUTORIZAR', 'auth');
+        if (pl.p !== 'twitch') add('REMOVER CREDENCIAIS', 'clear');
+        f.appendChild(r2);
+      }
+      card.appendChild(f);
+      box.appendChild(card);
+    });
+    const extra = document.createElement('div');
+    const mh = document.createElement('div'); mh.className = 'dt'; mh.textContent = chat.muted.length ? 'Silenciados (clique para liberar):' : 'Nenhum usuário silenciado.';
+    extra.appendChild(mh);
+    const mm = document.createElement('div'); mm.className = 'chat-muted';
+    chat.muted.forEach(k => { const b = document.createElement('button'); b.textContent = k; b.dataset.unmute = k; mm.appendChild(b); });
+    extra.appendChild(mm);
+    const pl2 = document.createElement('label'); pl2.className = 'dt'; pl2.style.display = 'flex'; pl2.style.gap = '6px'; pl2.style.marginTop = '8px';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'chat-persist'; cb.checked = !!cfg.persist;
+    pl2.append(cb, document.createTextNode('Salvar mensagens em arquivo (chat_log.jsonl). Desligado por padrão, por privacidade.'));
+    extra.appendChild(pl2);
+    if (cfg.net === false) { const n = document.createElement('div'); n.className = 'er'; n.textContent = 'Rede indisponível nesta plataforma.'; extra.appendChild(n); }
+    box.appendChild(extra);
+  }
+  $('#chat-plats').addEventListener('click', ev => {
+    const un = ev.target.closest('[data-unmute]'); if (un) { send('chatunmute', un.dataset.unmute); return; }
+    const b = ev.target.closest('[data-act]'); if (!b) return;
+    const p = b.closest('.chatplat').dataset.p, v = id => ($('#' + id) || {value: ''}).value.trim();
+    const act = b.dataset.act;
+    if (act === 'connect') send('chatconnect', p);
+    else if (act === 'disconnect') send('chatdisconnect', p);
+    else if (act === 'cfg') { chat.open[p] = !chat.open[p]; chatRenderPlats(); }
+    else if (act === 'auth') send('chatauth', 'youtube');
+    else if (act === 'clear') { if (confirm('Remover as credenciais salvas de ' + p + '?')) send('chatclear', p); }
+    else if (act === 'save') {
+      const payload = p === 'youtube' ? {videoId: v('chat-yt-video'), clientId: v('chat-yt-cid'), clientSecret: v('chat-yt-sec')}
+        : p === 'facebook' ? {liveVideoId: v('chat-fb-video'), token: v('chat-fb-tok')} : {channel: v('chat-tw-ch')};
+      send('chatsave', p, JSON.stringify(payload));
+    }
+  });
+  $('#chat-plats').addEventListener('change', ev => { if (ev.target.id === 'chat-persist') send('chatopt', 'persist', ev.target.checked ? 1 : 0); });
+  chatFeed.addEventListener('click', ev => {
+    const mu = ev.target.closest('[data-mute]');
+    if (mu) { ev.stopPropagation(); send('chatmute', mu.dataset.mute); return; }
+    const row = ev.target.closest('.cm'); if (!row) return;
+    chat.pinned = +row.dataset.n;
+    chatFeed.querySelectorAll('.cm.pinned').forEach(e => e.classList.remove('pinned'));
+    row.classList.add('pinned');
+    send('chatpin', row.dataset.n);
+  });
+  $('#chat-unpin').addEventListener('click', () => { chat.pinned = 0; chatFeed.querySelectorAll('.cm.pinned').forEach(e => e.classList.remove('pinned')); send('chatunpin'); });
+  $('#chat-clear').addEventListener('click', () => { chat.msgs = []; chatRenderAll(); send('chatclearfeed'); });
+  $('#chat-pause').addEventListener('click', () => {
+    chat.paused = !chat.paused; $('#chat-pause').classList.toggle('on', chat.paused);
+    $('#chat-pause').textContent = chat.paused ? 'RETOMAR ROLAGEM' : 'PAUSAR ROLAGEM';
+    if (!chat.paused) chatFeed.scrollTop = chatFeed.scrollHeight;
+  });
+  $('#chat-compact').addEventListener('click', () => { chat.compact = !chat.compact; $('#chat-compact').classList.toggle('on', chat.compact); $('#chat-wrap').classList.toggle('compact', chat.compact); });
+  $$('#chat-filters .cchip').forEach(b => b.addEventListener('click', () => { chat.off[b.dataset.p] = !chat.off[b.dataset.p]; b.classList.toggle('off', !!chat.off[b.dataset.p]); chatRenderAll(); }));
+  $('#chat-hidecmd').addEventListener('change', ev => { chat.hideCmd = ev.target.checked; chatRenderAll(); });
+  $('#chat-hidebot').addEventListener('change', ev => { chat.hideBot = ev.target.checked; chatRenderAll(); });
+  $('#chat-search').addEventListener('input', ev => { chat.q = ev.target.value.trim().toLowerCase(); chatRenderAll(); });
+  function chatMsg(d) {
+    if (d.t === 'chat_msgs') chatBatch(d);
+    else if (d.t === 'chat_status') { chat.status = d; const before = chat.muted.join('|'); chat.muted = d.muted || []; chatRenderPlats(); if (before !== chat.muted.join('|')) chatRenderAll(); }
+    else if (d.t === 'chat_settings') { chat.cfg = d; chatRenderPlats(); }
+  }
+  chatRenderPlats();   // shows the four platform cards immediately, before any chat_status arrives
+  // ---------- /FEATURE: chat ----------
 
   // ---- FEATURE: cloudbackup ---- CONFIG card "Backup em nuvem" (credentials are write-only: the host only sends masked hints)
   let cbSt = null, cbDirty = false, cbProv = 's3', cbSig = '';
@@ -3211,12 +3552,13 @@ body.cur{cursor:default}
     else if (d.t === 'remote') renderRemote(d);   /* FEATURE: remote */
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);
+    else if (typeof d.t === 'string' && d.t.startsWith('chat_')) chatMsg(d);   // FEATURE: chat
     else if (d.t === 'overlay_state') ovState(d);   // FEATURE: overlays
     else if (typeof d.t === 'string' && d.t.startsWith('ai_')) aiMsg(d);   // FEATURE: ai
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'cloud_state') cbRender(d);   // FEATURE: cloudbackup
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
-    else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
+    else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); } else if (d.t === 'rec_iso') renderMultitrack(d);   /* FEATURE: multitrack */
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
   if (host) send('aiget');   // FEATURE: ai

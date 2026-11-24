@@ -11,6 +11,7 @@
 #include <string>
 
 #include "audio_io/audio_engine.hpp"
+#include "app/iso_service.hpp"   // FEATURE: multitrack
 #include "plugins/service.hpp"
 #include "recording/recorder.hpp"
 #include "video/program_output.hpp"
@@ -57,6 +58,10 @@ public:
     void syncVst3Effects(const std::vector<std::string>& extraFolders = {});
 
     audio_io::AudioEngine& audio() { return audio_; }
+    // ---- FEATURE: multitrack ----
+    IsoService& iso() { return *iso_; }
+    std::string isoFolder() const;   // last multitrack session folder (or the recording folder): "open folder" button
+    // ---- /FEATURE ----
     bool recording() const;
     RecordingSettings settings() const;
     bool setFolder(const std::string& folderUtf8);   // from the native folder dialog
@@ -83,6 +88,7 @@ private:
     video::ProgramOutput::ConsumerId vConsumer_ = 0;
     audio_io::AudioEngine::ConsumerId aConsumer_ = 0;
     bool haveV_ = false, haveA_ = false;
+    std::unique_ptr<IsoService> iso_;   // FEATURE: multitrack
     std::set<std::string> pluginFxSources_;
     std::set<std::string> vst3FxSources_;
     std::string lastRecError_, lastFile_;

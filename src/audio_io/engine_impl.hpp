@@ -93,6 +93,19 @@ struct ConsumerList {
     std::vector<std::shared_ptr<ConsumerEntry>> items;
 };
 
+// ---- FEATURE: multitrack ----
+struct TapEntry {
+    AudioEngine::ConsumerId id = 0;
+    int strip = 0;
+    bool post = false;
+    AudioEngine::StripConsumer fn;
+    float gainCur = 1.0f;   // engine thread only
+};
+struct TapList {
+    std::vector<std::shared_ptr<TapEntry>> items;
+};
+// ---- /FEATURE ----
+
 struct AudioEngine::Impl {
     explicit Impl(EngineOptions o);
 
@@ -141,6 +154,11 @@ struct AudioEngine::Impl {
     std::mutex consMutex;
     std::shared_ptr<ConsumerList> consOwner;
     std::atomic<const ConsumerList*> consPub{nullptr};
+    // ---- FEATURE: multitrack ----
+    std::shared_ptr<TapList> tapOwner;
+    std::atomic<const TapList*> tapPub{nullptr};
+    std::vector<float> tapBuf = std::vector<float>(kBlockFrames * 2, 0.0f);
+    // ---- /FEATURE ----
     std::atomic<std::thread::id> engineThreadId{};
     AudioEngine::ConsumerId nextConsumer = 1;
 
