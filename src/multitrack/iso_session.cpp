@@ -83,6 +83,7 @@ bool IsoSession::start(std::string& error) {
         error = "nao foi possivel criar a pasta da sessao";
         return false;
     }
+    warnings_ = cfg_.warnings;
     clock_.start();
     freeBytes_ = cfg_.freeSpace(cfg_.sessionDir);
 

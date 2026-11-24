@@ -41,6 +41,7 @@ struct IsoSessionConfig {
     std::vector<std::string> videoProfileIds{"mp4-h264-iso", "mp4-h264-aac"};   // first available wins
     std::vector<IsoVideoSpec> video;
     std::vector<IsoAudioSpec> audio;
+    std::vector<std::string> warnings;          // notes to carry into session.json (e.g. cameras skipped)
     int rotationSeconds = 0;
     int videoQueueDepth = 6;       // frames queued per camera before the oldest is dropped (counted)
     std::uint64_t minFreeBytes = 2ull << 30;   // below this the ISO tracks stop (must exceed the Program's)
