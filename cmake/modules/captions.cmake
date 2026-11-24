@@ -12,7 +12,8 @@ add_library(hb_captions STATIC
   src/captions/service.cpp
   src/captions/model_manager.cpp
   src/captions/cloud_recognizer.cpp
-  src/captions/settings.cpp)
+  src/captions/settings.cpp
+  src/captions/controller.cpp)
 target_include_directories(hb_captions PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(hb_captions PUBLIC hb_core hb_audio Threads::Threads)
 if(MSVC)
@@ -60,13 +61,12 @@ if(HB_CAPTIONS_WHISPER)
   endif()
 endif()
 
-# Windows glue: WinHTTP downloader / HTTP poster + the controller wired into app_main.cpp.
+# Windows glue: WinHTTP downloader / HTTP poster (the controller itself is portable, see controller.hpp).
 if(WIN32)
   add_library(hb_captions_win STATIC
-    src/captions/windows/winhttp_client.cpp
-    src/captions/windows/caption_controller.cpp)
+    src/captions/windows/winhttp_client.cpp)
   target_include_directories(hb_captions_win PUBLIC ${CMAKE_SOURCE_DIR}/src)
-  target_link_libraries(hb_captions_win PUBLIC hb_captions hb_audio_io winhttp)
+  target_link_libraries(hb_captions_win PUBLIC hb_captions winhttp)
   if(HB_CAPTIONS_WHISPER)
     target_link_libraries(hb_captions_win PUBLIC hb_captions_whisper)
   endif()
@@ -90,7 +90,8 @@ if(HB_BUILD_TESTS)
     tests/captions_session_test.cpp
     tests/captions_models_test.cpp
     tests/captions_cloud_test.cpp
-    tests/captions_settings_test.cpp)
+    tests/captions_settings_test.cpp
+    tests/captions_controller_test.cpp)
   target_include_directories(hb_captions_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
   target_link_libraries(hb_captions_tests PRIVATE hb_captions GTest::gtest_main)
   if(MSVC)
