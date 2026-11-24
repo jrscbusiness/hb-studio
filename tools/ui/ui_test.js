@@ -674,6 +674,36 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   }
   await tab('prod');
 
+  // ---- FEATURE: remote (CONFIG card "Controle remoto") ----
+  {
+    await tab('cfg');
+    ok(await page.locator('#remote-card').count() === 1, 'remote: CONFIG has the "Controle remoto" card');
+    ok(await page.locator('#rm-info').isHidden(), 'remote: PIN/URL are hidden while the remote is off');
+    await page.evaluate(() => { window.__sent.length = 0; });
+    await page.click('#rm-toggle');
+    ok(await page.evaluate(() => window.__sent.includes('remote|on')), 'remote: toggle sends remote|on');
+    await page.evaluate(() => window.__hbMessage({ t: 'remote', enabled: true, port: 8787, urls: ['http://192.168.0.10:8787/'], pin: '123456', lockedMs: 0, err: '',
+      devices: [{ id: 3, name: 'iPad <b>x</b>', ip: '192.168.0.22', online: true, thumbs: false, idle: 1 }] }));
+    ok(await page.locator('#rm-pin').textContent() === '123456', 'remote: shows the PIN when on');
+    ok((await page.locator('#rm-urls').textContent()).includes('192.168.0.10:8787'), 'remote: shows the LAN URL');
+    ok(await page.locator('#rm-devs .row').count() === 1 && await page.locator('#rm-devs b').count() === 0, 'remote: device list rendered as text (no HTML injection)');
+    await page.evaluate(() => { window.__sent.length = 0; });
+    await page.click('#rm-devs button');
+    ok(await page.evaluate(() => window.__sent.includes('remote|kick|3')), 'remote: kick sends remote|kick|3');
+    await page.click('#rm-revoke');
+    ok(await page.evaluate(() => window.__sent.includes('remote|revoke')), 'remote: revoke-all sends remote|revoke');
+    await page.click('#rm-newpin');
+    ok(await page.evaluate(() => window.__sent.includes('remote|newpin')), 'remote: new PIN sends remote|newpin');
+    ok((await page.locator('#remote-card').textContent()).includes('sem criptografia'), 'remote: card states the no-TLS limit');
+    await page.evaluate(() => window.__hbMessage({ t: 'remote', enabled: false, err: 'x' }));
+    ok(await page.locator('#rm-info').isHidden(), 'remote: info hidden again when turned off');
+    for (const [w, h] of [[1024, 720], [1280, 800]]) {
+      await page.setViewportSize({ width: w, height: h });
+      ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `remote ${w}x${h}: card causes no horizontal overflow`);
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+  }
+  // ---- /FEATURE ----
   ok(errors.length === 0, 'no JavaScript errors' + (errors.length ? ': ' + errors[0] : ''));
   await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed`);

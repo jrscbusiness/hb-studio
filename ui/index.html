@@ -731,6 +731,22 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       <div class="card"><h3><span class="cap">Qualidade do Preview</span></h3>
         <div class="body"><div id="previewq-list"></div>
         <p class="note" style="margin-top:10px">Controla o tamanho dos monitores PROGRAM/PREVIEW e das miniaturas das câmeras na tela — não afeta a resolução real da transmissão/gravação. Baixe para computadores mais fracos ou com muitas câmeras; a mudança vale na hora, sem precisar reiniciar.</p></div></div>
+      <!-- FEATURE: remote -->
+      <div class="card" id="remote-card"><h3><span class="cap">Controle remoto</span></h3>
+        <div class="body">
+          <p class="note" style="margin-bottom:10px">Opere a mesa pelo navegador de um celular ou tablet na <b>mesma rede Wi-Fi</b> (segunda tela). Desligado por padrão e sempre desligado ao abrir o programa.</p>
+          <div class="row"><span class="k">Controle por celular/tablet</span><span class="v"><button class="btn sm" id="rm-toggle">LIGAR</button></span></div>
+          <div id="rm-info" style="display:none">
+            <div class="row"><span class="k">Endereço (digite no navegador)</span><span class="v" id="rm-urls"></span></div>
+            <div class="row"><span class="k">PIN de pareamento</span><span class="v"><b id="rm-pin" style="font-size:20px;letter-spacing:.2em">——</b> <button class="btn sm" id="rm-newpin">NOVO PIN</button></span></div>
+            <div id="rm-devs" style="margin-top:8px"></div>
+            <div class="row" style="border-top:none"><span class="k"></span><span class="v"><button class="btn sm" id="rm-revoke">DESCONECTAR TODOS</button></span></div>
+          </div>
+          <p class="note err" id="rm-err"></p>
+          <p class="note" style="margin-top:8px">Atenção: a conexão é HTTP puro, <b>sem criptografia (TLS)</b> — use só em rede de confiança. Cada aparelho recebe uma chave própria que expira; o PIN vale para um único pareamento. Redes de convidados/“isolamento de clientes” bloqueiam o acesso. Na primeira vez o Windows pede para liberar o firewall: permita em <b>redes privadas</b>.</p>
+        </div>
+      </div>
+      <!-- /FEATURE -->
       <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
         <div class="body">
           <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
@@ -1259,6 +1275,30 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       : 'Desligada. Ao ligar, o PROGRAM passa a ser visível como uma fonte NDI na rede local.';
   }
 
+  /* FEATURE: remote */
+  let remoteOn = false;
+  function renderRemote(d) {
+    remoteOn = !!d.enabled;
+    const b = $('#rm-toggle'); b.textContent = remoteOn ? 'DESLIGAR' : 'LIGAR'; b.classList.toggle('primary', remoteOn);
+    $('#rm-info').style.display = remoteOn ? '' : 'none';
+    $('#rm-err').textContent = d.err || '';
+    if (!remoteOn) return;
+    $('#rm-urls').textContent = (d.urls || []).join('  ');
+    $('#rm-pin').textContent = d.lockedMs > 0 ? 'bloqueado ' + Math.ceil(d.lockedMs / 1000) + ' s' : (d.pin || '——');
+    const box = $('#rm-devs'); box.textContent = '';
+    (d.devices || []).forEach(x => {
+      const r = document.createElement('div'); r.className = 'row';
+      const k = document.createElement('span'); k.className = 'k'; k.textContent = x.name + ' · ' + x.ip + (x.thumbs ? ' · miniaturas' : '');
+      const v = document.createElement('span'); v.className = 'v'; v.textContent = (x.online ? 'conectado ' : 'offline ');
+      const kb = document.createElement('button'); kb.className = 'btn sm'; kb.textContent = 'EXPULSAR'; kb.onclick = () => send('remote', 'kick', x.id);
+      v.appendChild(kb); r.appendChild(k); r.appendChild(v); box.appendChild(r);
+    });
+  }
+  $('#rm-toggle').addEventListener('click', () => send('remote', remoteOn ? 'off' : 'on'));
+  $('#rm-newpin').addEventListener('click', () => send('remote', 'newpin'));
+  $('#rm-revoke').addEventListener('click', () => send('remote', 'revoke'));
+  /* /FEATURE */
+
   // ---------- CONFIG: Formatos de saída comuns ----------
   const outFmtPresets = [
     { w: 1280, h: 720, fpsNum: 30, fpsDen: 1, label: '720p30', desc: '1280×720 · 30 fps' },
@@ -1692,6 +1732,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
     else if (d.t === 'devformats') renderCamFormats(d);
+    else if (d.t === 'remote') renderRemote(d);   /* FEATURE: remote */
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
