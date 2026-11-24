@@ -50,6 +50,12 @@
 #include "video/frame_ops.hpp"
 // ---- /FEATURE ----
 #include "vst3/vst3.hpp"
+// ---- FEATURE: teleprompter ----
+#include <filesystem>
+#include "app/windows/presenter_window.hpp"
+#include "teleprompter/controller.hpp"
+#include "teleprompter/presenter_page.hpp"
+// ---- /FEATURE ----
 
 using namespace hb;
 
@@ -558,8 +564,43 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto postScenes = [&] { host.postQueued("scenes", sceneSvc.stateJson()); };
     // ---- /FEATURE ----
 
+    // ---- FEATURE: teleprompter ---- host-authoritative scroll state + script library
+    // (%LOCALAPPDATA%\HBStudio\teleprompter). Commands "tp|..." arrive from the main UI, from the
+    // presenter window and (play/pause/speed/seek) from the remote allowlist; see docs/TELEPROMPTER.md.
+    hb::teleprompter::SteadyClockSource tpClock;
+    hb::teleprompter::Controller tpc(std::filesystem::path(win::widen(mediaDir) + L"\\teleprompter"), &tpClock);
+    tpc.load();
+    std::function<void(const std::string&)> tpHandle;
+    win::PresenterWindow tpPresenter(
+        [&](const std::string& m) { if (m.rfind("tp|", 0) == 0 && tpHandle) tpHandle(m); },
+        [&](bool open) { tpc.setPresenterOpen(open); host.postQueued("tp", tpc.stateJson()); });
+    auto tpBroadcast = [&](const char* key, const std::string& json) {
+        host.postQueued(key, json);
+        tpPresenter.broadcast(key, json);
+    };
+    tpHandle = [&](const std::string& msg) {
+        const auto fx = tpc.execute(msg);
+        if (!fx.toast.empty()) toast(fx.toast);
+        using P = hb::teleprompter::Effects::Presenter;
+        if (fx.presenter == P::Open) {
+            tpPresenter.open(inst, dataDir, win::widen(mediaDir) + L"\\teleprompter-window.txt",
+                             hb::teleprompter::extractPresenterPage(win::loadResourceText(IDR_UI_HTML)),
+                             [&] { return std::vector<std::string>{tpc.styleJson(), tpc.scriptJson(), tpc.stateJson()}; });
+        } else if (fx.presenter == P::Close) {
+            tpPresenter.close();
+        } else if (fx.presenter == P::Fullscreen) {
+            tpPresenter.toggleFullscreen();
+        }
+        if (fx.list) host.postQueued("tplist", tpc.listJson());
+        if (fx.script) tpBroadcast("tpscript", tpc.scriptJson());
+        if (fx.style) tpBroadcast("tpstyle", tpc.styleJson());
+        if (fx.state) tpBroadcast("tp", tpc.stateJson());
+    };
+    // ---- /FEATURE ----
+
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
+        if (c0 == "tp") { tpHandle(msg); return; }   // FEATURE: teleprompter
         const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
                                      (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : (c0 == "xmitsave" ? 2 : 8)))));
         auto a = split(msg, maxParts);
@@ -1099,6 +1140,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
                     if (tick % 4 == 0) postXmitStatus();
                 }
+                // ---- FEATURE: teleprompter ---- periodic re-sync / transitions (cheap: a few msgs per second)
+                if (auto j = tpc.poll()) tpBroadcast("tp", *j);
+                // ---- /FEATURE ----
                 ++tick;
                 std::this_thread::sleep_until(next);
             }
@@ -1155,6 +1199,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
     if (feeder.joinable()) feeder.join();
     win::trace("feeder joined");
+    tpPresenter.close();   // FEATURE: teleprompter
+    tpc.flush();           // FEATURE: teleprompter
     progWin.close();
     prevWin.close();
     { std::lock_guard lock(ndiSenderMutex); ndiSender.reset(); }
