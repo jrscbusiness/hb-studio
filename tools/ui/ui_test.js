@@ -111,7 +111,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await setState({});
 
   console.log('\n[1c] PRODUÇÃO - 16 câmeras em 2 fileiras (banco ativo)');
-  ok(await page.locator('.tile').count() === 16, '16 input tiles are shown (2 rows of 8)');
+  ok(await page.locator('.tile:not(.scene)').count() === 16, '16 input tiles are shown (2 rows of 8)');
   ok(await page.locator('#bus-pgm .key').count() === 8 && await page.locator('#bus-pvw .key').count() === 8,
     'the PROGRAM/PREVIEW number-button rows stay at a fixed 8 (one bank at a time)');
   ok(await page.locator('.bankbtn.on').count() === 1 && (await page.locator('.bankbtn.on').getAttribute('data-bank')) === '0',
@@ -654,7 +654,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   for (const [w, h] of [[1100, 680], [1280, 800], [1366, 768], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     await tab('prod'); await page.waitForTimeout(100);
-    const tileCount = await page.locator('.tile').count();
+    const tileCount = await page.locator('.tile:not(.scene)').count();
     ok(tileCount === 16, `${w}x${h}: all 16 input tiles are rendered (found ${tileCount})`);
     const tileH = await page.locator('.tile').first().evaluate(el => el.getBoundingClientRect().height);
     ok(tileH > 10, `${w}x${h}: tiles have a real, non-collapsed height (${Math.round(tileH)}px)`);
@@ -673,6 +673,99 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
     }
   }
   await tab('prod');
+
+  // ---- FEATURE: scenes ----
+  console.log('\n[7] Templates prontos e banco CENAS');
+  await page.setViewportSize({ width: 1024, height: 720 });
+  await tab('prod');
+  const L = (role, slot, rect, extra) => Object.assign({ role, slot, rect, fit: 'fill' }, extra || {});
+  const TEMPLATES = [
+    { id: 'culto', name: 'Culto', category: 'culto', description: 'Cenas de culto', builtin: true, roles: ['Pregador', 'Slides'],
+      scenes: [{ id: 'pregador', name: 'Pregador em tela cheia', background: { type: 'solid', color: '#000000' }, layers: [L('Pregador', -1, [0, 0, 1, 1])] },
+               { id: 'lado', name: 'Lado a lado', background: { type: 'gradient', from: '#0b1220', to: '#1c2f55', angle: 90 },
+                 layers: [L('Pregador', -1, [0.02, 0.26, 0.47, 0.47], { radius: 0.05, border: { width: 0.004, color: '#fff' }, shadow: { blur: 0.02, dx: 0, dy: 0.01, opacity: 0.5 } }), L('Slides', -1, [0.51, 0.26, 0.47, 0.47], { fit: 'fit' })] }] },
+    { id: 'u-meu', name: 'Meu layout', category: 'meus', description: '', builtin: false, roles: ['Host'],
+      scenes: [{ id: 'a', name: 'A', background: { type: 'solid', color: '#123456' }, layers: [L('Host', -1, [0, 0, 1, 1])], overlays: [{ type: 'lowerthird', text: '{nome}' }] }] },
+  ];
+  const sceneDemo = { id: 'culto.pregador', name: 'Pregador em tela cheia', background: { type: 'solid', color: '#000000' }, layers: [L('Pregador', 0, [0.1, 0.1, 0.5, 0.5])] };
+  const feedScenes = scenes => page.evaluate(m => window.__hbMessage(m), { t: 'scenes_state', max: 16, templates: TEMPLATES, scenes });
+  await feedScenes([]);
+  ok(await page.locator('.tile.scene').count() === 16, '16 scene tiles exist (CENAS bank)');
+  ok(await page.locator('.tile.scene').first().evaluate(el => getComputedStyle(el).display === 'none'), 'scene tiles stay hidden while a camera bank is active (16-slot UI untouched)');
+  await page.click('#sc-open'); await page.waitForTimeout(150);
+  ok(await page.locator('#sc-pick.on').count() === 1, 'TEMPLATES opens the picker');
+  ok(await page.locator('#scp-grid .sc-card').count() === 2, 'picker lists every template');
+  const thumbOk = await page.locator('#scp-grid .sc-card canvas').first().evaluate(c => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n > c.width * c.height / 2; });
+  ok(thumbOk, 'template thumbnails are rendered from placeholder colours (no cameras needed)');
+  await page.click('#scp-tabs button[data-cat="meus"]');
+  ok(await page.locator('#scp-grid .sc-card').count() === 1, 'category tab filters ("Meus")');
+  await page.click('#scp-tabs button[data-cat="todos"]');
+  await page.click('.sc-card[data-id="culto"]');
+  ok(await page.locator('#scp-roles select').count() === 2, 'mapping step: one selector per role');
+  ok(await page.locator('#scp-roles select[data-role="Pregador"]').inputValue() === '0', 'roles are prefilled with the first connected camera');
+  ok(await page.locator('#scp-roles select[data-role="Slides"]').inputValue() !== '0', 'each role gets a different input');
+  await clearSent();
+  await page.click('#scp-apply'); await page.waitForTimeout(100);
+  const ap = await lastSent();
+  ok(/^sceneapply\|culto\|\{.*"Pregador":0.*\}\|pregador,lado$/.test(ap || ''), 'APPLY sends sceneapply|template|roleMap|scenes (' + ap + ')');
+  ok(await page.locator('#sc-pick.on').count() === 0, 'picker closes after applying');
+  await feedScenes([{ slot: 0, scene: sceneDemo }]);
+  ok(await page.locator('.bankbtn[data-bank="2"]').evaluate(el => el.classList.contains('on')), 'the CENAS bank is shown after applying');
+  ok(await page.locator('.tile.scene[data-i="16"]').isVisible() && !(await page.locator('.tile:not(.scene)').first().isVisible()), 'scene tiles replace camera tiles in the CENAS bank');
+  ok((await page.locator('.tile.scene[data-i="16"] b').textContent()) === 'Pregador em tela cheia', 'scene tile shows the scene name');
+  ok(await page.locator('.tile.scene[data-i="17"]').evaluate(el => el.classList.contains('sc-empty')), 'unused scene slots are marked empty');
+  ok((await page.locator('#bus-pvw .key').first().textContent()) === 'C1', 'bus keys of the CENAS bank are labelled C1..C8');
+  await clearSent();
+  await page.locator('.tile.scene[data-i="16"]').click();
+  ok((await lastSent()) === 'preview|16', 'clicking a scene tile sends preview|16 (switch bus index 16)');
+  await page.locator('.tile.scene[data-i="16"]').dblclick();
+  ok((await sent()).includes('program|16'), 'double click sends program|16');
+  await page.keyboard.press('Digit1');
+  ok((await lastSent()) === 'preview|16', 'keyboard 1 addresses the first scene in the CENAS bank');
+  await setState({ pgm: 16, pvw: 0 });
+  await page.waitForTimeout(150);
+  ok((await page.locator('#pgm-name').textContent()) === 'Pregador em tela cheia', 'PGM monitor names the scene on air');
+  await setState({});
+  await page.locator('.tile.scene[data-i="16"]').click({ button: 'right' });
+  await page.click('#scm-edit'); await page.waitForTimeout(100);
+  ok(await page.locator('#sc-edit.on').count() === 1, 'context menu opens the scene editor');
+  const box = await page.locator('#sc-cv').boundingBox();
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35);
+  await page.mouse.down(); await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.45, { steps: 4 }); await page.mouse.up();
+  const nx = +(await page.locator('#sce-x').inputValue());
+  ok(nx > 25 && nx < 35, 'dragging a layer on the preview canvas moves it (x=' + nx + '%)');
+  await page.fill('#sce-w', '40'); await page.fill('#sce-name', 'Minha cena');
+  await clearSent();
+  await page.click('#sce-save'); await page.waitForTimeout(100);
+  const sv = await lastSent();
+  let svj = null; try { svj = JSON.parse(sv.slice('scenesave|'.length)); } catch (e) {}
+  ok(svj && svj.id === 'culto.pregador' && svj.name === 'Minha cena' && Math.abs(svj.layers[0].rect[2] - 0.4) < 1e-6 && svj.layers[0].rect[0] > 0.25, 'SAVE sends scenesave|<scene json> with the edited rect and name');
+  await page.locator('.tile.scene[data-i="16"]').click({ button: 'right' });
+  await page.click('#scm-del');
+  ok(!(await sent()).includes('scenedelete|culto.pregador'), 'deleting a scene needs a second click');
+  await page.click('#scm-del');
+  ok((await sent()).includes('scenedelete|culto.pregador'), 'second click sends scenedelete|id');
+  await page.locator('.tile.scene[data-i="16"]').click({ button: 'right' });
+  await page.click('#scm-edit'); await page.fill('#sce-tname', 'Meu culto'); await clearSent();
+  await page.click('#sce-tpl'); await page.waitForTimeout(100);
+  const ss = await sent();
+  ok(ss.length === 2 && ss[0].startsWith('scenesave|') && ss[1] === 'scenetemplate|culto.pregador|Meu culto', 'save-as-my-template sends scenetemplate|id|name');
+  for (const [w, h] of [[1024, 720], [1280, 800]]) {
+    await page.setViewportSize({ width: w, height: h });
+    const fit = await page.evaluate(() => { const s = document.querySelector('.stage'); return [s.scrollHeight, s.clientHeight, document.documentElement.scrollWidth, innerWidth]; });
+    ok(fit[0] <= fit[1] + 1 && fit[2] <= fit[3] + 1, `${w}x${h}: CENAS bank fits without scrolling (${fit.join('/')})`);
+  }
+  await page.click('#sc-open'); await page.click('.sc-card[data-id="u-meu"]');
+  ok(await page.locator('#scp-del').isVisible(), 'user templates can be deleted');
+  await clearSent(); await page.click('#scp-export');
+  ok((await lastSent()) === 'sceneexport|u-meu', 'EXPORT sends sceneexport|id (host opens the save dialog)');
+  await page.click('#scp-back'); await clearSent(); await page.click('#scp-import');
+  ok((await lastSent()) === 'sceneimport', 'IMPORT sends sceneimport (host opens the open dialog)');
+  await page.keyboard.press('Escape');
+  await humanClick('.bankbtn[data-bank="0"]');
+  ok(await page.locator('.tile:not(.scene)').first().isVisible(), 'back to the camera banks: the 16 camera tiles are untouched');
+  await feedScenes([]);
+  // ---- /FEATURE ----
 
   ok(errors.length === 0, 'no JavaScript errors' + (errors.length ? ': ' + errors[0] : ''));
   await browser.close();

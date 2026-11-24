@@ -37,6 +37,7 @@
 #include "app/windows/win_util.hpp"
 #include "app/windows/output_window.hpp"
 #include "ndi/ndi.hpp"
+#include "scene/scene_service.hpp"   // FEATURE: scenes
 #include "video/frame_ops.hpp"
 #include "plugins/service.hpp"
 #include "vst3/vst3.hpp"
@@ -512,6 +513,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         return a;
     };
 
+    // ---- FEATURE: scenes ---- CENAS bank (scenes.json in %LOCALAPPDATA%\HBStudio)
+    scene::SceneService sceneSvc(mediaDir.empty() ? std::string() : mediaDir + "\\scenes.json",
+                                 [&](int slot, std::shared_ptr<const scene::Scene> s) { engine.setScene(slot, std::move(s)); });
+    sceneSvc.load();
+    auto postScenes = [&] { host.postQueued("scenes", sceneSvc.stateJson()); };
+    // ---- /FEATURE ----
+
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
         const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
@@ -533,6 +541,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postXmitDest();
             postXmitStatus();
             postOutFmt();
+            postScenes();   // FEATURE: scenes
             host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "system")) {
@@ -611,6 +620,35 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 editor->closeEditor();
             }
         }
+        // ---- FEATURE: scenes ----
+        else if (sceneSvc.isSceneCommand(msg)) {
+            std::string m = msg;
+            wchar_t file[MAX_PATH * 4] = {0};
+            OPENFILENAMEW ofn{};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = host.hwnd();
+            ofn.lpstrFile = file;
+            ofn.nMaxFile = static_cast<DWORD>(sizeof(file) / sizeof(file[0]));
+            ofn.lpstrFilter = L"Templates do HB Studio (*.json)\0*.json\0Todos os arquivos\0*.*\0";
+            ofn.lpstrDefExt = L"json";
+            if (c == "sceneimport" && a.size() < 2) {
+                ofn.lpstrTitle = L"Importar template";
+                ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+                if (!GetOpenFileNameW(&ofn)) return;
+                m = "sceneimport|" + win::narrow(file);
+            } else if (c == "sceneexport" && a.size() == 2) {
+                ofn.lpstrTitle = L"Exportar template";
+                ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+                const std::wstring def = win::widen(a[1]) + L".json";
+                wcsncpy_s(file, def.c_str(), _TRUNCATE);
+                if (!GetSaveFileNameW(&ofn)) return;
+                m = "sceneexport|" + a[1] + "|" + win::narrow(file);
+            }
+            const auto r = sceneSvc.handle(m);
+            if (!r.message.empty()) toast(r.message);
+            if (r.changed) postScenes();
+        }
+        // ---- /FEATURE ----
         else if (c == "preview") engine.switcher().setPreview(idx(1));
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
@@ -941,6 +979,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 // Input tiles: half of them per tick (~7.5 fps each) to save CPU.
                 for (int i = static_cast<int>(tick % 2); i < app::Engine::kSourceCount; i += 2)
                     sendFrame(("s" + std::to_string(i)).c_str(), 70);
+                // FEATURE: scenes - CENAS tiles ("cN"; empty slots render nothing and are skipped)
+                for (int i = static_cast<int>(tick % 2); i < app::Engine::kSceneCount; i += 2)
+                    sendFrame(("c" + std::to_string(i)).c_str(), 70);
                 {
                     int tid; std::string ttxt;
                     { std::lock_guard lock(toastMutex); tid = toastId; ttxt = toastText; }

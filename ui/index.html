@@ -128,6 +128,31 @@ main{padding:18px 22px;min-height:0;position:relative}
 .tile.pvw{border-color:var(--blue-2);box-shadow:0 0 0 3px rgba(79,141,255,.22)}
 .tile.pgm{border-color:var(--blue);box-shadow:var(--glow)}
 .tile .tally{position:absolute;right:6px;top:6px;font-size:8.5px;letter-spacing:.14em;font-weight:700;padding:2px 6px;border-radius:4px;display:none}
+/* FEATURE: scenes */
+.tiles.scenes .tile:not(.scene),.tiles:not(.scenes) .tile.scene{display:none}
+.tile.scene.sc-empty{opacity:.5;border-style:dashed}
+.tile.scene.sc-empty .lb b{color:#BFD6FF}
+.bankbtn.scn.on{background:linear-gradient(180deg,#B06BFF,#7A3CE0);border-color:#7A3CE0}
+.bankbtn.scn:hover{border-color:#B06BFF}
+.sc-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.sc-tabs button{height:30px;padding:0 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:12px;font-weight:600}
+.sc-tabs button.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.sc-card{border:1px solid var(--line-2);border-radius:12px;padding:8px;cursor:pointer;background:var(--surface-2,var(--surface));display:flex;flex-direction:column;gap:6px;text-align:left}
+.sc-card:hover,.sc-card:focus-visible{border-color:var(--blue);outline:none}
+.sc-card canvas,.sc-row canvas{width:100%;aspect-ratio:16/9;border-radius:8px;display:block;background:#000}
+.sc-card b{font-size:13px;color:var(--ink)}.sc-card em{font-style:normal;font-size:11px;color:var(--muted);line-height:1.35}
+.sc-card .mini{display:flex;gap:4px}.sc-card .mini canvas{flex:1;min-width:0}
+.sc-map{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.sc-row{display:flex;gap:10px;align-items:center;padding:6px 0}
+.sc-row canvas{width:96px;flex:none}
+.sc-edit{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+#sc-cv{width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;touch-action:none;display:block}
+.sc-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.sc-layers{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.sc-layers button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font-size:11.5px;color:var(--ink-2)}
+.sc-layers button.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+/* /FEATURE */
 .tile.pgm .tally{display:block;background:var(--blue);color:var(--on-accent)}
 .tile.pvw:not(.pgm) .tally{display:block;background:var(--surface);color:var(--blue)}
 
@@ -536,11 +561,15 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         </div>
 
         <div class="card inputs">
-          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">16 / 16</span></h3>
+          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">16 / 16</span><!-- FEATURE: scenes --><button class="btn sm" id="sc-open" title="Templates prontos: culto, aula, podcast, evento">TEMPLATES</button><!-- /FEATURE --></h3>
           <div class="inputsrow">
             <div class="bankbar">
               <button class="bankbtn on" data-bank="0" title="Fileira 1 (CAM 1–8) — teclado e botões de PROGRAM/PREVIEW"></button>
               <button class="bankbtn" data-bank="1" title="Fileira 2 (CAM 9–16) — teclado e botões de PROGRAM/PREVIEW"></button>
+              <!-- FEATURE: scenes -->
+              <button class="bankbtn scn" data-bank="2" title="CENAS 1–8 — layouts com várias câmeras (teclado e botões de PROGRAM/PREVIEW)"></button>
+              <button class="bankbtn scn" data-bank="3" title="CENAS 9–16"></button>
+              <!-- /FEATURE -->
             </div>
             <div class="tiles" id="tiles"></div>
           </div>
@@ -838,6 +867,58 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   <hr>
   <button id="tm-cfg">Configurações…</button>
 </div>
+<!-- FEATURE: scenes -->
+<div id="scenemenu" class="ctxmenu">
+  <button id="scm-edit">Editar cena…</button>
+  <button id="scm-del">Excluir cena</button>
+</div>
+<div id="sc-pick" class="modal"><div class="sheet" style="width:860px">
+  <div class="sh-head"><div><span class="cap">Templates prontos</span><h2 id="scp-title">Escolha um template</h2></div><button class="icon" id="scp-x">✕</button></div>
+  <div id="scp-list">
+    <div class="sc-tabs" id="scp-tabs"></div>
+    <div class="sc-grid" id="scp-grid"></div>
+    <div class="sh-foot"><button class="btn sm" id="scp-import">IMPORTAR TEMPLATE…</button><span style="flex:1"></span></div>
+  </div>
+  <div id="scp-map" style="display:none">
+    <p class="note" id="scp-desc"></p>
+    <div class="sc-map">
+      <div><span class="cap">Cenas a criar</span><div id="scp-scenes"></div></div>
+      <div><span class="cap">Mapear papéis → entradas</span><div id="scp-roles" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+        <p class="note" id="scp-note" style="margin-top:10px"></p></div>
+    </div>
+    <div class="sh-foot"><button class="btn sm" id="scp-back">VOLTAR</button><button class="btn sm" id="scp-export">EXPORTAR…</button><button class="btn sm" id="scp-del" style="display:none">EXCLUIR TEMPLATE</button><span style="flex:1"></span><button class="btn primary sm" id="scp-apply" style="flex:none">CRIAR CENAS</button></div>
+  </div>
+</div></div>
+<div id="sc-edit" class="modal"><div class="sheet" style="width:900px">
+  <div class="sh-head"><div><span class="cap">Editar cena</span><h2>Arraste as camadas para mover; puxe o canto para redimensionar</h2></div><button class="icon" id="sce-close">✕</button></div>
+  <div class="sc-edit">
+    <div><canvas id="sc-cv" width="640" height="360"></canvas>
+      <label style="margin-top:10px">Nome da cena<input id="sce-name" maxlength="60"></label></div>
+    <div>
+      <div class="sc-layers" id="sce-layers"></div>
+      <div class="sc-fields" id="sce-fields">
+        <label class="span2">Fonte<select id="sce-slot"></select></label>
+        <label>X (%)<input id="sce-x" type="number" min="-100" max="200" step="1"></label>
+        <label>Y (%)<input id="sce-y" type="number" min="-100" max="200" step="1"></label>
+        <label>Largura (%)<input id="sce-w" type="number" min="1" max="300" step="1"></label>
+        <label>Altura (%)<input id="sce-h" type="number" min="1" max="300" step="1"></label>
+        <label>Ajuste<select id="sce-fit"><option value="fill">Preencher (corta)</option><option value="fit">Caber (barras)</option><option value="crop">Recorte com zoom</option></select></label>
+        <label>Opacidade (%)<input id="sce-op" type="number" min="0" max="100" step="5"></label>
+        <label>Cantos (%)<input id="sce-rad" type="number" min="0" max="50" step="1"></label>
+        <label>Borda (%)<input id="sce-bor" type="number" min="0" max="10" step="0.1"></label>
+        <label>Sombra<select id="sce-sh"><option value="0">Sem sombra</option><option value="1">Com sombra</option></select></label>
+        <label>Ordem (z)<input id="sce-z" type="number" min="-100" max="100" step="1"></label>
+      </div>
+      <div class="sc-layers" style="margin-top:10px"><button id="sce-add">+ camada</button><button id="sce-rm">remover camada</button></div>
+      <div class="grid2" style="margin-top:6px">
+        <label>Fundo<select id="sce-bgt"><option value="solid">Cor sólida</option><option value="gradient">Degradê</option></select></label>
+        <label>Cores<span style="display:flex;gap:6px"><input type="color" id="sce-bg1" style="height:38px;padding:2px"><input type="color" id="sce-bg2" style="height:38px;padding:2px"></span></label>
+      </div>
+    </div>
+  </div>
+  <div class="sh-foot"><button class="btn sm" id="sce-del">EXCLUIR CENA</button><input id="sce-tname" type="text" maxlength="60" placeholder="Nome do template" style="width:180px;height:34px"><button class="btn sm" id="sce-tpl">SALVAR COMO MEU TEMPLATE</button><span style="flex:1"></span><button class="btn sm" id="sce-cancel">CANCELAR</button><button class="btn primary sm" id="sce-save" style="flex:none">SALVAR</button></div>
+</div></div>
+<!-- /FEATURE -->
 <div id="toast"></div>
 
 <script>
@@ -868,7 +949,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     canv['s' + i] = t.querySelector('canvas').getContext('2d');
   }
   let bank = 0;
-  try { const b = +localStorage.getItem('hb.bank'); if (b === 0 || b === 1) bank = b; } catch (e) {}
+  try { const b = +localStorage.getItem('hb.bank'); if (b >= 0 && b <= 3) bank = b;   /* FEATURE: scenes: banks 2-3 = CENAS */ } catch (e) {}
   const bankBase = () => bank * BANK_SIZE;
   function renderBusKeys() {
     for (const [bus, cmd] of [[busP, 'program'], [busV, 'preview']]) {
@@ -876,12 +957,13 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       for (let j = 0; j < BANK_SIZE; j++) {
         const i = bankBase() + j;
         const k = document.createElement('button');
-        k.className = 'key'; k.dataset.i = i; k.textContent = i + 1;
+        k.className = 'key'; k.dataset.i = i; k.textContent = i >= N ? 'C' + (i - N + 1) : i + 1;
         k.addEventListener('click', () => send(cmd, i));
         bus.appendChild(k);
       }
     }
     $$('.tile').forEach(t => t.classList.toggle('offbank', +t.dataset.i < bankBase() || +t.dataset.i >= bankBase() + BANK_SIZE));
+    applyBankView();   // FEATURE: scenes
   }
   renderBusKeys();
   $$('.bankbtn').forEach(b => b.addEventListener('click', () => {
@@ -1431,13 +1513,14 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       slots = s.slots;
       $$('.tile').forEach(t => {
         const x = s.slots[+t.dataset.i], b = t.querySelector('b'), em = t.querySelector('em');
+        if (!x) return;   // FEATURE: scenes: scene tiles are drawn by renderSceneTiles()
         b.textContent = x.k === 'dev' ? x.name : 'CAM ' + (+t.dataset.i + 1);
         em.textContent = stTxt[x.st]; em.style.display = '';
         em.className = x.k === 'dev' && x.st !== 'online' && x.st !== 'off' ? 'bad' : '';
         t.classList.toggle('off', x.en === false);
       });
-      const hud = i => s.slots[i].k === 'dev' && s.slots[i].w ? s.slots[i].w + '×' + s.slots[i].h : '1920×1080';
-      const nm = i => s.slots[i].k === 'dev' ? s.slots[i].name : 'CAM ' + (i + 1);
+      const hud = i => i >= N ? 'CENA' : s.slots[i].k === 'dev' && s.slots[i].w ? s.slots[i].w + '×' + s.slots[i].h : '1920×1080';
+      const nm = i => i >= N ? sceneLabel(i) : s.slots[i].k === 'dev' ? s.slots[i].name : 'CAM ' + (i + 1);
       $('#pgm-name').textContent = nm(s.pgm); $('#pvw-name').textContent = nm(s.pvw);
       $('#pvw-hud').textContent = 'PRÓXIMA · ' + hud(s.pvw);
       $('#pgm-res').textContent = hud(s.pgm) + ' → ' + (s.pw || 1920) + '×' + (s.ph || 1080) + ' · ' + s.target + ' fps';
@@ -1447,10 +1530,11 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     }
     if (s.ver) $('#ver').textContent = s.ver;
     lastPvw = s.pvw;
-    if ($('#ptz-follow').checked && ptzCam !== s.pvw) { ptzCam = s.pvw; renderPtz(); }
+    if ($('#ptz-follow').checked && ptzCam !== s.pvw && s.pvw < N) { ptzCam = s.pvw; renderPtz(); }
     $$('.tile').forEach(t => { const i = +t.dataset.i; t.classList.toggle('pgm', i === s.pgm); t.classList.toggle('pvw', i === s.pvw); t.querySelector('.tally').textContent = i === s.pgm ? 'PGM' : 'PVW'; });
     $$('#bus-pgm .key').forEach(k => k.classList.toggle('pgm', +k.dataset.i === s.pgm));
     $$('#bus-pvw .key').forEach(k => k.classList.toggle('pvw', +k.dataset.i === s.pvw));
+    if (s.pgm >= N || s.pvw >= N) { $('#pgm-name').textContent = sceneLabel(s.pgm); $('#pvw-name').textContent = sceneLabel(s.pvw); }   // FEATURE: scenes
     if (!s.slots) { $('#pgm-name').textContent = 'CAM ' + (s.pgm + 1); $('#pvw-name').textContent = 'CAM ' + (s.pvw + 1); }
     if (!tbarDown) $('#tbar').value = Math.round((s.transition ? s.progress : 0) * 1000);
     $('#b-cut').disabled = $('#b-dis').disabled = !!s.transition;
@@ -1688,9 +1772,275 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   for (const k of ['template', 'videoKbps', 'videoQuality', 'keyframeSec', 'audioKbps', 'audioRate', 'splitMin', 'splitMB', 'minFreeMB'])
     $('#rc-' + k).addEventListener('change', ev => send('rec', 'cfg', k, ev.target.value));
 
+  // ---------- FEATURE: scenes (templates prontos + CENAS bank) ----------
+  let scenesSt = {scenes: [], templates: [], max: 16};
+  const SC_N = 16;
+  const sceneBySlot = k => (scenesSt.scenes.find(e => e.slot === k) || {}).scene;
+  function sceneLabel(i) { const sc = sceneBySlot(i - N); return sc ? sc.name : 'CENA ' + (i - N + 1); }
+  function applyBankView() { tiles.classList.toggle('scenes', bank >= 2); }
+  for (let k = 0; k < SC_N; k++) {
+    const t = document.createElement('div');
+    t.className = 'tile scene sc-empty'; t.dataset.i = N + k;
+    t.innerHTML = `<canvas width="192" height="108"></canvas><div class="lb"><b>CENA ${k + 1}</b><em>VAZIA</em></div><div class="tally"></div>`;
+    t.addEventListener('click', () => { if (sceneBySlot(k)) send('preview', N + k); else openPicker(); });
+    t.addEventListener('dblclick', () => { if (sceneBySlot(k)) send('program', N + k); });
+    t.addEventListener('contextmenu', e => { e.preventDefault(); if (sceneBySlot(k)) openSceneMenu(e, k); });
+    tiles.appendChild(t);
+    canv['c' + k] = t.querySelector('canvas').getContext('2d');
+  }
+  applyBankView();
+  function renderSceneTiles() {
+    for (let k = 0; k < SC_N; k++) {
+      const t = document.querySelector(`.tile.scene[data-i="${N + k}"]`), sc = sceneBySlot(k);
+      t.classList.toggle('sc-empty', !sc);
+      t.querySelector('b').textContent = sc ? sc.name : 'CENA ' + (k + 1);
+      t.querySelector('em').textContent = sc ? 'CENA' : 'VAZIA';
+      if (!sc) { const c = canv['c' + k].canvas; canv['c' + k].clearRect(0, 0, c.width, c.height); }
+    }
+    if (lastState) render(lastState);
+  }
+
+  // Thumbnail / editor drawing: placeholder colours per role, no cameras needed.
+  const phColor = role => { let h = 2166136261; for (const ch of (role || 'x')) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return `hsl(${h % 360} 38% 42%)`; };
+  const layersByZ = sc => (sc.layers || []).map((l, i) => ({l, i})).sort((a, b) => ((a.l.z || 0) - (b.l.z || 0)) || (a.i - b.i));
+  function rrPath(ctx, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function layerBox(l, W, H) {
+    const r = l.rect || [0, 0, 1, 1];
+    let x = r[0] * W, y = r[1] * H, w = r[2] * W, h = r[3] * H;
+    if (l.fit === 'fit') {   // 16:9 content letterboxed inside the box
+      const cw = Math.min(w, h * 16 / 9), ch = cw * 9 / 16;
+      x += (w - cw) / 2; y += (h - ch) / 2; w = cw; h = ch;
+    }
+    return {x, y, w, h};
+  }
+  function drawScene(cv, sc, sel) {
+    const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const bg = sc.background || {};
+    if (bg.type === 'gradient') {
+      const a = (bg.angle === undefined ? 90 : bg.angle) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      const len = Math.abs(W * c) + Math.abs(H * s);
+      const g = ctx.createLinearGradient(W / 2 - c * len / 2, H / 2 - s * len / 2, W / 2 + c * len / 2, H / 2 + s * len / 2);
+      g.addColorStop(0, bg.from || '#000'); g.addColorStop(1, bg.to || '#000'); ctx.fillStyle = g;
+    } else ctx.fillStyle = bg.color || '#0b1220';
+    ctx.fillRect(0, 0, W, H);
+    for (const {l, i} of layersByZ(sc)) {
+      const b = layerBox(l, W, H);
+      ctx.save();
+      ctx.globalAlpha = l.opacity === undefined ? 1 : l.opacity;
+      const rad = (l.radius || 0) * Math.min(b.w, b.h);
+      if (l.shadow) { ctx.shadowColor = 'rgba(0,0,0,' + (l.shadow.opacity || .5) + ')'; ctx.shadowBlur = (l.shadow.blur || .02) * H; ctx.shadowOffsetX = (l.shadow.dx || 0) * H; ctx.shadowOffsetY = (l.shadow.dy || 0) * H; }
+      rrPath(ctx, b.x, b.y, b.w, b.h, rad); ctx.fillStyle = (l.slot >= 0 && slots[l.slot] && slots[l.slot].k === 'dev') ? '#2d6a4f' : phColor(l.role || 'slot' + l.slot); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      if (l.border && l.border.width) { ctx.lineWidth = Math.max(1, l.border.width * H); ctx.strokeStyle = l.border.color || '#fff'; rrPath(ctx, b.x, b.y, b.w, b.h, rad); ctx.stroke(); }
+      if (W >= 120) {
+        ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.font = '600 ' + Math.max(9, Math.round(H * 0.055)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText((l.role || (l.slot >= 0 ? 'CAM ' + (l.slot + 1) : 'camada')).slice(0, 22), b.x + b.w / 2, b.y + b.h / 2, b.w - 6);
+      }
+      ctx.restore();
+      if (sel === i) {
+        ctx.save(); ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
+        ctx.fillStyle = '#ffd24a'; ctx.fillRect(l.rect[0] * W + l.rect[2] * W - 9, l.rect[1] * H + l.rect[3] * H - 9, 9, 9); ctx.restore();
+      }
+    }
+    for (const o of (sc.overlays || [])) {   // overlay presets are plain data: just hint them in the preview
+      ctx.save(); ctx.textBaseline = 'middle';
+      if (o.type === 'lowerthird') { ctx.fillStyle = 'rgba(31,107,255,.85)'; ctx.fillRect(W * .04, H * .78, W * .42, H * .13); if (W >= 120) { ctx.fillStyle = '#fff'; ctx.font = '600 ' + Math.round(H * .05) + 'px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(String(o.text || ''), W * .06, H * .845, W * .38); } }
+      else if (W >= 120) { ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '700 ' + Math.round(H * .09) + 'px sans-serif'; ctx.fillText(String(o.text || ''), W / 2, H * .47, W * .9); if (o.subtitle) { ctx.font = '500 ' + Math.round(H * .05) + 'px sans-serif'; ctx.fillText(String(o.subtitle), W / 2, H * .6, W * .9); } }
+      ctx.restore();
+    }
+  }
+  const mkThumb = (sc, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; drawScene(c, sc); return c; };
+
+  // ----- picker: template list -> map roles -> apply -----
+  const CATS = [['todos', 'Todos'], ['culto', 'Culto'], ['aula', 'Aula'], ['podcast', 'Podcast'], ['evento', 'Evento'], ['meus', 'Meus']];
+  let pickCat = 'todos', pickT = null;
+  function openPicker() { pickT = null; $('#scp-list').style.display = ''; $('#scp-map').style.display = 'none'; $('#scp-title').textContent = 'Escolha um template'; $('#sc-pick').classList.add('on'); renderPicker(); }
+  function renderPicker() {
+    if (pickT) return;
+    const tabs = $('#scp-tabs'); tabs.innerHTML = '';
+    CATS.forEach(([id, label]) => { const b = document.createElement('button'); b.textContent = label; b.dataset.cat = id; b.className = id === pickCat ? 'on' : ''; b.onclick = () => { pickCat = id; renderPicker(); }; tabs.appendChild(b); });
+    const grid = $('#scp-grid'); grid.innerHTML = '';
+    const list = scenesSt.templates.filter(t => pickCat === 'todos' || (pickCat === 'meus' ? !t.builtin : t.category === pickCat));
+    if (!list.length) grid.innerHTML = '<p class="note">Nenhum template aqui ainda. Use “Importar template…” ou salve uma cena como “meu template”.</p>';
+    list.forEach(t => {
+      const card = document.createElement('button'); card.className = 'sc-card'; card.dataset.id = t.id;
+      const mini = document.createElement('div'); mini.className = 'mini';
+      t.scenes.slice(0, 3).forEach(sc => mini.appendChild(mkThumb(sc, 160, 90)));
+      card.appendChild(mini);
+      card.insertAdjacentHTML('beforeend', `<b>${esc(t.name)}</b><em>${t.scenes.length} cena(s)${t.roles.length ? ' · papéis: ' + esc(t.roles.join(', ')) : ' · sem câmeras'}</em>`);
+      card.onclick = () => pickTemplate(t);
+      grid.appendChild(card);
+    });
+  }
+  function defaultRoleMap(roles) {
+    const all = slots.length ? slots.map((x, i) => i) : Array.from({length: N}, (_, i) => i);
+    const live = all.filter(i => slots[i] && slots[i].k === 'dev' && slots[i].en !== false);
+    const pool = [...live, ...all.filter(i => !live.includes(i))];
+    const out = {}; roles.forEach((r, k) => { out[r] = k < pool.length ? pool[k] : -1; }); return out;
+  }
+  function pickTemplate(t) {
+    pickT = t;
+    $('#scp-list').style.display = 'none'; $('#scp-map').style.display = ''; $('#scp-title').textContent = t.name;
+    $('#scp-desc').textContent = t.description || '';
+    const sb = $('#scp-scenes'); sb.innerHTML = '';
+    t.scenes.forEach(sc => {
+      const row = document.createElement('label'); row.className = 'sc-row chk'; row.style.flexDirection = 'row';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.dataset.scene = sc.id;
+      row.appendChild(cb); row.appendChild(mkThumb(sc, 192, 108)); row.insertAdjacentHTML('beforeend', `<span>${esc(sc.name)}</span>`);
+      sb.appendChild(row);
+    });
+    const rb = $('#scp-roles'); rb.innerHTML = '';
+    const map = defaultRoleMap(t.roles);
+    if (!t.roles.length) rb.innerHTML = '<p class="note">Este template não usa câmeras: é só fundo e gráficos.</p>';
+    t.roles.forEach(r => {
+      const lab = document.createElement('label'); lab.textContent = r;
+      const sel = document.createElement('select'); sel.dataset.role = r;
+      sel.innerHTML = '<option value="-1">— nenhuma (painel vazio) —</option>' + Array.from({length: N}, (_, i) => {
+        const x = slots[i], nm = x && x.k === 'dev' ? x.name : 'TESTE';
+        return `<option value="${i}">CAM ${i + 1} — ${esc(nm)}</option>`;
+      }).join('');
+      sel.value = String(map[r]); lab.appendChild(sel); rb.appendChild(lab);
+    });
+    const live = slots.filter(x => x.k === 'dev').length;
+    $('#scp-note').textContent = t.roles.length && live < t.roles.length ? 'Há menos câmeras conectadas (' + live + ') do que papéis (' + t.roles.length + '). Entradas “TESTE” mostram o padrão de teste; troque quando conectar as câmeras.' : '';
+    $('#scp-del').style.display = t.builtin ? 'none' : '';
+  }
+  $('#scp-back').onclick = openPicker;
+  $('#scp-apply').onclick = () => {
+    if (!pickT) return;
+    const ids = $$('#scp-scenes input[type=checkbox]').filter(c => c.checked).map(c => c.dataset.scene);
+    if (!ids.length) { toast('Marque ao menos uma cena.'); return; }
+    const map = {}; $$('#scp-roles select').forEach(s => { map[s.dataset.role] = +s.value; });
+    send('sceneapply', pickT.id, JSON.stringify(map), ids.join(','));
+    closeModals();
+    const b = document.querySelector('.bankbtn[data-bank="2"]'); if (b) b.click();   // show the CENAS bank
+  };
+  $('#scp-export').onclick = () => { if (pickT) send('sceneexport', pickT.id); };
+  $('#scp-import').onclick = () => send('sceneimport');
+  $('#scp-del').onclick = () => { if (pickT && !pickT.builtin) { send('templatedelete', pickT.id); openPicker(); } };
+  $('#scp-x').onclick = closeModals;
+  $('#sc-open').onclick = openPicker;
+
+  // ----- scene context menu -----
+  let scmSlot = -1, scmArm = 0;
+  const sceneMenu = $('#scenemenu');
+  function openSceneMenu(e, k) {
+    scmSlot = k; $('#scm-del').textContent = 'Excluir cena'; scmArm = 0;
+    sceneMenu.classList.add('on');
+    sceneMenu.style.left = Math.min(e.clientX, innerWidth - sceneMenu.offsetWidth - 8) + 'px';
+    sceneMenu.style.top = Math.min(e.clientY, innerHeight - sceneMenu.offsetHeight - 8) + 'px';
+  }
+  $('#scm-edit').onclick = () => { sceneMenu.classList.remove('on'); openEditor(scmSlot); };
+  $('#scm-del').onclick = () => {
+    const sc = sceneBySlot(scmSlot); if (!sc) return;
+    if (!scmArm) { scmArm = 1; $('#scm-del').textContent = 'Clique de novo para excluir'; return; }
+    send('scenedelete', sc.id); sceneMenu.classList.remove('on');
+  };
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#scenemenu')) sceneMenu.classList.remove('on'); });
+
+  // ----- editor: drag/resize layers on a preview canvas + numeric fields -----
+  let ed = null, edSel = 0, edDrag = null, edDelArm = 0;
+  const edCv = $('#sc-cv');
+  const edLayer = () => ed && ed.layers[edSel];
+  function openEditor(k) {
+    const sc = sceneBySlot(k); if (!sc) return;
+    ed = JSON.parse(JSON.stringify(sc)); edSel = 0; edDelArm = 0; $('#sce-del').textContent = 'EXCLUIR CENA';
+    $('#sce-name').value = ed.name; $('#sce-tname').value = '';
+    $('#sce-slot').innerHTML = '<option value="-1">— nenhuma (painel vazio) —</option>' + Array.from({length: N}, (_, i) => { const x = slots[i]; return `<option value="${i}">CAM ${i + 1} — ${esc(x && x.k === 'dev' ? x.name : 'TESTE')}</option>`; }).join('');
+    const bg = ed.background || (ed.background = {type: 'solid', color: '#0b1220'});
+    $('#sce-bgt').value = bg.type === 'gradient' ? 'gradient' : 'solid';
+    $('#sce-bg1').value = (bg.type === 'gradient' ? bg.from : bg.color) || '#0b1220'; $('#sce-bg2').value = bg.to || '#1c2f55';
+    $('#sc-edit').classList.add('on'); edRefresh(true);
+  }
+  function edRefresh(fields) {
+    if (!ed) return;
+    const lb = $('#sce-layers'); lb.innerHTML = '';
+    ed.layers.forEach((l, i) => { const b = document.createElement('button'); b.textContent = l.role || ('Camada ' + (i + 1)); b.className = i === edSel ? 'on' : ''; b.onclick = () => { edSel = i; edRefresh(true); }; lb.appendChild(b); });
+    if (fields) edFields();
+    drawScene(edCv, ed, edSel);
+  }
+  function edFields() {
+    const l = edLayer(), dis = !l;
+    $$('#sce-fields input,#sce-fields select,#sce-rm').forEach(e => { e.disabled = dis; });
+    if (!l) return;
+    const r = l.rect || (l.rect = [0, 0, 1, 1]), p = v => Math.round(v * 1000) / 10;
+    $('#sce-slot').value = String(l.slot === undefined ? -1 : l.slot);
+    $('#sce-x').value = p(r[0]); $('#sce-y').value = p(r[1]); $('#sce-w').value = p(r[2]); $('#sce-h').value = p(r[3]);
+    $('#sce-fit').value = l.fit || 'fill'; $('#sce-op').value = Math.round((l.opacity === undefined ? 1 : l.opacity) * 100);
+    $('#sce-rad').value = Math.round((l.radius || 0) * 100); $('#sce-bor').value = p(l.border ? l.border.width : 0);
+    $('#sce-sh').value = l.shadow ? '1' : '0'; $('#sce-z').value = l.z || 0;
+  }
+  const num = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
+  function edRead() {
+    const l = edLayer(); if (!l) return;
+    l.slot = +$('#sce-slot').value;
+    l.rect = [num('#sce-x', 0) / 100, num('#sce-y', 0) / 100, Math.max(.01, num('#sce-w', 100) / 100), Math.max(.01, num('#sce-h', 100) / 100)];
+    l.fit = $('#sce-fit').value; l.opacity = Math.min(1, Math.max(0, num('#sce-op', 100) / 100));
+    l.radius = Math.min(.5, Math.max(0, num('#sce-rad', 0) / 100));
+    const bw = Math.min(.1, Math.max(0, num('#sce-bor', 0) / 100)); l.border = bw ? {width: bw, color: (l.border && l.border.color) || '#ffffff'} : undefined; if (!bw) delete l.border;
+    if ($('#sce-sh').value === '1') l.shadow = l.shadow || {blur: .02, dx: .004, dy: .008, opacity: .55}; else delete l.shadow;
+    l.z = Math.round(num('#sce-z', 0));
+    drawScene(edCv, ed, edSel);
+  }
+  $$('#sce-fields input,#sce-fields select').forEach(e => e.addEventListener('input', edRead));
+  $('#sce-bgt').onchange = $('#sce-bg1').oninput = $('#sce-bg2').oninput = () => {
+    if (!ed) return;
+    ed.background = $('#sce-bgt').value === 'gradient' ? {type: 'gradient', from: $('#sce-bg1').value, to: $('#sce-bg2').value, angle: (ed.background && ed.background.angle) || 90} : {type: 'solid', color: $('#sce-bg1').value};
+    drawScene(edCv, ed, edSel);
+  };
+  $('#sce-add').onclick = () => { if (!ed || ed.layers.length >= 16) return; ed.layers.push({role: '', slot: -1, rect: [.25, .25, .5, .5], fit: 'fill', z: ed.layers.length}); edSel = ed.layers.length - 1; edRefresh(true); };
+  $('#sce-rm').onclick = () => { if (!ed || !edLayer()) return; ed.layers.splice(edSel, 1); edSel = Math.max(0, edSel - 1); edRefresh(true); };
+  const edPos = e => { const r = edCv.getBoundingClientRect(); return {x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height}; };
+  edCv.addEventListener('pointerdown', e => {
+    if (!ed) return;
+    const p = edPos(e), order = layersByZ(ed).reverse();
+    const hit = order.find(({l}) => { const r = l.rect; return p.x >= r[0] && p.x <= r[0] + r[2] && p.y >= r[1] && p.y <= r[1] + r[3]; });
+    if (!hit) return;
+    edSel = hit.i; const r = hit.l.rect;
+    const corner = Math.abs(p.x - (r[0] + r[2])) < 0.03 && Math.abs(p.y - (r[1] + r[3])) < 0.05;
+    edDrag = {mode: corner ? 'resize' : 'move', p0: p, r0: r.slice()};
+    edCv.setPointerCapture(e.pointerId); edRefresh(true);
+  });
+  edCv.addEventListener('pointermove', e => {
+    if (!edDrag || !ed) return;
+    const p = edPos(e), dx = p.x - edDrag.p0.x, dy = p.y - edDrag.p0.y, r0 = edDrag.r0, l = edLayer();
+    if (edDrag.mode === 'move') l.rect = [Math.min(1.5, Math.max(-.5, r0[0] + dx)), Math.min(1.5, Math.max(-.5, r0[1] + dy)), r0[2], r0[3]];
+    else l.rect = [r0[0], r0[1], Math.min(3, Math.max(.03, r0[2] + dx)), Math.min(3, Math.max(.03, r0[3] + dy))];
+    edFields(); drawScene(edCv, ed, edSel);
+  });
+  const edEnd = () => { edDrag = null; };
+  edCv.addEventListener('pointerup', edEnd); edCv.addEventListener('pointercancel', edEnd);
+  $('#sce-save').onclick = () => { if (!ed) return; ed.name = $('#sce-name').value.trim() || ed.name; send('scenesave', JSON.stringify(ed)); closeModals(); };
+  $('#sce-tpl').onclick = () => {
+    if (!ed) return;
+    ed.name = $('#sce-name').value.trim() || ed.name;
+    send('scenesave', JSON.stringify(ed));
+    send('scenetemplate', ed.id, $('#sce-tname').value.trim() || ed.name);
+    closeModals();
+  };
+  $('#sce-del').onclick = () => {
+    if (!ed) return;
+    if (!edDelArm) { edDelArm = 1; $('#sce-del').textContent = 'CONFIRMAR EXCLUSÃO'; return; }
+    send('scenedelete', ed.id); closeModals();
+  };
+  $('#sce-cancel').onclick = $('#sce-close').onclick = closeModals;
+
+  function onScenesState(d) {
+    scenesSt = {scenes: d.scenes || [], templates: d.templates || [], max: d.max || 16};
+    if (pickT) { const t = scenesSt.templates.find(x => x.id === pickT.id); if (!t) openPicker(); }
+    renderSceneTiles();
+    if ($('#sc-pick').classList.contains('on')) renderPicker();
+  }
+  // ---------- /FEATURE: scenes ----------
+
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
+    else if (d.t === 'scenes_state') onScenesState(d);   // FEATURE: scenes
     else if (d.t === 'devformats') renderCamFormats(d);
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);
