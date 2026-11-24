@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -80,6 +81,13 @@ public:
     bool setSlotFilter(int slot, std::shared_ptr<video::FrameFilter> filter);
     // ---- /FEATURE: chroma ----
 
+    // ---- FEATURE: overlays ----
+    // Called on the Program clock thread right after the switcher rendered the Program frame (graphics
+    // layers draw over it). Must be cheap; may be replaced at any time. nullptr removes it.
+    using PostRenderHook = std::function<void(video::Frame&, std::uint64_t)>;
+    void setPostRenderHook(PostRenderHook hook);
+    // ---- /FEATURE ----
+
     // UI frames: "pgm", "pvw", "s0".."s7". Returns false for unknown ids.
     bool renderUiFrame(const std::string& id, video::Frame& out);
 
@@ -94,6 +102,10 @@ public:
     // ---- /FEATURE ----
 
 private:
+    // ---- FEATURE: overlays ----
+    std::mutex postHookMutex_;
+    std::shared_ptr<const PostRenderHook> postHook_;
+    // ---- /FEATURE ----
     core::EventBus bus_;
     core::Logger logger_;
     std::shared_ptr<core::MemorySink> log_;

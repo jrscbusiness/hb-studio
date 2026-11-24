@@ -703,6 +703,69 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.click('#xmit-stopall');
   ok((await sent()).includes('xmitstopall'), 'TRANSMISSÃO: "ENCERRAR TODAS" envia xmitstopall');
 
+  // ---- FEATURE: overlays ---- GRÁFICOS tab
+  console.log('\n[5f] GRÁFICOS (overlays dinâmicos)');
+  const OVB = e => Object.assign({ x: 0.97, y: 0.05, pivotX: 1, pivotY: 0, z: 0, size: 0.07, font: 'Segoe UI', bold: true, textColor: 16777215, bgColor: 0, accent: 2058239,
+    bgAlpha: 0.6, opacity: 1, animIn: 'fade', animOut: 'fade', animMs: 400, mode: 'down', durationSec: 300, format: 'auto', blinkAtZero: true, label: '',
+    teamA: 'CASA', teamB: 'VISITANTE', period: '', colorA: 1, colorB: 2, scoreA: 0, scoreB: 0, showClock: false, qrText: '', qrCaption: '', qrEcc: 'M', qrSize: 0.28,
+    qrFg: 0, qrBg: 16777215, title: '', subtitle: '', holdSec: 4, maxLines: 2, widthPct: 0.8, clock: '05:00', on: false, running: false, finished: false, qrOk: true }, e);
+  const ovMsg = (els, preview = false) => ({ t: 'overlay_state', preview, elements: els });
+  const ovEls = [OVB({ id: 'ov1', type: 'timer', name: 'Contagem' }), OVB({ id: 'ov2', type: 'scoreboard', name: 'Placar do jogo', teamA: 'AAA', teamB: 'BBB', scoreA: 2 }),
+    OVB({ id: 'ov3', type: 'qr', name: 'Doação', qrOk: false })];
+  await page.evaluate(m => window.__hbMessage(m), ovMsg(ovEls));
+  await tab('gfx');
+  ok(await page.locator('.ovrow').count() === 3, 'GRÁFICOS: uma linha por elemento');
+  ok((await page.textContent('#ov-count')) === '3', 'GRÁFICOS: contador de elementos');
+  ok((await page.textContent('.ovrow[data-id=ov3] .nm em')).includes('⚠'), 'GRÁFICOS: QR com conteúdo inválido mostra aviso');
+  await clearSent();
+  await humanClick('.ovrow[data-id=ov1] [data-a=air]');
+  ok((await sent()).includes('ovshow|ov1|1'), 'GRÁFICOS: NO AR envia ovshow|id|1');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=INICIAR');
+  ok((await sent()).includes('ovtimer|ov1|start'), 'GRÁFICOS: INICIAR envia ovtimer|id|start');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=PAUSAR');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=ZERAR');
+  ok((await sent()).includes('ovtimer|ov1|pause') && (await sent()).includes('ovtimer|ov1|reset'), 'GRÁFICOS: PAUSAR e ZERAR');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=10 min');
+  ok((await sent()).includes('ovtimer|ov1|set|600'), 'GRÁFICOS: preset de 10 min envia ovtimer|id|set|600');
+  await humanClick('.ovrow[data-id=ov2] .ctl button >> text=A +1');
+  await humanClick('.ovrow[data-id=ov2] .ctl button >> text=B −1');
+  ok((await sent()).includes('ovscore|ov2|a|1') && (await sent()).includes('ovscore|ov2|b|-1'), 'GRÁFICOS: pontos do placar');
+  // the live clock updates in place: the row element must survive state refreshes (never rebuilt while clicking)
+  await page.evaluate(() => { window.__row = document.querySelector('.ovrow[data-id=ov1]'); });
+  await page.evaluate(m => window.__hbMessage(m), ovMsg(ovEls.map(e => Object.assign({}, e, { clock: '04:59' }))));
+  ok(await page.evaluate(() => window.__row === document.querySelector('.ovrow[data-id=ov1]')), 'GRÁFICOS: o relógio ao vivo não recria a lista');
+  ok((await page.textContent('.ovrow[data-id=ov1] .nm .live')) === '04:59', 'GRÁFICOS: texto do relógio atualizado');
+  await page.evaluate(m => window.__hbMessage(m), ovMsg(ovEls.map(e => Object.assign({}, e, { on: e.id === 'ov1' }))));
+  ok(await page.locator('.ovrow.on').count() === 1 && (await page.textContent('.ovrow[data-id=ov1] [data-a=air]')) === 'NO AR', 'GRÁFICOS: estado NO AR refletido na lista');
+  await clearSent();
+  await humanClick('.ovrow[data-id=ov1] [data-a=edit]');
+  ok(await page.locator('#modal6.on').count() === 1, 'GRÁFICOS: EDITAR abre o diálogo');
+  ok(await page.locator('#ovm-fields [data-k=durationSec]').count() === 1 && await page.locator('#ovm-fields [data-k=qrText]').count() === 0, 'GRÁFICOS: o diálogo só mostra campos do tipo');
+  await page.fill('#ovm-fields [data-k=name]', 'Minha contagem');
+  await page.click('#ovm-fields .ovpre button >> text=15 min');
+  await page.selectOption('#ovm-fields [data-k=_pos]', '6');
+  await page.click('#ovm-save');
+  const ovs = (await sent()).find(m => m.startsWith('ovsave|'));
+  ok(!!ovs, 'GRÁFICOS: SALVAR envia ovsave');
+  const ovp = JSON.parse(ovs.slice('ovsave|'.length));
+  ok(ovp.id === 'ov1' && ovp.name === 'Minha contagem' && ovp.durationSec === 900 && ovp.x === 0.03 && ovp.y === 0.95 && ovp.pivotY === 1 && !('clock' in ovp), 'GRÁFICOS: payload do ovsave (id, nome, duração, posição, sem campos vivos)');
+  ok(await page.locator('#modal6.on').count() === 0, 'GRÁFICOS: salvar fecha o diálogo');
+  await clearSent();
+  await page.selectOption('#ov-type', 'scoreboard');
+  await page.click('#ov-add');
+  ok((await sent()).includes('ovnew|scoreboard'), 'GRÁFICOS: ADICIONAR envia ovnew|tipo');
+  await page.click('label.chk:has(#ov-prev)');
+  ok((await sent()).includes('ovpreview|1'), 'GRÁFICOS: opção de preview envia ovpreview|1');
+  await clearSent();
+  await humanClick('.ovrow[data-id=ov3] [data-a=del]');   // the harness auto-accepts confirm()
+  ok((await sent()).includes('ovdel|ov3'), 'GRÁFICOS: remover envia ovdel|id');
+  await humanClick('.ovrow[data-id=ov1] [data-a=up]');
+  ok((await sent()).includes('ovmove|ov1|up'), 'GRÁFICOS: ordem (z) envia ovmove');
+  await page.evaluate(m => window.__hbMessage(m), ovMsg([]));
+  ok(await page.locator('.ovrow').count() === 0 && await page.isVisible('#ov-empty'), 'GRÁFICOS: lista vazia mostra a dica');
+  await tab('prod');
+  // ---- /FEATURE ----
+
   console.log('\n[6] Layout em janelas diferentes');
   // The PRODUÇÃO stage (monitors + switcher + 16-camera strip) uses a 3-row CSS grid where the
   // monitors and inputs rows flex to fill whatever's left after the switcher card's own natural
@@ -724,7 +787,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
-    for (const v of ['xmit', 'prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {
+    for (const v of ['xmit', 'gfx', 'prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {  // gfx: FEATURE overlays
       await tab(v);
       const hs = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       ok(hs, `${w}x${h} ${v}: no horizontal overflow`);

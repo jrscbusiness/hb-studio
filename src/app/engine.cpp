@@ -63,7 +63,14 @@ Engine::Engine(video::ProgramFormat format) {
     // ---- /FEATURE ----
     switcher_ = std::make_unique<switcher::Switcher>(sources_, &bus_);
     program_ = std::make_unique<video::ProgramOutput>(format, &bus_);
-    program_->setRenderer([this](video::Frame& f, std::uint64_t i) { switcher_->renderProgram(f, i); });
+    program_->setRenderer([this](video::Frame& f, std::uint64_t i) {
+        switcher_->renderProgram(f, i);
+        // ---- FEATURE: overlays ---- graphics drawn over the finished Program frame
+        std::shared_ptr<const PostRenderHook> hook;
+        { std::lock_guard lock(postHookMutex_); hook = postHook_; }
+        if (hook && *hook) (*hook)(f, i);
+        // ---- /FEATURE ----
+    });
 
     bus_.subscribe("switcher.*", [this](const core::Event& e) {
         logger_.info("switcher", e.topic + " pvw=" + e.fields.at("pvw") + " pgm=" + e.fields.at("pgm"));
@@ -73,6 +80,14 @@ Engine::Engine(video::ProgramFormat format) {
     logger_.info("engine", std::string("perfil ") + core::tierName(tier_) + ", " +
                                std::to_string(hw_.logicalCores) + " núcleos");
 }
+
+// ---- FEATURE: overlays ----
+void Engine::setPostRenderHook(PostRenderHook hook) {
+    auto p = hook ? std::make_shared<const PostRenderHook>(std::move(hook)) : nullptr;
+    std::lock_guard lock(postHookMutex_);
+    postHook_ = std::move(p);
+}
+// ---- /FEATURE ----
 
 void Engine::start() {
     lastSample_ = std::chrono::steady_clock::now();
