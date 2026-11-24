@@ -36,6 +36,17 @@ public:
     virtual SourceStatus status() const = 0;
 };
 
+// ---- FEATURE: chroma (frame filter hook) ----
+// A per-slot post-render filter (e.g. background removal/replacement, src/chroma/). It runs on the
+// thread that renders the slot (the Program clock thread for PGM), so apply() MUST be cheap and
+// never block or throw. Frames are BGRA8 with PREMULTIPLIED alpha (see docs/CHROMA.md).
+class FrameFilter {
+public:
+    virtual ~FrameFilter() = default;
+    virtual void apply(Frame& frame) = 0;
+};
+// ---- /FEATURE: chroma ----
+
 // One of the 8 input slots (CAM 1..8). It forwards to the assigned device, or to the built-in test
 // source when nothing is assigned. The switcher holds slots forever; devices come and go behind them.
 class SlotSource final : public Source {
@@ -52,7 +63,24 @@ public:
             s = inner_ ? inner_ : fallback_;
         }
         s->render(frame, index);
+        // ---- FEATURE: chroma ----
+        std::shared_ptr<FrameFilter> f;
+        {
+            std::lock_guard lock(mutex_);
+            f = filter_;
+        }
+        if (f) {
+            try { f->apply(frame); } catch (...) {}   // a filter must never take the video clock down
+        }
+        // ---- /FEATURE: chroma ----
     }
+    // ---- FEATURE: chroma ----
+    // The filter belongs to the slot (not the device): it survives assign()/clear().
+    void setFilter(std::shared_ptr<FrameFilter> f) {
+        std::lock_guard lock(mutex_);
+        filter_ = std::move(f);
+    }
+    // ---- /FEATURE: chroma ----
 
     void assign(std::shared_ptr<const LiveSource> device, std::string deviceId, std::string deviceName) {
         std::lock_guard lock(mutex_);
@@ -99,6 +127,7 @@ private:
     std::shared_ptr<const Source> inner_;
     std::shared_ptr<const LiveSource> live_;
     std::string id_, label_;
+    std::shared_ptr<FrameFilter> filter_;   // FEATURE: chroma
 };
 
 // Procedural source used until real cameras exist (Phases 2-6). It is always

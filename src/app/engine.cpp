@@ -107,6 +107,14 @@ bool Engine::clearSlot(int slot) {
     return true;
 }
 
+// ---- FEATURE: chroma ----
+bool Engine::setSlotFilter(int slot, std::shared_ptr<video::FrameFilter> filter) {
+    if (slot < 0 || slot >= kSourceCount) return false;
+    slots_[static_cast<std::size_t>(slot)]->setFilter(std::move(filter));
+    return true;
+}
+// ---- /FEATURE: chroma ----
+
 video::SlotSource::Info Engine::slotInfo(int slot) const {
     if (slot < 0 || slot >= kSourceCount) return {};
     return slots_[static_cast<std::size_t>(slot)]->info();
