@@ -152,7 +152,8 @@ UINT32 mp3BytesPerSecond(int kbps) {
     return static_cast<UINT32>(best * 125);
 }
 
-enum class Kind { Mp4H264, Mp4Hevc, M4aAac, Mp3 };
+// FEATURE: multitrack - Mp4H264Iso: video-only H.264 MP4 for ISO camera tracks (fragmented MP4 when available).
+enum class Kind { Mp4H264, Mp4Hevc, M4aAac, Mp3, Mp4H264Iso };
 
 class MfWriter final : public IMediaWriter {
 public:
@@ -168,15 +169,16 @@ public:
             error = "gravador já aberto";
             return false;
         }
-        const bool wantVideo = kind_ == Kind::Mp4H264 || kind_ == Kind::Mp4Hevc;
+        const bool wantVideo = kind_ == Kind::Mp4H264 || kind_ == Kind::Mp4Hevc || kind_ == Kind::Mp4H264Iso;
+        const bool wantAudio = kind_ != Kind::Mp4H264Iso;   // FEATURE: multitrack (ISO video has no audio stream)
         if (wantVideo && !video.present()) { error = "formato de vídeo ausente"; return false; }
         if (wantVideo && (video.width % 2 || video.height % 2)) { error = "largura e altura do vídeo precisam ser pares"; return false; }
-        if (!audio.present() || audio.channels < 1 || audio.channels > 2) { error = "áudio precisa ser mono ou estéreo"; return false; }
-        if (kind_ != Kind::Mp3 && audio.sampleRate != 44100 && audio.sampleRate != 48000) {
+        if (wantAudio && (!audio.present() || audio.channels < 1 || audio.channels > 2)) { error = "áudio precisa ser mono ou estéreo"; return false; }
+        if (wantAudio && kind_ != Kind::Mp3 && audio.sampleRate != 44100 && audio.sampleRate != 48000) {
             error = "o codificador AAC do Windows só aceita 44,1 ou 48 kHz";
             return false;
         }
-        if (kind_ == Kind::Mp3 && audio.sampleRate != 44100 && audio.sampleRate != 48000) {
+        if (wantAudio && kind_ == Kind::Mp3 && audio.sampleRate != 44100 && audio.sampleRate != 48000) {
             error = "o codificador MP3 do Windows só aceita 44,1 ou 48 kHz";
             return false;
         }
@@ -187,23 +189,42 @@ public:
         video_ = video;
         audio_ = audio;
         hasVideo_ = wantVideo;
+        wantAudio_ = wantAudio;
 
-        ComPtr<IMFAttributes> attrs;
-        HRESULT hr = MFCreateAttributes(&attrs, 4);
-        if (FAILED(hr)) { error = hrText("MFCreateAttributes", hr); return false; }
-        attrs->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
-        attrs->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, TRUE);
-        attrs->SetGUID(MF_TRANSCODE_CONTAINERTYPE, kind_ == Kind::Mp3 ? MFTranscodeContainerType_MP3 : MFTranscodeContainerType_MPEG4);
-
-        hr = MFCreateSinkWriterFromURL(widen(pathUtf8).c_str(), nullptr, attrs.Get(), &sw_);
-        if (FAILED(hr)) { error = hrText("não foi possível criar o arquivo de saída", hr); return false; }
-
-        if (wantVideo && !addVideoStream(profile, error)) return false;
-        if (!addAudioStream(profile, error)) return false;
-        hr = sw_->BeginWriting();
-        if (FAILED(hr)) { error = hrText("falha ao iniciar a gravação (codificador indisponível?)", hr); return false; }
+        // ---- FEATURE: multitrack ----
+        // ISO video first tries FRAGMENTED MP4 (a crash then leaves a playable file up to the last fragment) and
+        // falls back to the classic container if this Windows refuses it at any step. Everything else: unchanged.
+        const GUID container = kind_ == Kind::Mp3 ? MFTranscodeContainerType_MP3 : MFTranscodeContainerType_MPEG4;
+        auto build = [&](const GUID& cont, std::string& err) -> bool {
+            sw_.Reset();
+            ComPtr<IMFAttributes> attrs;
+            HRESULT h = MFCreateAttributes(&attrs, 4);
+            if (FAILED(h)) { err = hrText("MFCreateAttributes", h); return false; }
+            attrs->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
+            attrs->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, TRUE);
+            attrs->SetGUID(MF_TRANSCODE_CONTAINERTYPE, cont);
+            h = MFCreateSinkWriterFromURL(widen(pathUtf8).c_str(), nullptr, attrs.Get(), &sw_);
+            if (FAILED(h)) { err = hrText("não foi possível criar o arquivo de saída", h); return false; }
+            if (wantVideo && !addVideoStream(profile, err)) return false;
+            if (wantAudio && !addAudioStream(profile, err)) return false;
+            h = sw_->BeginWriting();
+            if (FAILED(h)) { err = hrText("falha ao iniciar a gravação (codificador indisponível?)", h); return false; }
+            return true;
+        };
+        bool built = false;
+        if (kind_ == Kind::Mp4H264Iso) {
+            std::string ignore;
+            built = build(MFTranscodeContainerType_FMPEG4, ignore);
+            if (!built) {
+                sw_.Reset();
+                std::error_code ec;
+                std::filesystem::remove(std::filesystem::path(std::u8string(pathUtf8.begin(), pathUtf8.end())), ec);
+            }
+        }
+        if (!built && !build(container, error)) return false;
         opened_ = true;
         return true;
+        // ---- /FEATURE ----
     }
 
     bool writeVideo(const std::uint8_t* bgra, int stride, std::int64_t ptsNs, std::string& error) override {
@@ -236,6 +257,7 @@ public:
 
     bool writeAudio(const float* in, std::size_t frames, std::int64_t ptsNs, std::string& error) override {
         if (!opened_) { error = "gravador não está aberto"; return false; }
+        if (!wantAudio_) return true;   // FEATURE: multitrack (video-only ISO writer)
         if (!in || frames == 0) return true;
         const std::size_t samples = frames * static_cast<std::size_t>(audio_.channels);
         const DWORD bytes = static_cast<DWORD>(samples * 2);
@@ -301,7 +323,7 @@ private:
         MFSetAttributeSize(out.Get(), MF_MT_FRAME_SIZE, static_cast<UINT32>(video_.width), static_cast<UINT32>(video_.height));
         MFSetAttributeRatio(out.Get(), MF_MT_FRAME_RATE, static_cast<UINT32>(video_.fpsNum), static_cast<UINT32>(video_.fpsDen));
         MFSetAttributeRatio(out.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
-        if (kind_ == Kind::Mp4H264) out->SetUINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High);
+        if (kind_ == Kind::Mp4H264 || kind_ == Kind::Mp4H264Iso) out->SetUINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High);
         out->SetUINT32(MF_MT_MAX_KEYFRAME_SPACING,
                        static_cast<UINT32>(std::max(1, p.keyframeIntervalSec) * std::max(1, video_.fpsNum / std::max(1, video_.fpsDen))));
         HRESULT hr = sw_->AddStream(out.Get(), &vStream_);
@@ -414,7 +436,7 @@ private:
     std::string path_;
     VideoFormat video_;
     AudioFormat audio_;
-    bool hasVideo_ = false, opened_ = false, closed_ = false;
+    bool hasVideo_ = false, opened_ = false, closed_ = false, wantAudio_ = true;
     LONGLONG lastVideo_ = -1, lastAudio_ = -1;
     WriterStats stats_;
 };
@@ -477,6 +499,19 @@ std::vector<std::string> registerWindowsWriters() {
         p.audioSampleRate = 48000;
         add(p, Kind::Mp4H264);
     }
+    // ---- FEATURE: multitrack ----
+    if (a.h264) {
+        RecordingProfile p;
+        p.id = "mp4-h264-iso";
+        p.label = "MP4 — H.264 (ISO, somente vídeo)";
+        p.description = "Uso interno da gravação multipista: vídeo H.264 sem áudio, MP4 fragmentado quando possível.";
+        p.extension = "mp4";
+        p.hasAudio = false;
+        p.kind = "internal";   // not listed in the REC tab's format pickers
+        p.videoBitrateKbps = 8000;
+        add(p, Kind::Mp4H264Iso);
+    }
+    // ---- /FEATURE ----
     if (a.hevc && a.aac) {
         RecordingProfile p;
         p.id = "mp4-hevc-aac";

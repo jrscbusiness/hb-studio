@@ -77,6 +77,10 @@ public:
     bool assignSlot(int slot, std::shared_ptr<const video::LiveSource> device, std::string deviceId, std::string deviceName);
     bool clearSlot(int slot);
     video::SlotSource::Info slotInfo(int slot) const;
+    // ---- FEATURE: multitrack ----
+    // The slot itself (renders the CLEAN camera: before overlays/transitions); null for a bad index.
+    std::shared_ptr<const video::Source> slotSource(int slot) const;
+    // ---- /FEATURE ----
     // ---- FEATURE: chroma ----
     bool setSlotFilter(int slot, std::shared_ptr<video::FrameFilter> filter);
     // ---- /FEATURE: chroma ----

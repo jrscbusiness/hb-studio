@@ -85,3 +85,31 @@ TEST(RecWin, Mp4H264) { roundTrip("mp4-h264-aac", true); }
 TEST(RecWin, Mp4Hevc) { roundTrip("mp4-hevc-aac", true); }
 TEST(RecWin, M4a) { roundTrip("m4a-aac", false); }
 TEST(RecWin, Mp3) { roundTrip("mp3", false); }
+
+// ---- FEATURE: multitrack ----
+// The ISO writer is video-only: the file must open, have a video stream, no audio stream, and ~2 s.
+TEST(RecWin, Mp4H264IsoVideoOnly) {
+    registerWindowsWriters();
+    RecordingProfile prof;
+    WriterFactory f;
+    if (!WriterRegistry::instance().find("mp4-h264-iso", prof, f)) GTEST_SKIP() << "codificador H.264 indisponivel";
+    auto w = f();
+    const auto path = std::filesystem::temp_directory_path() / "hb_rec_test_iso.mp4";
+    std::filesystem::remove(path);
+    std::string err;
+    ASSERT_TRUE(w->open(path.string(), prof, VideoFormat{640, 360, 30, 1}, AudioFormat{}, err)) << err;
+    std::vector<std::uint8_t> frame(640 * 360 * 4, 128);
+    for (int i = 0; i < 60; ++i) {
+        for (size_t k = 0; k < frame.size(); k += 4) frame[k] = static_cast<std::uint8_t>(i * 4);
+        ASSERT_TRUE(w->writeVideo(frame.data(), 640 * 4, i * 33333333LL, err)) << err;
+    }
+    ASSERT_TRUE(w->writeAudio(nullptr, 0, 0, err));
+    ASSERT_TRUE(w->close(err)) << err;
+    const Probe p = inspect(path);
+    EXPECT_TRUE(p.ok);
+    EXPECT_TRUE(p.video);
+    EXPECT_FALSE(p.audio);
+    EXPECT_NEAR(p.seconds, 2.0, 0.3);
+    std::filesystem::remove(path);
+}
+// ---- /FEATURE ----
