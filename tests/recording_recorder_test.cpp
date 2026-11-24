@@ -262,7 +262,8 @@ TEST_F(Fixture, AudioIsTheClockAndVideoIsConstantRate) {
     EXPECT_EQ(gFake->lastV.width, 64);
     EXPECT_EQ(gFake->lastA.sampleRate, 48000);
     EXPECT_EQ(gFake->closes, 1);
-    EXPECT_EQ(topics(), (std::vector<std::string>{"recording.started", "recording.stopped"}));
+    // FEATURE: multitrack - every finalised file is announced (recording.fileClosed) before "stopped".
+    EXPECT_EQ(topics(), (std::vector<std::string>{"recording.started", "recording.fileClosed", "recording.stopped"}));
     // only the file name appears in the log, not the user's folder
     for (const auto& rec : sink->snapshot()) EXPECT_EQ(rec.message.find(dir->folderUtf8()), std::string::npos) << rec.message;
 }

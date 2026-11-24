@@ -150,6 +150,13 @@ video::SlotSource::Info Engine::slotInfo(int slot) const {
     return slots_[static_cast<std::size_t>(slot)]->info();
 }
 
+// ---- FEATURE: multitrack ----
+std::shared_ptr<const video::Source> Engine::slotSource(int slot) const {
+    if (slot < 0 || slot >= kSourceCount) return nullptr;
+    return slots_[static_cast<std::size_t>(slot)];
+}
+// ---- /FEATURE ----
+
 bool Engine::renderUiFrame(const std::string& id, video::Frame& out) {
     const auto uiIndex = program_->framesProduced();
     const auto& preset = previewQualityPresets()[static_cast<std::size_t>(

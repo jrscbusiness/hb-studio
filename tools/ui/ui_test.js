@@ -421,6 +421,86 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'theme', id: '', scheme: '', vars: {} }));
   ok((await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg'))) === '', 'empty theme restores the default look');
 
+  // ---- FEATURE: marketplace ----
+  console.log('\n[4d] PLUGINS: Marketplace');
+  await clearSent();
+  await humanClick('#plg-seg button[data-s=mkt]');
+  ok((await sent()).includes('mktlist') && (await sent()).includes('mktrefresh'), 'MARKETPLACE sub-view: asks the host for the cached list and a refresh');
+  ok(await page.locator('#mk-grid').isVisible() && !(await page.locator('#plg-list').isVisible()), 'MARKETPLACE replaces the installed list');
+  const mkE = (o) => Object.assign({ id: 'com.x.a', name: 'A', author: 'Autor', desc: 'Descrição', cat: 'theme', type: 'theme', native: false, verified: false, license: 'MIT', homepage: '', repository: '',
+    tags: [], screenshots: [], permissions: [], compatible: true, reason: '', version: '1.0.0', size: 2048, minApp: '0.1.0', notes: '', released: '', status: 'available', installedVersion: '' }, o);
+  const mkCat = (list, over) => page.evaluate(m => window.__hbMessage(m), Object.assign({ t: 'mkt_catalog', loaded: true, offline: false, fromCache: false, error: '', dropped: 0, installing: false,
+    catalogUrl: 'https://raw.example.com/index.json', defaultUrl: 'https://raw.example.com/index.json', list }, over || {}));
+  await mkCat([
+    mkE({ id: 'com.x.theme', name: 'Tema Aurora', verified: true, status: 'installed', installedVersion: '1.0.0', tags: ['escuro'], screenshots: ['https://example.com/1.png', 'javascript:alert(1)'] }),
+    mkE({ id: 'com.x.src', name: 'Fonte Câmera X', author: 'Beltrano', cat: 'video-source', type: 'source', native: true, permissions: ['native-code'], size: 3 * 1048576 }),
+    mkE({ id: 'com.x.fx', name: 'Efeito Eco', cat: 'audio-effect', type: 'effect', native: true, status: 'update', installedVersion: '0.9.0', version: '1.1.0' }),
+    mkE({ id: 'com.x.old', name: 'Futuro', compatible: false, reason: 'requer o HB Studio 9.0.0 ou mais novo' }),
+    mkE({ id: 'com.x.xss', name: '<img src=x onerror=window.__pwned=1>', desc: '<b>negrito</b>' }),
+  ]);
+  await page.waitForTimeout(100);
+  ok(await page.locator('#mk-grid .mk-card').count() === 5, 'MARKETPLACE: 5 cards');
+  const grid = await page.locator('#mk-grid').innerText();
+  ok(grid.includes('VERIFICADO') && grid.includes('NÃO VERIFICADO') && grid.includes('CÓDIGO NATIVO') && grid.includes('ATUALIZAR') && grid.includes('INSTALADO'),
+    'cards show verified / not verified / native code / update / installed');
+  ok(!(await page.evaluate(() => window.__pwned)) && await page.locator('#mk-grid img').count() === 0, 'catalog text is rendered as text, never as HTML');
+  await page.fill('#mk-q', 'eco');
+  ok(await page.locator('#mk-grid .mk-card').count() === 1, 'search filters by name');
+  await page.fill('#mk-q', '');
+  await page.selectOption('#mk-cat', 'video-source');
+  ok(await page.locator('#mk-grid .mk-card').count() === 1 && (await page.locator('#mk-grid').innerText()).includes('Fonte Câmera X'), 'category filter');
+  await page.selectOption('#mk-cat', '');
+  ok(await page.locator('.mk-card[data-id="com.x.old"] .mk-act').isDisabled(), 'incompatible entry cannot be installed');
+  ok(await page.locator('.mk-card[data-id="com.x.theme"] .mk-act').isDisabled(), 'installed entry: button disabled');
+  await clearSent();
+  await humanClick('.mk-card[data-id="com.x.src"] .mk-act');
+  ok((await sent()).includes('mktinstall|com.x.src'), 'INSTALAR -> mktinstall|id');
+  await page.evaluate(() => window.__hbMessage({ t: 'mkt_progress', id: 'com.x.src', phase: 'download', pct: 42 }));
+  await page.locator('.mk-card[data-id="com.x.src"]').click();
+  await page.waitForTimeout(60);
+  ok(await page.locator('#mk-drawer').isVisible(), 'click on a card opens the details drawer');
+  const dr = await page.locator('#mk-drawer').innerText();
+  ok(dr.includes('Publicador não verificado') && dr.includes('código nativo') && dr.includes('sandbox'), 'drawer: not-verified and native-code warnings');
+  await page.evaluate(() => window.__hbMessage({ t: 'mkt_done', id: 'com.x.src', ok: true, message: '' }));
+  await page.locator('.mk-card[data-id="com.x.theme"]').click();
+  await page.waitForTimeout(60);
+  ok(await page.locator('#mk-dbody img[loading=lazy]').count() === 1, 'drawer: only https screenshots, lazy loaded');
+  await clearSent();
+  await page.locator('#mk-dbody button', { hasText: 'REMOVER' }).click();
+  ok((await sent()).includes('pluginremove|com.x.theme'), 'REMOVER (after confirmation) -> pluginremove|id (existing flow)');
+  // review dialog banner for unverified publishers
+  await page.evaluate(() => { window.__hbMessage({ t: 'mkt_review', id: 'com.x.src', verified: false, native: true });
+    window.__hbMessage({ t: 'plugin_review', ok: true, token: 'tk9', id: 'com.x.src', name: 'Fonte Câmera X', version: '1.0.0', author: 'B', description: '', license: 'MIT', type: 'source', native: true, files: 2, size: 9000, replaces: false, installedVersion: '', sha: 'aa' }); });
+  await page.waitForTimeout(80);
+  ok(await page.locator('#rv-unver').isVisible() && await page.locator('#rv-risk').isVisible() && await page.locator('#rv-ok').isDisabled(), 'review dialog from the marketplace: "publisher not verified" shown, consent still required');
+  await humanClick('#rv-cancel');
+  await page.evaluate(() => window.__hbMessage({ t: 'plugin_review', ok: true, token: 'tk10', id: 'com.x.file', name: 'Arquivo', version: '1.0.0', author: 'B', description: '', license: '', type: 'theme', native: false, files: 1, size: 9, replaces: false, installedVersion: '', sha: 'bb' }));
+  await page.waitForTimeout(60);
+  ok(!(await page.locator('#rv-unver').isVisible()), 'banner is not shown for a file installed by hand');
+  await humanClick('#rv-cancel');
+  // offline / empty states
+  await mkCat([], { loaded: false, offline: true, error: 'Não foi possível acessar o catálogo (sem internet).' });
+  await page.waitForTimeout(60);
+  ok((await page.locator('#mk-msg').innerText()).includes('sem internet') && (await page.locator('#mk-grid').innerText()).includes('Catálogo indisponível'), 'offline without cache: graceful message');
+  await mkCat([], {});
+  await page.waitForTimeout(60);
+  ok((await page.locator('#mk-grid').innerText()).includes('catálogo está vazio'), 'empty catalog state');
+  await mkCat([mkE({}), mkE({ id: 'com.x.b', name: 'B' })], { error: 'Sem conexão com o catálogo; mostrando a última cópia salva.', offline: true, fromCache: true });
+  await page.waitForTimeout(60);
+  ok(await page.locator('#mk-msg').isVisible() && await page.locator('#mk-grid .mk-card').count() === 2, 'offline with cache: copy is shown with a notice');
+  for (const [w, h] of [[1024, 720], [1280, 800]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.locator('.mk-card').first().click();
+    const fit = await page.evaluate(() => ({ x: document.documentElement.scrollWidth <= window.innerWidth + 1, y: document.documentElement.scrollHeight <= window.innerHeight + 1,
+      drawer: document.querySelector('#mk-drawer').getBoundingClientRect().right <= document.querySelector('#v-plg').getBoundingClientRect().right + 1 }));
+    ok(fit.x && fit.y && fit.drawer, `${w}x${h}: marketplace fits without page scrolling`);
+  }
+  await page.evaluate(() => { document.querySelector('#mk-url-save').click(); });
+  ok((await sent()).some(m => m.startsWith('mktcfg|')), 'CONFIG catalog URL: SALVAR -> mktcfg|url');
+  await humanClick('#plg-seg button[data-s=inst]');
+  ok(await page.locator('#plg-list').isVisible(), 'back to INSTALADOS');
+  // ---- /FEATURE ----
+
   console.log('\n[5] ÁUDIO e CONFIG');
   await tab('aud');
   ok(await page.locator('#v-aud').isVisible(), 'ÁUDIO tab opens');
@@ -587,6 +667,49 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await page.evaluate(n => window.__sent.slice(n), sent1)).includes('rec|stop'), 'REC: button stops while recording');
   await page.evaluate(() => window.__hbMessage({ t: 'rec', state: 'idle', error: 'Disco cheio', last: 'C:\\v\\a.mp4' }));
   ok((await page.locator('#rec-err').textContent()).includes('Disco cheio'), 'REC: errors are shown');
+
+  // ---- FEATURE: multitrack ----
+  const ISO = (extra) => Object.assign({ t: 'rec_iso', locked: false,
+    cfg: { res: 'native', fps: 'program', vkbps: 0, afmt: 'wav', tap: 'pre', rotmin: 0, expert: false },
+    cams: [{ slot: 0, label: 'CAM 1', device: 'Logitech C920', live: true, w: 1920, h: 1080, fps: 30, sel: true }, { slot: 1, label: 'CAM 2', device: '', live: false, w: 0, h: 0, fps: 0, sel: false }],
+    chans: [{ strip: 0, name: 'MIC 1', sel: true }, { strip: 1, name: 'MIC 2', sel: false }],
+    formats: [{ id: 'wav', label: 'WAV 24 bits' }, { id: 'wav-f32', label: 'WAV float' }],
+    est: { video: 1, audio: 1, mbps: 2.3, gbh: 8.3, load: 66.7, maxCams: 2, minutes: 120, tier: 'MEDIUM', verdict: 'ok', notes: [] },
+    sess: { active: false, dir: '' } }, extra || {});
+  await page.evaluate(m => window.__hbMessage(m), ISO());
+  ok(await page.locator('#mt-card').isVisible(), 'MULTIPISTA: the section is shown in the REC tab');
+  ok(await page.locator('#mt-cams input').count() === 2 && await page.locator('#mt-chans input').count() === 2, 'MULTIPISTA: one checkbox per camera and per audio channel');
+  ok(await page.locator('#mt-cams input').first().isChecked(), 'MULTIPISTA: the saved selection is reflected');
+  ok((await page.locator('#mt-est').textContent()).includes('2,3 MB/s'), 'MULTIPISTA: shows the disk-rate estimate');
+  ok((await page.locator('#mt-est').textContent()).includes('67%'), 'MULTIPISTA: shows the encode load against the safe cap');
+  const sentM = await page.evaluate(() => window.__sent.length);
+  await page.locator('#mt-chans input').nth(1).check();
+  await page.locator('#mt-cams input').first().uncheck();
+  await page.selectOption('#mt-afmt', 'wav-f32');
+  await page.selectOption('#mt-tap', 'post');
+  await page.fill('#mt-rotmin', '10'); await page.locator('#mt-rotmin').dispatchEvent('change');
+  await page.locator('#mt-expert').check();
+  const smm = await page.evaluate(n => window.__sent.slice(n), sentM);
+  ok(smm.includes('rec|iso|ch|1|1') && smm.includes('rec|iso|cam|0|0'), 'MULTIPISTA: checkboxes send rec|iso|ch / rec|iso|cam');
+  ok(smm.includes('rec|iso|cfg|afmt|wav-f32') && smm.includes('rec|iso|cfg|tap|post') && smm.includes('rec|iso|cfg|rotmin|10') && smm.includes('rec|iso|cfg|expert|1'), 'MULTIPISTA: format / tap / rotation / expert send rec|iso|cfg');
+  await page.locator('#mt-open').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sentM)).includes('rec|iso|open'), 'MULTIPISTA: open-folder button sends rec|iso|open');
+  await page.evaluate(m => window.__hbMessage(m), ISO({ locked: true, est: { video: 6, audio: 1, mbps: 9, gbh: 32, load: 300, maxCams: 2, minutes: 4, tier: 'LOW', verdict: 'blocked', notes: ['Carga alta'] },
+    sess: { active: true, seconds: 75, free: 5e10, dir: 'C:\\v\\2026', warnings: ['Espaço baixo'], tracks: [
+      { id: 'CAM01', name: 'Logitech', kind: 'video', state: 'recording', error: '', seconds: 75, segment: 1, repeated: 3, dropped: 2, silence: 0, bytes: 1, drift: 0 },
+      { id: 'CH01', name: 'MIC 1', kind: 'audio', state: 'error', error: 'disco removido', seconds: 10, segment: 1, repeated: 0, dropped: 0, silence: 480, bytes: 1, drift: 0 }] } }));
+  ok(await page.locator('#mt-cams input').first().isDisabled(), 'MULTIPISTA: selection is locked while recording');
+  ok((await page.locator('#mt-est').textContent()).includes('Bloqueado'), 'MULTIPISTA: a blocked plan is flagged');
+  ok(await page.locator('#mt-tracks .mt-trk').count() === 3, 'MULTIPISTA: per-track live status rows (header + 2 tracks)');
+  ok((await page.locator('#mt-tracks').textContent()).includes('disco removido'), 'MULTIPISTA: a failing track shows its own error');
+  for (const theme of ['light', 'dark', 'gray']) {
+    await page.evaluate(th => document.documentElement.setAttribute('data-theme', th), theme);
+    const fits = await page.evaluate(() => { const c = document.querySelector('#mt-card').getBoundingClientRect(); return c.right <= window.innerWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1; });
+    ok(fits, `MULTIPISTA: fits the width in the ${theme} theme`);
+  }
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  await page.evaluate(m => window.__hbMessage(m), ISO());
+  // ---- /FEATURE ----
 
 
   console.log('\n[5c] Tema claro/escuro nativo (sem plugin)');
@@ -787,7 +910,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
-    for (const v of ['xmit', 'gfx', 'prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {  // gfx: FEATURE overlays
+    for (const v of ['xmit', 'gfx', 'chat', 'prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {  // gfx: FEATURE overlays
       await tab(v);
       const hs = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       ok(hs, `${w}x${h} ${v}: no horizontal overflow`);
@@ -1110,6 +1233,119 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
     await p2.close();
   }
   await tab('prod');
+  // ---- /FEATURE ----
+
+  // ---- FEATURE: chat ----
+  {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await tab('chat');
+    const hm = o => page.evaluate(m => window.__hbMessage(m), o);
+    ok((await page.locator('.chatplat').count()) === 4, 'CHAT: os quatro cards de plataforma aparecem antes de qualquer status');
+    await hm({ t: 'chat_status', platforms: [
+      { p: 'youtube', state: 'connected', detail: 'Conectado ao chat ao vivo', error: '', quota: 55, want: true },
+      { p: 'facebook', state: 'needs_auth', detail: 'Informe o token', error: '', quota: 0, want: false },
+      { p: 'instagram', state: 'unavailable', detail: 'Indisponível: o Instagram não oferece leitura', error: '', quota: 0, want: false },
+      { p: 'twitch', state: 'disconnected', detail: '', error: '', quota: 0, want: false }], auth: { state: 'idle', message: '' }, muted: [], total: 0 });
+    await hm({ t: 'chat_settings', youtube: { videoId: 'abc', clientId: 'cid', hasSecret: true, secretHint: '••••1234', authorized: true },
+      facebook: { liveVideoId: '', hasToken: false, tokenHint: '' }, twitch: { channel: 'meucanal' }, persist: false, net: true });
+    ok((await page.locator('.chatplat[data-p=instagram] .st').textContent()).includes('INDISPON'), 'CHAT: Instagram aparece como limitado/indisponível com explicação');
+    ok((await page.locator('.chatplat[data-p=instagram]').textContent()).includes('não oferece'), 'CHAT: a explicação do Instagram é exibida');
+    ok((await page.locator('.chatplat[data-p=instagram] [data-act=save]').count()) === 0, 'CHAT: Instagram não tem formulário de credenciais (nada fingido)');
+    ok((await page.locator('.chatplat[data-p=youtube]').textContent()).includes('55 unidades'), 'CHAT: cota estimada do YouTube é mostrada');
+    await clearSent();
+    await page.locator('.chatplat[data-p=facebook] [data-act=connect]').click();
+    ok((await sent()).includes('chatconnect|facebook'), 'CHAT: CONECTAR envia chatconnect|plataforma');
+    await page.locator('.chatplat[data-p=youtube] [data-act=disconnect]').click();
+    ok((await sent()).includes('chatdisconnect|youtube'), 'CHAT: DESCONECTAR envia chatdisconnect|plataforma');
+    await page.locator('.chatplat[data-p=twitch] [data-act=cfg]').click();
+    ok(await page.locator('#chat-tw-ch').isVisible(), 'CHAT: CONFIGURAR abre o formulário');
+    ok((await page.inputValue('#chat-tw-ch')) === 'meucanal', 'CHAT: o canal salvo é mostrado');
+    await page.fill('#chat-tw-ch', 'outro_canal');
+    await page.locator('.chatplat[data-p=twitch] [data-act=save]').click();
+    ok((await sent()).includes('chatsave|twitch|{"channel":"outro_canal"}'), 'CHAT: SALVAR envia chatsave com JSON');
+    await page.locator('.chatplat[data-p=youtube] [data-act=cfg]').click();
+    ok((await page.getAttribute('#chat-yt-sec', 'placeholder')).includes('1234'), 'CHAT: segredo salvo aparece só como dica mascarada');
+    ok((await page.inputValue('#chat-yt-sec')) === '', 'CHAT: o campo de segredo nunca é preenchido com o valor salvo');
+    await page.locator('.chatplat[data-p=youtube] [data-act=auth]').click();
+    ok((await sent()).includes('chatauth|youtube'), 'CHAT: AUTORIZAR envia chatauth|youtube');
+
+    const M = (n, p, a, x, extra = {}) => Object.assign({ n, p, a, uk: p + ':' + a, x, ts: 1700000000000 + n * 1000, b: 0 }, extra);
+    await hm({ t: 'chat_msgs', seq: 1, dropped: 0, msgs: [
+      M(1, 'youtube', 'Ana', 'olá <b>mundo</b>'), M(2, 'twitch', 'Bia', '!sorteio', { cmd: 1 }),
+      M(3, 'twitch', 'Nightbot', 'siga o canal', { bot: 1 }), M(4, 'facebook', 'Carlos', 'parabéns!', { b: 1 })] });
+    ok((await page.locator('#chat-feed .cm').count()) === 4, 'CHAT: as 4 mensagens aparecem no feed');
+    ok((await page.locator('#chat-feed .cm').first().locator('.cx').textContent()) === 'olá <b>mundo</b>', 'CHAT: texto do chat é exibido literalmente (sem HTML)');
+    ok((await page.locator('#chat-feed b').count()) === 0, 'CHAT: nenhuma marcação HTML vinda do chat é interpretada');
+    ok((await page.locator('#chat-feed .cm').nth(3).locator('.cb').textContent()) === 'MOD', 'CHAT: selo de moderador');
+    await hm({ t: 'chat_msgs', seq: 2, dropped: 0, msgs: [M(5, 'youtube', 'Duda', 'segunda leva')] });
+    ok((await page.locator('#chat-feed .cm').count()) === 5, 'CHAT: um novo lote é acrescentado');
+    await page.click('#chat-hidecmd');
+    ok((await page.locator('#chat-feed .cm').count()) === 4, 'CHAT: "ocultar comandos" esconde !comandos');
+    await page.click('#chat-hidebot');
+    ok((await page.locator('#chat-feed .cm').count()) === 3, 'CHAT: "ocultar bots" esconde bots conhecidos');
+    await page.click('#chat-filters [data-p=youtube]');
+    ok((await page.locator('#chat-feed .cm .cchip.p-youtube').count()) === 0, 'CHAT: o filtro de plataforma esconde o YouTube');
+    await page.click('#chat-filters [data-p=youtube]');
+    await page.fill('#chat-search', 'parab');
+    ok((await page.locator('#chat-feed .cm').count()) === 1, 'CHAT: a busca filtra por texto');
+    await page.fill('#chat-search', '');
+    await page.click('#chat-hidecmd'); await page.click('#chat-hidebot');
+    ok((await page.locator('#chat-feed .cm').count()) === 5, 'CHAT: removendo os filtros todas as mensagens voltam');
+
+    await clearSent();
+    await page.locator('#chat-feed .cm').nth(3).locator('.cx').click();
+    ok((await sent()).includes('chatpin|4'), 'CHAT: clicar numa mensagem envia chatpin|n');
+    ok((await page.locator('#chat-feed .cm.pinned').count()) === 1, 'CHAT: a mensagem destacada fica marcada');
+    await page.click('#chat-unpin');
+    ok((await sent()).includes('chatunpin') && (await page.locator('#chat-feed .cm.pinned').count()) === 0, 'CHAT: LIMPAR DESTAQUE envia chatunpin');
+    await page.locator('#chat-feed .cm').first().hover();
+    await page.locator('#chat-feed .cm').first().locator('.cmute').click();
+    ok((await sent()).includes('chatmute|1'), 'CHAT: silenciar envia chatmute|n (sem destacar)');
+    ok(!(await sent()).includes('chatpin|1'), 'CHAT: silenciar não dispara o destaque');
+    await hm({ t: 'chat_status', platforms: [], auth: { state: 'idle', message: '' }, muted: ['youtube:Ana'], total: 5 });
+    ok((await page.locator('#chat-feed .cm').count()) === 4, 'CHAT: mensagens de usuário silenciado somem do feed');
+    ok((await page.locator('.chat-muted button').count()) === 1, 'CHAT: lista de silenciados com botão para liberar');
+    await page.locator('.chat-muted button').click();
+    ok((await sent()).includes('chatunmute|youtube:Ana'), 'CHAT: liberar envia chatunmute|chave');
+    await hm({ t: 'chat_status', platforms: [], auth: { state: 'idle', message: '' }, muted: [], total: 5 });
+
+    // auto-scroll + pause
+    const many = Array.from({ length: 60 }, (_, i) => M(100 + i, 'twitch', 'u' + i, 'mensagem longa número ' + i));
+    await hm({ t: 'chat_msgs', seq: 3, dropped: 0, msgs: many });
+    ok(await page.evaluate(() => { const f = document.querySelector('#chat-feed'); return f.scrollHeight - f.scrollTop - f.clientHeight < 8; }), 'CHAT: rolagem automática acompanha as novas mensagens');
+    await page.click('#chat-pause');
+    ok((await page.textContent('#chat-pause')).includes('RETOMAR'), 'CHAT: pausar a rolagem muda o botão');
+    await page.evaluate(() => { document.querySelector('#chat-feed').scrollTop = 0; });
+    await hm({ t: 'chat_msgs', seq: 4, dropped: 0, msgs: [M(200, 'twitch', 'late', 'nova com pausa')] });
+    ok((await page.evaluate(() => document.querySelector('#chat-feed').scrollTop)) === 0, 'CHAT: com a rolagem pausada a lista não se mexe');
+    await page.click('#chat-pause');
+
+    // gap in the batch sequence asks the host for the history again; a reset batch replaces the list
+    await clearSent();
+    await hm({ t: 'chat_msgs', seq: 9, dropped: 0, msgs: [M(300, 'twitch', 'gap', 'depois do buraco')] });
+    ok((await sent()).includes('chatget'), 'CHAT: lote fora de sequência pede o histórico (chatget)');
+    await hm({ t: 'chat_msgs', seq: 10, reset: true, dropped: 0, msgs: [M(301, 'twitch', 'novo', 'só esta')] });
+    ok((await page.locator('#chat-feed .cm').count()) === 1, 'CHAT: lote com reset substitui o histórico');
+
+    // compact mode hides the connection panel and nothing overflows at the smallest sizes
+    await page.click('#chat-compact');
+    ok(!(await page.locator('.chatside').isVisible()), 'CHAT: modo compacto esconde o painel de conexões');
+    await page.click('#chat-compact');
+    for (const [w, h] of [[1024, 720], [1100, 680], [1920, 1080]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.waitForTimeout(80);
+      const fit = await page.evaluate(() => {
+        const v = document.querySelector('#v-chat'), de = document.documentElement;
+        return de.scrollWidth <= window.innerWidth + 1 && de.scrollHeight <= window.innerHeight + 1 && v.scrollHeight <= v.clientHeight + 1;
+      });
+      ok(fit, `CHAT ${w}x${h}: cabe sem rolagem da página`);
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await clearSent();
+    await page.check('#chat-persist');
+    ok((await sent()).includes('chatopt|persist|1'), 'CHAT: o salvamento em arquivo é opt-in (chatopt|persist|1)');
+    await tab('prod');
+  }
   // ---- /FEATURE ----
 
   ok(errors.length === 0, 'no JavaScript errors' + (errors.length ? ': ' + errors[0] : ''));

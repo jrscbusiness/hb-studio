@@ -47,6 +47,12 @@ public:
         return true;
     }
     bool isOpen() const { return open_; }
+    // FEATURE: multitrack - pushes buffered bytes to the OS (used to keep a crash-recoverable header).
+    bool flush() {
+        if (!open_) return false;
+        f_.flush();
+        return static_cast<bool>(f_);
+    }
     std::uint64_t size() const { return size_; }
 
     bool write(const void* data, std::size_t n, std::string& error) {

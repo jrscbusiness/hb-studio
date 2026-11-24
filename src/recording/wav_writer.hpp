@@ -24,6 +24,9 @@ public:
     bool writeAudio(const float* interleaved, std::size_t frames, std::int64_t ptsNs, std::string& error) override;
     bool close(std::string& error) override;
     WriterStats stats() const override { return stats_; }
+    // FEATURE: multitrack - rewrites the RIFF/data sizes for what is on disk so far and flushes, so a file whose
+    // writer never reached close() (crash, power loss) still reads correctly up to the last sync.
+    bool syncHeader(std::string& error);
 
 private:
     detail::OutFile file_;

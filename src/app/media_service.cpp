@@ -76,6 +76,7 @@ MediaService::MediaService(video::ProgramOutput& program, core::EventBus* bus, c
 #endif
               std::move(opts))) {
     rs_.folder = defaultFolder_;
+    iso_ = std::make_unique<IsoService>(audio_, program_, bus_, log_, dataDir_);   // FEATURE: multitrack
 }
 
 MediaService::~MediaService() { stop(); }
@@ -84,6 +85,7 @@ void MediaService::start() {
     if (started_) return;
     started_ = true;
     loadSettings();
+    iso_->load();   // FEATURE: multitrack
     if (!dataDir_.empty()) {
         std::error_code ec;
         fs::create_directories(fs::u8path(dataDir_), ec);
@@ -146,6 +148,15 @@ void MediaService::saveSettings() {
 RecordingSettings MediaService::settings() const { std::lock_guard lock(mu_); return rs_; }
 bool MediaService::recording() const { std::lock_guard lock(mu_); return recorder_ != nullptr; }
 
+// ---- FEATURE: multitrack ----
+std::string MediaService::isoFolder() const {
+    std::string d = iso_ ? iso_->lastSessionDir() : std::string();
+    if (!d.empty()) return d;
+    std::lock_guard lock(mu_);
+    return rs_.folder.empty() ? defaultFolder_ : rs_.folder;
+}
+// ---- /FEATURE ----
+
 bool MediaService::setFolder(const std::string& folder) {
     if (folder.empty() || folder.size() > 1024) return false;
     { std::lock_guard lock(mu_); rs_.folder = folder; ++recSettingsVer_; }
@@ -189,8 +200,27 @@ bool MediaService::startRecording(std::string& error) {
     cfg.splitBytes = static_cast<std::uint64_t>(r.splitMegabytes) << 20;
     cfg.minFreeBytes = static_cast<std::uint64_t>(r.minFreeMegabytes) << 20;
 
+    // ---- FEATURE: multitrack ----
+    // One session = one folder: program file + iso/ + audio/ + session.json. Only when something is selected;
+    // otherwise the recording is exactly what it always was.
+    bool isoOn = false;
+    if (iso_ && iso_->enabled()) {
+        std::string dir;
+        int split = 0;
+        if (!iso_->begin(cfg.folderUtf8, cfg.minFreeBytes, prof.hasVideo ? r.videoBitrateKbps : 0, cfg.video.fpsNum,
+                         cfg.video.fpsDen, dir, split, error))
+            return false;
+        isoOn = true;
+        cfg.folderUtf8 = dir;
+        cfg.nameTemplate = "program";
+        if (split > 0 && cfg.splitSeconds == 0) cfg.splitSeconds = split;   // rotate the Program with the ISO files
+    }
+    // ---- /FEATURE ----
     auto recorder = std::make_shared<rec::Recorder>(cfg, bus_, log_);
-    if (!recorder->start(error)) return false;
+    if (!recorder->start(error)) {
+        if (isoOn) iso_->end(nullptr, "");   // FEATURE: multitrack
+        return false;
+    }
     const bool hasV = prof.hasVideo, hasA = prof.hasAudio;
     std::weak_ptr<rec::Recorder> weak = recorder;
     {
@@ -224,6 +254,12 @@ void MediaService::stopRecording() {
     if (a && aConsumer_) audio_.removeProgramConsumer(aConsumer_);
     vConsumer_ = 0; aConsumer_ = 0;
     r->stop();                                                    // drains and finalises the file
+    // ---- FEATURE: multitrack ----
+    if (iso_) {
+        const auto pst = r->status();
+        iso_->end(&pst, settings().profileId);                    // no-op when no ISO session is running
+    }
+    // ---- /FEATURE ----
     {
         std::lock_guard lock(mu_);
         const auto st = r->status();
@@ -319,6 +355,7 @@ std::string MediaService::handle(const std::string& msg) {
             return "";
         }
         if (c0 == "rec") {
+            if (sub == "iso") return iso_->handle(a, recording());   // FEATURE: multitrack
             if (sub == "start") {
                 std::string err;
                 if (!startRecording(err)) {
@@ -408,6 +445,16 @@ void MediaService::tick(std::uint64_t n, const Post& post) {
         { std::lock_guard lock(mu_); r = recorder_; }
         if (r && r->status().state == rec::Recorder::Status::State::Error) stopRecording();
         post("rec", recStatusJson());
+        // ---- FEATURE: multitrack ----
+        {
+            RecordingSettings rsn;
+            { std::lock_guard lock(mu_); rsn = rs_; }
+            rec::RecordingProfile pp; rec::WriterFactory pf;
+            const bool hv = rec::WriterRegistry::instance().find(rsn.profileId, pp, pf) && pp.hasVideo;
+            post("rec_iso", iso_->stateJson(recording(), rsn.folder.empty() ? defaultFolder_ : rsn.folder,
+                                            hv ? rsn.videoBitrateKbps : 0, static_cast<std::uint64_t>(rsn.minFreeMegabytes) << 20));
+        }
+        // ---- /FEATURE ----
     }
     if (n - lastSaveCheck_ >= 75) {     // ~5 s
         lastSaveCheck_ = n;

@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jrscbusiness/hb-studio/marketplace/index.schema.json",
+  "title": "HB Studio marketplace index (schemaVersion 1)",
+  "description": "Editor aid. The authoritative validators are marketplace/validate_index.py (CI) and src/marketplace/catalog.cpp (the app); they also check cross-field rules this schema cannot express (category/type/permissions consistency, unique ids and versions, hash of the downloadable file).",
+  "type": "object",
+  "required": ["schemaVersion", "plugins"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schemaVersion": {"const": 1},
+    "generatedAt": {"type": "string", "maxLength": 32},
+    "plugins": {"type": "array", "maxItems": 500, "items": {"$ref": "#/definitions/plugin"}}
+  },
+  "definitions": {
+    "httpsUrl": {"type": "string", "pattern": "^https://[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+(:[0-9]{1,5})?([/?#][^\\s\\\\\"<>`]*)?$", "maxLength": 2048},
+    "semver": {"type": "string", "pattern": "^[0-9]{1,6}\\.[0-9]{1,6}\\.[0-9]{1,6}(-[0-9A-Za-z.-]{1,32})?(\\+[0-9A-Za-z.-]{1,32})?$"},
+    "plugin": {
+      "type": "object",
+      "required": ["id", "name", "author", "description", "category", "type", "license", "permissions", "versions"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,62}[a-z0-9]$", "description": "Same as manifest.json id inside the package. Lowercase, never changes between versions."},
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "author": {"type": "string", "minLength": 1, "maxLength": 80},
+        "description": {
+          "type": "object",
+          "properties": {"pt-BR": {"type": "string", "maxLength": 600}, "en": {"type": "string", "maxLength": 600}},
+          "anyOf": [{"required": ["pt-BR"]}, {"required": ["en"]}]
+        },
+        "category": {"enum": ["theme", "video-source", "audio-effect", "graphic", "template"]},
+        "type": {"enum": ["theme", "source", "effect", "template"], "description": "theme/source/effect = .hbplugin package; template = hb-templates v1 JSON file."},
+        "tags": {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 24}},
+        "license": {"type": "string", "minLength": 1, "maxLength": 64},
+        "homepage": {"$ref": "#/definitions/httpsUrl"},
+        "repository": {"$ref": "#/definitions/httpsUrl"},
+        "verified": {"type": "boolean", "description": "Maintainers only. Contributors must leave this false or omit it."},
+        "screenshots": {"type": "array", "maxItems": 6, "items": {"$ref": "#/definitions/httpsUrl"}},
+        "permissions": {"type": "array", "maxItems": 8, "items": {"enum": ["native-code", "network", "filesystem", "hardware-capture"]}, "description": "'native-code' is required exactly when type is source or effect."},
+        "versions": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"$ref": "#/definitions/version"}}
+      }
+    },
+    "version": {
+      "type": "object",
+      "required": ["version", "platforms", "downloadUrls", "sha256", "size"],
+      "properties": {
+        "version": {"$ref": "#/definitions/semver"},
+        "minAppVersion": {"$ref": "#/definitions/semver"},
+        "platforms": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string", "pattern": "^[a-z0-9-]{3,24}$"}},
+        "downloadUrls": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"$ref": "#/definitions/httpsUrl"}},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 1, "maximum": 67108864, "description": "Bytes. Templates: at most 1048576."},
+        "releasedAt": {"type": "string", "maxLength": 32},
+        "notes": {"type": "string", "maxLength": 300}
+      }
+    }
+  }
+}
