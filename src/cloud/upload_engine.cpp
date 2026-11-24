@@ -157,7 +157,7 @@ public:
             if (e_.abortRequested()) return false;
             const double wait = e_.bucket_.tryTake(static_cast<double>(bytes));
             if (wait <= 0) break;
-            e_.o_.sleepFn(std::min(wait, 0.1));
+            e_.o_.sleepFn(std::clamp(wait, 0.002, 0.1));  // >= 2 ms: tiny waits would not advance a float clock
         }
         e_.inflight_ += bytes;
         e_.sentTotal_ += bytes;

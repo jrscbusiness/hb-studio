@@ -82,7 +82,7 @@ TEST(CloudSigV4, SuitePostVanilla) {
 
 TEST(CloudSigV4, SuiteQueryOrderKeyCase) {
     const auto o = signV4(suite("GET", "/", {{"Param2", "value2"}, {"Param1", "value1"}}));
-    EXPECT_EQ(o.canonicalRequest.substr(0, 31), "GET\n/\nParam1=value1&Param2=value2");
+    EXPECT_EQ(o.canonicalRequest.substr(0, 33), "GET\n/\nParam1=value1&Param2=value2");
     EXPECT_EQ(o.stringToSign.substr(o.stringToSign.rfind('\n') + 1), "816cd5b414d056048ba4f7c5386d6e0533120fb1fcfa93762cf0fc39e2cf19e0");
     EXPECT_EQ(o.signature, "b97d918cfa904a5beff61c982a1b6f458b799221646efd99d3219ec94cdf2500");
 }

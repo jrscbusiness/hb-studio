@@ -325,7 +325,7 @@ Result<RemoteStat> S3Provider::finish(UploadSession& s, const FileInfo& f, const
     if (r.value().status / 100 != 2) return s3Error(r.value());
     if (bodyIsError(r.value())) return s3Error(HttpResponse{500, r.value().body, {}});
     st.etag = unquoteEtag(xmlText(r.value().body, "ETag"));
-    if (haveAllMd5 && isHex32(st.etag.substr(0, 32)) && st.etag.find('-') != std::string::npos) {
+    if (haveAllMd5 && st.etag.find('-') != std::string::npos) {
         const std::string expected = md5Hex(md5Concat) + "-" + std::to_string(parts.size());
         if (expected != st.etag)
             st.note = "O ETag final difere do esperado (alguns provedores calculam de outro jeito); o tamanho foi conferido.";

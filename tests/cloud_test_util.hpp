@@ -112,7 +112,9 @@ public:
         lastGate = gate;
         if (onPut) onPut();
         if (!failNextPut.empty()) { Error e = failNextPut.front(); failNextPut.erase(failNextPut.begin()); return e; }
-        if (gate && !gate->acquire(data.size())) return makeError(ErrorKind::Cancelled, "abortado");
+        if (gate)  // like the real transport: the body goes out in slices, each cleared by the gate
+            for (std::size_t o = 0; o < data.size(); o += 16 * 1024)
+                if (!gate->acquire(std::min<std::size_t>(16 * 1024, data.size() - o))) return makeError(ErrorKind::Cancelled, "abortado");
         auto& p = partial[f.remoteName];
         if (p.size() != offset) return makeError(ErrorKind::Permanent, "offset errado");
         p.append(data);
