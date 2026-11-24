@@ -68,6 +68,7 @@
 #include "overlay/manager.hpp"
 #include "overlay/windows/gdi_glyphs.hpp"
 // ---- /FEATURE ----
+#include "chat/service.hpp"   // FEATURE: chat
 
 using namespace hb;
 
@@ -542,6 +543,30 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         toastText = t;
         ++toastId;
     };
+    // ---- FEATURE: chat ---- unified live chat (docs/CHAT.md): YouTube / Facebook / Instagram(limited) / Twitch.
+    // Declared after `engine` and `host`, so it is destroyed first; its threads are also stopped explicitly
+    // at shutdown. Secrets are DPAPI-encrypted per user under %LOCALAPPDATA%\HBStudio\chat_secrets.
+    auto chatHttp = hb::chat::makeDefaultChatHttp();
+    auto chatSocket = hb::chat::makeDefaultChatSocket();
+    auto chatSecrets = mediaDir.empty() ? nullptr : hb::chat::makeDpapiSecretStore(mediaDir + "\\chat_secrets");
+    hb::chat::ChatService chatSvc([&] {
+        hb::chat::ChatDeps d;
+        d.bus = &engine.bus();
+        d.http = chatHttp.get();
+        d.socket = chatSocket.get();
+        d.secrets = chatSecrets.get();
+        if (!mediaDir.empty()) { d.settingsPath = mediaDir + "\\chat.json"; d.logPath = mediaDir + "\\chat_log.jsonl"; }
+        d.post = [&host](const std::string& key, std::string json) { host.postQueued(key, std::move(json)); };
+        d.toast = toast;
+        // Only the Google consent page we built ourselves is ever opened.
+        d.openUrl = [](const std::string& url) {
+            if (url.rfind("https://accounts.google.com/", 0) != 0) return false;
+            return reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", win::widen(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL)) > 32;
+        };
+        return d;
+    }());
+    chatSvc.start();
+    // ---- /FEATURE ----
     // ---- FEATURE: ai ----
     // AI providers (CONFIG > Inteligência Artificial). Declared after `host` so worker threads are joined
     // (AiService destructor) before the window goes away. Keys: DPAPI-encrypted file, never sent to the UI.
@@ -736,6 +761,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         }
         // ---- /FEATURE: chroma ----
         // ---- FEATURE: overlays ----
+        // ---- FEATURE: chat ----
+        if (c0 == "ready") chatSvc.postAll();
+        else if (c0.rfind("chat", 0) == 0 && chatSvc.handleCommand(msg)) return;
+        // ---- /FEATURE ----
         if (c0 == "ready") { std::lock_guard lk(overlayMutex); postOverlayState(true); }
         else if (c0.rfind("ov", 0) == 0 && overlays.handleCommand(msg)) {
             std::lock_guard lk(overlayMutex);
@@ -1381,6 +1410,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     win::trace("message loop ended");
     running = false;
+    chatSvc.stop();        // FEATURE: chat - joins the chat/OAuth threads before the window goes away
     remoteSvc.disable();   // FEATURE: remote - closes the server threads before the engine goes away
     {
         std::lock_guard lock(devMutex);

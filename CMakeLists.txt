@@ -129,6 +129,7 @@ if(WIN32)
       hb_ai)   # FEATURE: ai
     target_link_libraries(hb_studio PRIVATE hb_remote)   # FEATURE: remote (defined in cmake/modules/remote.cmake)
     target_link_libraries(hb_studio PRIVATE hb_marketplace)   # FEATURE: marketplace (cmake/modules/marketplace.cmake)
+    target_link_libraries(hb_studio PRIVATE hb_chat)   # FEATURE: chat (defined in cmake/modules/chat.cmake)
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")
