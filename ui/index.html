@@ -314,6 +314,18 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .sheet input[type=text],.sheet input:not([type]),.sheet input[type=number],.sheet input[type=password],.sheet select{height:38px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);outline:none;user-select:text;width:100%}
 .sheet input:focus,.sheet select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,107,255,.15)}
 .sheet input[type=range]{accent-color:var(--blue);height:38px}
+/* FEATURE: chroma */
+.chr{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.chr h3{margin:0 0 8px;font-size:11px;letter-spacing:.08em;color:var(--ink-2)}
+.chr .grid2{gap:6px 16px}
+.chr input[type=range]{height:24px}
+.chr input[type=color]{height:30px;width:100%;padding:0;border:1px solid var(--line-2);border-radius:10px;background:var(--surface)}
+.chr .row{display:flex;gap:10px;align-items:center}
+.chr canvas{width:160px;height:90px;border:1px solid var(--line-2);border-radius:8px;background:repeating-conic-gradient(var(--mist) 0 25%,var(--surface) 0 50%) 0 0/16px 16px;flex:none}
+.chr .bar{height:6px;border-radius:4px;background:var(--mist);overflow:hidden;margin:6px 0}
+.chr .bar i{display:block;height:100%;width:0;background:var(--blue)}
+.chr .note{margin:4px 0}
+/* /FEATURE: chroma */
 .checks{display:flex;gap:18px;align-items:flex-end;padding-bottom:8px}
 .chk{flex-direction:row!important;align-items:center;gap:8px!important;cursor:pointer;font-weight:500!important}
 @media (max-width:1280px){
@@ -973,10 +985,41 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   <label>Nome do preset<input id="nm-input" maxlength="24" placeholder="Ex.: Altar, Púlpito, Louvor" spellcheck="false"></label>
   <div class="sh-foot"><button class="btn sm" id="nm-clear">LIMPAR</button><span style="flex:1"></span><button class="btn sm" id="nm-cancel">CANCELAR</button><button class="btn primary sm" id="nm-ok" style="flex:none">OK</button></div>
 </div></div>
-<div id="modal5" class="modal"><div class="sheet small">
+<div id="modal5" class="modal"><div class="sheet" style="width:640px">
   <div class="sh-head"><div><span class="cap">Configurações da câmera</span><h2 id="camcfg-title">CAM 1</h2></div><button class="icon" id="camcfg-x">✕</button></div>
   <label>Resolução e taxa de quadros<select id="camcfg-res"><option value="">Automática (padrão da câmera)</option></select></label>
   <p class="note" id="camcfg-note">Buscando formatos suportados…</p>
+  <!-- FEATURE: chroma -->
+  <div class="chr" id="chr">
+    <h3>FUNDO</h3>
+    <div class="grid2">
+      <label>Remoção de fundo<select id="chr-mode">
+        <option value="off">Desligado</option><option value="green">Chroma verde</option>
+        <option value="blue">Chroma azul</option><option value="ai" id="chr-ai-opt">IA (sem tela verde)</option></select></label>
+      <label>Substituir por<select id="chr-repl">
+        <option value="color">Cor sólida</option><option value="blur">Desfoque do próprio fundo</option>
+        <option value="image">Imagem</option><option value="transparent">Transparente (para cenas)</option></select></label>
+      <label id="chr-tol-l">Tolerância<input type="range" id="chr-tol" min="0" max="100"></label>
+      <label id="chr-soft-l">Suavidade da borda<input type="range" id="chr-soft" min="0" max="100"></label>
+      <label id="chr-spill-l">Reflexo verde/azul na pele<input type="range" id="chr-spill" min="0" max="100"></label>
+      <label id="chr-q-l">Qualidade da IA<select id="chr-q"><option value="low">Baixa (leve)</option><option value="med">Média</option><option value="high">Alta (pesada)</option></select></label>
+      <label id="chr-color-l">Cor do fundo<input type="color" id="chr-color" value="#101010"></label>
+      <label id="chr-blur-l">Intensidade do desfoque<input type="range" id="chr-blur" min="0" max="100"></label>
+      <label id="chr-img-l">Imagem de fundo<span class="row"><button class="btn sm" id="chr-img" type="button">ESCOLHER…</button><em id="chr-imgname">nenhuma</em></span></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <canvas id="chr-prev" width="160" height="90"></canvas>
+      <div style="flex:1;min-width:0">
+        <p class="note" id="chr-hint">Prévia ao vivo do resultado (xadrez = transparente). Se recortar a pessoa, aumente a tolerância; se sobrar fundo, diminua.</p>
+        <p class="note" id="chr-model"></p>
+        <div class="bar" id="chr-bar" style="display:none"><i id="chr-bari"></i></div>
+        <div class="row"><button class="btn sm" id="chr-dl" type="button" style="display:none">BAIXAR MODELO</button>
+          <button class="btn sm" id="chr-cancel" type="button" style="display:none">CANCELAR DOWNLOAD</button></div>
+        <p class="note err" id="chr-warn" style="display:none"></p>
+      </div>
+    </div>
+  </div>
+  <!-- /FEATURE: chroma -->
   <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="camcfg-cancel">CANCELAR</button><button class="btn primary sm" id="camcfg-save" style="flex:none">SALVAR</button></div>
 </div></div>
 <div id="modal3" class="modal"><div class="sheet small" style="width:520px">
@@ -1440,6 +1483,7 @@ body.cur{cursor:default}
     $('#camcfg-res').innerHTML = '<option value="">Automática (padrão da câmera)</option>';
     $('#camcfg-note').textContent = 'Buscando formatos suportados…';
     $('#modal5').classList.add('on');
+    syncChroma(true);   // FEATURE: chroma
     if (camcfgId) send('devformats', camcfgId);
   }
   function renderCamFormats(d) {
@@ -1465,6 +1509,74 @@ body.cur{cursor:default}
     send('devformat', camcfgSlot, parts[0], parts[1], parts[2], parts[3]);
     closeModals();
   });
+
+  // ---- FEATURE: chroma ---- Fundo (background removal) section of the camera-settings dialog
+  let chrSt = null;
+  const chr = id => $('#chr-' + id);
+  const chrSlot = () => camcfgSlot;
+  const chrCur = () => (chrSt && chrSt.slots && chrSt.slots[camcfgSlot]) || null;
+  let chrSentAt = {};
+  const chrSend = (key, val, throttle) => {
+    if (camcfgSlot < 0) return;
+    const now = Date.now();
+    if (throttle && now - (chrSentAt[key] || 0) < 120) { clearTimeout(chrSend['t' + key]); chrSend['t' + key] = setTimeout(() => chrSend(key, val, false), 130); return; }
+    chrSentAt[key] = now;
+    send('chroma', camcfgSlot, key, val);
+  };
+  const fmtMb = n => (n / 1048576).toFixed(2).replace('.', ',');
+  function syncChroma(force) {
+    const d = chrCur();
+    if (!d || !$('#modal5').classList.contains('on')) return;
+    const active = document.activeElement;
+    const setVal = (el, v) => { if (force || active !== el) el.value = v; };
+    setVal(chr('mode'), d.mode); setVal(chr('repl'), d.repl); setVal(chr('tol'), d.tol); setVal(chr('soft'), d.soft);
+    setVal(chr('spill'), d.spill); setVal(chr('q'), d.q); setVal(chr('color'), d.color); setVal(chr('blur'), d.blur);
+    chr('ai-opt').disabled = !chrSt.runtime;
+    chr('ai-opt').textContent = chrSt.runtime ? 'IA (sem tela verde)' : 'IA (indisponível neste build)';
+    const m = d.mode, classic = m === 'green' || m === 'blue';
+    const vis = (id, on) => { chr(id).style.display = on ? '' : 'none'; };
+    vis('tol-l', m !== 'off'); vis('soft-l', m !== 'off'); vis('spill-l', classic); vis('q-l', m === 'ai');
+    vis('color-l', m !== 'off' && d.repl === 'color'); vis('blur-l', m !== 'off' && d.repl === 'blur');
+    vis('img-l', m !== 'off' && d.repl === 'image');
+    chr('repl').disabled = m === 'off';
+    chr('imgname').textContent = d.img || 'nenhuma';
+    chr('tol-l').firstChild.textContent = m === 'ai' ? 'Sensibilidade (limiar da máscara)' : 'Tolerância';
+    // model box
+    const md = chrSt.model || {};
+    const bar = chr('bar'), dl = chr('dl'), cn = chr('cancel');
+    let txt = '', showBar = false;
+    if (!chrSt.runtime) txt = 'Este build não inclui o ONNX Runtime: só o chroma verde/azul está disponível.';
+    else if (md.state === 'ready') txt = 'Modelo de IA instalado (' + md.license + ').' + (chrSt.ai && chrSt.ai.state === 'loading' ? ' Carregando…' : '');
+    else if (md.state === 'downloading') { txt = 'Baixando o modelo de IA… ' + Math.round(100 * md.received / Math.max(1, md.total)) + '%'; showBar = true; }
+    else if (md.state === 'error') txt = md.msg;
+    else if (md.state === 'unavailable') txt = md.msg;
+    else txt = 'A IA precisa de um modelo (' + fmtMb(md.mb * 1048576) + ' MB, ' + md.license + ') que é baixado uma vez e verificado por SHA-256.';
+    chr('model').textContent = txt;
+    bar.style.display = showBar ? '' : 'none';
+    chr('bari').style.width = showBar ? Math.round(100 * md.received / Math.max(1, md.total)) + '%' : '0';
+    dl.style.display = chrSt.runtime && (md.state === 'none' || md.state === 'error') ? '' : 'none';
+    dl.textContent = md.state === 'error' ? 'TENTAR DE NOVO' : 'BAIXAR MODELO';
+    cn.style.display = md.state === 'downloading' ? '' : 'none';
+    // warnings
+    const w = chr('warn'); let wt = '';
+    if (d.imgErr) wt = d.imgErr;
+    else if (m === 'ai' && chrSt.ai && chrSt.ai.state === 'error') wt = chrSt.ai.msg;
+    else if (d.aiFailed) wt = d.aiMsg;
+    else if (d.slowAi) wt = 'Seu computador está lento para IA (' + Math.round(d.inferMs) + ' ms por análise): reduza a qualidade.';
+    else if (d.slowApply) wt = 'O efeito está pesado neste computador (' + d.applyMs.toFixed(0) + ' ms por quadro): reduza a qualidade ou use o chroma verde/azul.';
+    else if (m === 'ai' && md.state !== 'ready') wt = 'Baixe o modelo para ativar a IA; até lá a câmera aparece sem alteração.';
+    w.textContent = wt; w.style.display = wt ? '' : 'none';
+  }
+  window.__chrPrev = (id, im) => {
+    if (id !== 's' + camcfgSlot || !$('#modal5').classList.contains('on')) return;
+    const c = chr('prev'); c.getContext('2d').clearRect(0, 0, c.width, c.height); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+  };
+  for (const [id, key, thr] of [['mode', 'mode'], ['repl', 'repl'], ['q', 'q'], ['tol', 'tol', 1], ['soft', 'soft', 1], ['spill', 'spill', 1], ['blur', 'blur', 1], ['color', 'color', 1]])
+    chr(id).addEventListener(thr ? 'input' : 'change', ev => chrSend(key, ev.target.value, !!thr));
+  chr('img').addEventListener('click', () => send('chromaimg', camcfgSlot));
+  chr('dl').addEventListener('click', () => send('chromamodel', 'download'));
+  chr('cancel').addEventListener('click', () => send('chromamodel', 'cancel'));
+  // ---- /FEATURE: chroma ----
 
   // ---------- PRODUÇÃO: right-click menu on an input tile ----------
   let tmSlot = -1;
@@ -1783,7 +1895,7 @@ body.cur{cursor:default}
   function drawFrame(id, b64) {
     const ctx = canv[id]; if (!ctx) return;
     const im = imgs[id] || (imgs[id] = new Image());
-    im.onload = () => ctx.drawImage(im, 0, 0, ctx.canvas.width, ctx.canvas.height);
+    im.onload = () => { ctx.drawImage(im, 0, 0, ctx.canvas.width, ctx.canvas.height); if (window.__chrPrev) window.__chrPrev(id, im); };   // FEATURE: chroma: live preview hook
     im.src = 'data:image/jpeg;base64,' + b64;
   }
 
@@ -2561,6 +2673,7 @@ body.cur{cursor:default}
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
     else if (d.t === 'scenes_state') onScenesState(d);   // FEATURE: scenes
     else if (d.t === 'devformats') renderCamFormats(d);
+    else if (d.t === 'chroma') { chrSt = d; syncChroma(false); }   // FEATURE: chroma
     else if (d.t === 'remote') renderRemote(d);   /* FEATURE: remote */
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);

@@ -42,6 +42,14 @@
 #include "app/windows/output_window.hpp"
 #include "ndi/ndi.hpp"
 #include "scene/scene_service.hpp"   // FEATURE: scenes
+// ---- FEATURE: chroma ----
+#include "chroma/service.hpp"
+#include "chroma/windows/winhttp_client.hpp"
+#include "chroma/windows/wic_image.hpp"
+#ifdef HB_HAVE_ONNX
+#include "chroma/onnx/onnx_segmenter.hpp"
+#endif
+// ---- /FEATURE: chroma ----
 #include "video/frame_ops.hpp"
 #include "plugins/service.hpp"
 // ---- FEATURE: remote ----
@@ -597,6 +605,26 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (fx.state) tpBroadcast("tp", tpc.stateJson());
     };
     // ---- /FEATURE ----
+    // ---- FEATURE: chroma ---- per-camera background removal (classic chroma key + local AI)
+    chroma::WinHttpClient chromaHttp;
+    chroma::ChromaService::Deps chromaDeps;
+    chromaDeps.modelsDir = mediaDir.empty() ? std::string() : mediaDir + "\\models";
+    chromaDeps.http = &chromaHttp;
+#ifdef HB_HAVE_ONNX
+    chromaDeps.segmenterFactory = [](const std::string& path, std::string& err) { return chroma::createOnnxSegmenter(path, err); };
+#endif
+    chromaDeps.imageLoader = [](const std::string& path, video::Frame& out, std::string& err) { return chroma::loadImageWic(path, out, err); };
+    chromaDeps.onChanged = [&](int slot, const std::string& ser) {
+        // Persisted in inputs.txt's optional 9th field; only slots with an assigned device are saved.
+        if (assignments.setBackground(slot, ser) && !assignPath.empty()) assignments.save(assignPath);
+    };
+    chroma::ChromaService chromaSvc(app::Engine::kSourceCount, std::move(chromaDeps));
+    for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+        engine.setSlotFilter(i, chromaSvc.filter(i));
+        chromaSvc.load(i, assignments.get(i).bg);
+    }
+    auto postChroma = [&] { host.postQueued("chroma", chromaSvc.statusJson()); };
+    // ---- /FEATURE: chroma ----
 
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
@@ -612,6 +640,42 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // ---- FEATURE: ai ----
         if (c0.rfind("ai", 0) == 0 && aiCommands.handle(msg)) return;
         // ---- /FEATURE ----
+        // ---- FEATURE: chroma ----
+        if (c == "chroma" && a.size() >= 4) {
+            std::string m;
+            const int slot = idx(1);
+            if (chromaSvc.handleSetting(slot, a[2], a[3], m) && !m.empty()) toast("CAM " + std::to_string(slot + 1) + ": " + m);
+            postChroma();
+            return;
+        }
+        if (c == "chromamodel" && a.size() >= 2) {
+            std::string m;
+            chromaSvc.handleModel(a[1], m);
+            if (!m.empty()) toast(m);
+            postChroma();
+            return;
+        }
+        if (c == "chromaimg" && a.size() >= 2) {
+            // Native file dialog (UI thread): the chosen image becomes this slot's replacement background.
+            const int slot = idx(1);
+            wchar_t file[MAX_PATH * 4] = {0};
+            OPENFILENAMEW ofn{};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = host.hwnd();
+            ofn.lpstrFilter = L"Imagens (*.png;*.jpg;*.jpeg;*.bmp)\0*.png;*.jpg;*.jpeg;*.bmp\0Todos os arquivos\0*.*\0";
+            ofn.lpstrFile = file;
+            ofn.nMaxFile = static_cast<DWORD>(sizeof(file) / sizeof(file[0]));
+            ofn.lpstrTitle = L"Escolha a imagem de fundo";
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+            if (GetOpenFileNameW(&ofn)) {
+                std::string m;
+                chromaSvc.handleSetting(slot, "repl", "image", m);
+                chromaSvc.handleSetting(slot, "img", win::narrow(file), m);
+                postChroma();
+            }
+            return;
+        }
+        // ---- /FEATURE: chroma ----
         if (c == "ready") {
             ptzSent = 0;
             media.forceResend();
@@ -624,6 +688,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postXmitStatus();
             postOutFmt();
             postScenes();   // FEATURE: scenes
+            postChroma();   // FEATURE: chroma
             host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "system")) {
@@ -782,6 +847,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         } else if (c == "devclear") {
             const int slot = idx(1);
             if (slot >= 0 && slot < app::Engine::kSourceCount) {
+                chromaSvc.reset(slot);   // FEATURE: chroma - its saved background goes with the device
                 detach(slot);
                 assignments.clear(slot);
                 if (!assignPath.empty()) assignments.save(assignPath);
@@ -1139,6 +1205,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     const unsigned v = ptzSettings.version();
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
                     if (tick % 4 == 0) postXmitStatus();
+                    if (tick % 4 == 2) { chromaSvc.tick(); postChroma(); }   // FEATURE: chroma
                 }
                 // ---- FEATURE: teleprompter ---- periodic re-sync / transitions (cheap: a few msgs per second)
                 if (auto j = tpc.poll()) tpBroadcast("tp", *j);
@@ -1197,6 +1264,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         for (auto& kv : devices) kv.second->stop();   // close capture graphs before the engine goes away
         for (auto& kv : ndiDevices) kv.second->stop();
     }
+    chromaSvc.shutdown();   // FEATURE: chroma - stop AI workers/download before the engine goes away
     if (feeder.joinable()) feeder.join();
     win::trace("feeder joined");
     tpPresenter.close();   // FEATURE: teleprompter
