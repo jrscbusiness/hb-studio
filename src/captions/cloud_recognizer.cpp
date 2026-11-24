@@ -1,6 +1,7 @@
 #include "captions/cloud_recognizer.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 
 #include "core/json.hpp"
