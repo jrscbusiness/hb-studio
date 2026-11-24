@@ -70,6 +70,7 @@
 #include "teleprompter/presenter_page.hpp"
 // ---- FEATURE: overlays ----
 #include "overlay/manager.hpp"
+#include "app/template_overlays.hpp"   // FEATURE: templates->overlays
 #include "overlay/windows/gdi_glyphs.hpp"
 // ---- /FEATURE ----
 #include "chat/service.hpp"   // FEATURE: chat
@@ -1057,6 +1058,18 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             const auto r = sceneSvc.handle(m);
             if (!r.message.empty()) toast(r.message);
             if (r.changed) postScenes();
+            // FEATURE: templates->overlays: applying a template also creates its lower-third/QR/etc. as editable, off-air GRÁFICOS elements
+            if (r.ok && c == "sceneapply") {
+                std::lock_guard lk(overlayMutex);
+                int made = 0;
+                for (int s = 0; s < app::Engine::kSceneCount; ++s)
+                    if (const auto sc = sceneSvc.sceneAt(s)) made += app::createOverlaysFromScene(overlays, *sc);
+                if (made > 0) {
+                    if (overlays.takeDirty() && !overlaysPath.empty()) overlays.save(overlaysPath);
+                    postOverlayState(true);
+                    toast("Gráficos do modelo criados na aba GRÁFICOS (fora do ar).");
+                }
+            }
         }
         // ---- /FEATURE ----
         else if (c == "preview") engine.switcher().setPreview(idx(1));

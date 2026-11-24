@@ -24,7 +24,8 @@ if(HB_BUILD_TESTS)
     tests/qr_test.cpp
     tests/overlay_blend_text_test.cpp
     tests/overlay_timing_test.cpp
-    tests/overlay_elements_test.cpp)
+    tests/overlay_elements_test.cpp
+    tests/template_overlays_test.cpp)
   target_link_libraries(hb_overlay_tests PRIVATE hb_overlay GTest::gtest_main)
   gtest_discover_tests(hb_overlay_tests)
 endif()
