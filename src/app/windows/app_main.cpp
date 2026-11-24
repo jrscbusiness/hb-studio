@@ -291,6 +291,30 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
     app::MediaService media(engine.program(), &engine.bus(), &engine.logger(), mediaDir, videosDir);
     media.start();
+    // ---- FEATURE: multitrack ----
+    // Cameras are sampled CLEAN from their slots (before overlays/transitions); the app only describes them here.
+    {
+        app::IsoService::Providers iso;
+        iso.cameras = [&engine] {
+            std::vector<app::IsoCamera> v;
+            for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+                const auto info = engine.slotInfo(i);
+                app::IsoCamera c;
+                c.slot = i;
+                c.live = info.live;
+                c.label = "CAM " + std::to_string(i + 1);
+                c.device = info.label;
+                c.width = info.status.width;
+                c.height = info.status.height;
+                c.fps = info.status.fps;
+                v.push_back(c);
+            }
+            return v;
+        };
+        iso.source = [&engine](int slot) { return engine.slotSource(slot); };
+        media.iso().setProviders(std::move(iso));
+    }
+    // ---- /FEATURE ----
     win::trace("media service started");
 
     // ---- FEATURE: overlays ---- timer / scoreboard / QR / lower third / captions / chat pin over PROGRAM
@@ -836,7 +860,15 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     if (SHGetPathFromIDListW(pidl, path)) media.setFolder(win::narrow(path));
                     CoTaskMemFree(pidl);
                 }
-            } else {
+            }
+            // ---- FEATURE: multitrack ----
+            else if (c == "rec" && a.size() >= 3 && a[1] == "iso" && a[2] == "open") {
+                // Opens the last multitrack session folder (or the recording folder) in Explorer.
+                const std::wstring dir = win::widen(media.isoFolder());
+                if (!dir.empty()) ShellExecuteW(host.hwnd(), L"open", dir.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            // ---- /FEATURE ----
+            else {
                 const std::string t = media.handle(msg);
                 if (!t.empty()) toast(t);
             }

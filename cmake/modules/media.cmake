@@ -1,7 +1,7 @@
 # Application layer for audio + recording (portable).
-add_library(hb_media STATIC src/app/media_service.cpp)
+add_library(hb_media STATIC src/app/media_service.cpp src/app/iso_service.cpp)   # iso_service: FEATURE multitrack
 target_include_directories(hb_media PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(hb_media PUBLIC hb_core hb_audio_io hb_recording hb_effects hb_plugins hb_vst3)
+target_link_libraries(hb_media PUBLIC hb_core hb_audio_io hb_recording hb_multitrack hb_effects hb_plugins hb_vst3)
 if(WIN32)
   target_link_libraries(hb_media PUBLIC hb_rec_win)
 endif()

@@ -398,6 +398,38 @@ void processBlockImpl(AudioEngine::Impl& P) {
         ms->write(P.monBuf.data(), F);
     }
 
+    // ---- FEATURE: multitrack ----
+    if (const TapList* tl = P.tapPub.load()) {
+        bool anySolo = false;
+        for (const auto& e : tl->items)
+            if (e->post) {
+                for (int k = 0; k < P.n; ++k) anySolo = anySolo || P.mixer.soloed(static_cast<std::size_t>(k));
+                break;
+            }
+        for (const auto& e : tl->items) {
+            try {
+                const std::size_t si = static_cast<std::size_t>(e->strip);
+                const float* src = P.rt[si]->buf.data();
+                if (e->post) {
+                    const bool gated = P.mixer.muted(si) || (anySolo && !P.mixer.soloed(si));
+                    const float tgt = gated ? 0.0f : hb::audio::dbToLinear(P.mixer.faderDb(si));
+                    const float g0 = e->gainCur, inv = 1.0f / static_cast<float>(F);
+                    for (std::size_t i = 0; i < F; ++i) {
+                        const float g = g0 + (tgt - g0) * static_cast<float>(i + 1) * inv;
+                        P.tapBuf[2 * i] = src[2 * i] * g;
+                        P.tapBuf[2 * i + 1] = src[2 * i + 1] * g;
+                    }
+                    e->gainCur = tgt;
+                    src = P.tapBuf.data();
+                }
+                e->fn(src, F);
+            } catch (...) {
+                P.consumerErrors.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+    }
+    // ---- /FEATURE ----
+
     if (const ConsumerList* l = P.consPub.load()) {
         for (const auto& e : l->items) {
             try {
@@ -811,3 +843,51 @@ EngineStats AudioEngine::stats() const {
 }
 
 }  // namespace hb::audio_io
+
+// ---- FEATURE: multitrack ----
+namespace hb::audio_io {
+
+AudioEngine::ConsumerId AudioEngine::addStripConsumer(int strip, bool postFader, StripConsumer consumer) {
+    Impl& P = *p_;
+    if (!consumer || strip < 0 || strip >= P.n) return 0;
+    std::lock_guard lock(P.consMutex);
+    auto e = std::make_shared<TapEntry>();
+    e->id = P.nextConsumer++;
+    e->strip = strip;
+    e->post = postFader;
+    e->fn = std::move(consumer);
+    auto list = P.tapOwner ? std::make_shared<TapList>(*P.tapOwner) : std::make_shared<TapList>();
+    list->items.push_back(e);
+    P.tapPub.store(list.get());
+    auto old = std::move(P.tapOwner);
+    P.tapOwner = std::move(list);
+    if (old) P.retire(std::move(old));
+    return e->id;
+}
+
+void AudioEngine::removeStripConsumer(ConsumerId id) {
+    Impl& P = *p_;
+    std::shared_ptr<TapEntry> removed;
+    std::uint64_t mark = 0;
+    {
+        std::lock_guard lock(P.consMutex);
+        if (!P.tapOwner) return;
+        auto list = std::make_shared<TapList>();
+        for (const auto& e : P.tapOwner->items) {
+            if (e->id == id) removed = e;
+            else list->items.push_back(e);
+        }
+        if (!removed) return;
+        P.tapPub.store(list->items.empty() ? nullptr : list.get());
+        auto old = std::move(P.tapOwner);
+        P.tapOwner = std::move(list);
+        P.retire(std::move(old));
+        mark = P.gate.mark();
+    }
+    if (P.engineThreadId.load() == std::this_thread::get_id()) return;
+    while (!P.gate.passed(mark)) std::this_thread::sleep_for(std::chrono::microseconds(100));
+    removed.reset();
+}
+
+}  // namespace hb::audio_io
+// ---- /FEATURE ----

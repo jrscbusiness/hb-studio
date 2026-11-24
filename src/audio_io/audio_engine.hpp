@@ -161,6 +161,16 @@ public:
     ConsumerId addProgramConsumer(ProgramConsumer consumer);
     void removeProgramConsumer(ConsumerId id);
 
+    // ---- FEATURE: multitrack ----
+    // Per-strip tap for ISO audio recording. Called on the engine thread with 480-frame blocks (interleaved
+    // stereo, 48 kHz). postFader=false: the strip after trim/phase/mono/delay/effects, BEFORE fader/mute/solo/pan.
+    // postFader=true: the same signal times the strip's fader and mute/solo gate (smoothed per block), still before
+    // pan, master fader and limiter. Removal is synchronous like removeProgramConsumer. Returns 0 on bad arguments.
+    using StripConsumer = std::function<void(const float* stereo48k, std::size_t frames)>;
+    ConsumerId addStripConsumer(int strip, bool postFader, StripConsumer consumer);
+    void removeStripConsumer(ConsumerId id);
+    // ---- /FEATURE ----
+
     // ---- state ---------------------------------------------------------------------------------
     unsigned version() const;  // bumps on every configuration change (not on levels)
     EngineSnapshot snapshot() const;

@@ -497,6 +497,25 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .fmt .ext{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;flex:none}
 .recstat{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;margin-top:10px}
 .recstat .k{color:var(--muted)}.recstat .v{font-family:var(--mono);text-align:right}
+/* FEATURE: multitrack */
+.mt-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 18px;margin-top:8px}
+.mt-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mt-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);font-size:12px;color:var(--ink);cursor:pointer;user-select:none}
+.mt-chip input{accent-color:var(--blue);margin:0}
+.mt-chip.on{border-color:var(--blue);background:var(--mist)}
+.mt-chip.off{color:var(--muted)}
+.mt-set{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.mt-set label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--ink-2);font-weight:600}
+.mt-set select,.mt-set input[type=number]{height:30px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12px;color:var(--ink);background:var(--surface);min-width:0;width:100%}
+.mt-est{margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);font-size:12px;color:var(--ink-2);line-height:1.5}
+.mt-est b{color:var(--ink)}
+.mt-est.warning,.mt-est.blocked{background:var(--warn-bg);border-color:var(--warn-line);color:var(--ink)}
+.mt-trk{display:grid;grid-template-columns:70px minmax(0,1fr) 90px 70px 70px 70px;gap:4px 10px;font-size:11.5px;align-items:center;padding:3px 0;border-bottom:1px solid var(--line)}
+.mt-trk .n{font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-trk .e{color:var(--warn-ink)}
+.mt-trk.h{color:var(--muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
+@media (max-width:1100px){.mt-grid{grid-template-columns:1fr 1fr}}
+
 .recbtn{height:34px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);padding:0 14px;display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.1em;font-size:11px;color:var(--ink-2)}
 .recbtn i{width:10px;height:10px;border-radius:50%;background:#B3261E}
 .recbtn:hover{border-color:#B3261E}
@@ -1000,6 +1019,28 @@ button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var
             <div id="fmt-video"></div><div id="fmt-audio"></div>
           </div>
         </div>
+        <!-- FEATURE: multitrack -->
+        <div class="card" id="mt-card" style="grid-column:1/-1"><h3><span class="cap">Multipista (ISO)</span><button class="btn sm" id="mt-open" style="flex:none">ABRIR PASTA</button></h3>
+          <div class="body">
+            <p class="note">Grava cada câmera (limpa, sem overlays) e cada canal do mixer em arquivos separados, numa pasta por sessão com <b>program</b>, <b>iso\</b>, <b>audio\</b> e <b>session.json</b> (sincronismo). Padrão: nada além do Program.</p>
+            <div class="mt-grid">
+              <div><span class="cap">Câmeras</span><div class="mt-list" id="mt-cams"></div></div>
+              <div><span class="cap">Canais de áudio</span><div class="mt-list" id="mt-chans"></div></div>
+              <div class="mt-set">
+                <label>Resolução<select id="mt-res"><option value="native">Nativa da câmera</option><option value="1080">1080p</option><option value="720">720p</option><option value="540">540p</option></select></label>
+                <label>Quadros/s<select id="mt-fps"><option value="program">Igual ao Program</option><option>24</option><option>25</option><option>30</option><option>50</option><option>60</option></select></label>
+                <label>Formato do áudio<select id="mt-afmt"></select></label>
+                <label>Ponto do áudio<select id="mt-tap"><option value="pre">Antes do fader</option><option value="post">Depois do fader</option></select></label>
+                <label>Vídeo (kbps, 0 = auto)<input type="number" id="mt-vkbps" min="0" max="100000" step="500"></label>
+                <label>Dividir a cada (min, 0 = não)<input type="number" id="mt-rotmin" min="0" max="1440"></label>
+                <label style="grid-column:1/-1;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="mt-expert"> Modo avançado: permitir acima do limite seguro</label>
+              </div>
+            </div>
+            <div class="mt-est" id="mt-est"></div>
+            <div id="mt-tracks" style="margin-top:10px"></div>
+          </div>
+        </div>
+        <!-- /FEATURE: multitrack -->
         <div class="col">
           <div class="card"><h3><span class="cap">Gravação</span><button class="recbtn" id="rec-btn2" style="flex:none"><i></i><span>GRAVAR</span></button></h3>
             <div class="body">
@@ -2393,6 +2434,48 @@ body.cur{cursor:default}
     $('#rec-stat').innerHTML = rows.map(r => `<span class="k">${r[0]}</span><span class="v">${esc(r[1])}</span>`).join('');
     $('#rec-err').textContent = recst.error ? 'Erro: ' + recst.error : '';
   }
+  // ---- FEATURE: multitrack ----
+  let miso = null;
+  const mtNum = (n, d) => Number(n).toFixed(d == null ? 1 : d).replace('.', ',');
+  function renderMultitrack(d) {
+    miso = d;
+    const lock = !!d.locked;
+    const chip = (kind, id, label, on, live, title) => `<label class="mt-chip${on ? ' on' : ''}${live ? '' : ' off'}" title="${esc(title || '')}"><input type="checkbox" data-mt="${kind}" data-id="${id}" ${on ? 'checked' : ''} ${lock ? 'disabled' : ''}>${esc(label)}</label>`;
+    $('#mt-cams').innerHTML = d.cams.length ? d.cams.map(c => chip('cam', c.slot, c.label + (c.device ? ' · ' + c.device : '') + (c.live ? '' : ' (sem sinal)'), c.sel, c.live, c.w ? c.w + '×' + c.h : '')).join('') : '<span class="note">Nenhuma câmera ao vivo.</span>';
+    $('#mt-chans').innerHTML = d.chans.map(c => chip('ch', c.strip, c.name, c.sel, true)).join('');
+    const fa = $('#mt-afmt'); if (document.activeElement !== fa) fa.innerHTML = d.formats.map(f => `<option value="${esc(f.id)}">${esc(f.label)}</option>`).join('');
+    const set = (id, v) => { const el = $(id); if (el && document.activeElement !== el) el.value = v; };
+    set('#mt-res', d.cfg.res); set('#mt-fps', d.cfg.fps); set('#mt-afmt', d.cfg.afmt); set('#mt-tap', d.cfg.tap); set('#mt-vkbps', d.cfg.vkbps); set('#mt-rotmin', d.cfg.rotmin);
+    $('#mt-expert').checked = !!d.cfg.expert;
+    for (const id of ['#mt-res', '#mt-fps', '#mt-afmt', '#mt-tap', '#mt-vkbps', '#mt-rotmin', '#mt-expert']) $(id).disabled = lock;
+    const e = d.est, nTracks = e.video + e.audio;
+    let h;
+    if (!nTracks) h = 'Nada selecionado: grava somente o Program, como sempre.';
+    else {
+      h = `<b>${e.video}</b> câmera(s) + <b>${e.audio}</b> canal(is): disco <b>${mtNum(e.mbps)} MB/s</b> (~${mtNum(e.gbh)} GB/h, com o Program)` +
+        (e.minutes >= 0 ? `, espaço para ~<b>${Math.round(e.minutes)} min</b>` : '') +
+        `<br>Carga de codificação estimada: <b>${Math.round(e.load)}%</b> do limite seguro (nível ${esc(e.tier)}${e.video ? ', até ' + e.maxCams + ' câmera(s) nesse formato' : ''}).`;
+    }
+    if (e.verdict === 'blocked') h += '<br><b>Bloqueado:</b> reduza o plano ou ative o modo avançado.';
+    else if (e.verdict === 'warning') h += '<br><b>Atenção:</b> perto ou acima do limite seguro.';
+    if (e.notes && e.notes.length) h += '<br>' + e.notes.map(esc).join('<br>');
+    const box = $('#mt-est'); box.className = 'mt-est ' + e.verdict; box.innerHTML = h;
+    const s = d.sess; let t = '';
+    if (s && s.tracks && s.tracks.length) {
+      t = '<div class="mt-trk h"><span>Trilha</span><span>Nome</span><span>Estado</span><span>Tempo</span><span>Perdidos</span><span>Repet./sil.</span></div>' +
+        s.tracks.map(k => `<div class="mt-trk"><span class="n">${esc(k.id)}</span><span class="n" title="${esc(k.error || '')}">${esc(k.name)}${k.error ? ' <span class="e">' + esc(k.error) + '</span>' : ''}</span><span>${esc({recording: 'gravando', finished: 'finalizada', error: 'erro', 'disk-stopped': 'parada: disco', 'not-started': '—'}[k.state] || k.state)}</span><span class="n">${fmtTime(k.seconds)}</span><span class="n">${k.dropped}</span><span class="n">${k.kind === 'video' ? k.repeated : k.silence}</span></div>`).join('');
+      if (s.warnings && s.warnings.length) t += '<p class="note err" style="margin-top:6px">' + s.warnings.map(esc).join('<br>') + '</p>';
+      if (s.active) t += `<p class="note" style="margin-top:6px">Espaço livre: ${fmtBytes(s.free || 0)} · pasta: ${esc(s.dir)}</p>`;
+    }
+    $('#mt-tracks').innerHTML = t;
+  }
+  $('#mt-cams').addEventListener('change', ev => { const c = ev.target; if (c.dataset.mt) send('rec', 'iso', c.dataset.mt, c.dataset.id, c.checked ? 1 : 0); });
+  $('#mt-chans').addEventListener('change', ev => { const c = ev.target; if (c.dataset.mt) send('rec', 'iso', c.dataset.mt, c.dataset.id, c.checked ? 1 : 0); });
+  for (const [id, key] of [['#mt-res', 'res'], ['#mt-fps', 'fps'], ['#mt-afmt', 'afmt'], ['#mt-tap', 'tap'], ['#mt-vkbps', 'vkbps'], ['#mt-rotmin', 'rotmin']])
+    $(id).addEventListener('change', ev => send('rec', 'iso', 'cfg', key, ev.target.value));
+  $('#mt-expert').addEventListener('change', ev => send('rec', 'iso', 'cfg', 'expert', ev.target.checked ? 1 : 0));
+  $('#mt-open').onclick = () => send('rec', 'iso', 'open');
+  // ---- /FEATURE ----
   const recToggle = () => send('rec', (recst.state === 'recording') ? 'stop' : 'start');
   $('#rec-btn').onclick = $('#rec-btn2').onclick = recToggle;
   $('#rc-pick').onclick = () => send('rec', 'pickfolder');
@@ -3312,7 +3395,7 @@ body.cur{cursor:default}
     else if (typeof d.t === 'string' && d.t.startsWith('ai_')) aiMsg(d);   // FEATURE: ai
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
-    else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
+    else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); } else if (d.t === 'rec_iso') renderMultitrack(d);   /* FEATURE: multitrack */
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
   if (host) send('aiget');   // FEATURE: ai

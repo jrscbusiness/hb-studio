@@ -84,6 +84,9 @@ void Recorder::updateStatus() {
     status_.audioFrames = audioWritten_;
     status_.droppedAudio = droppedAudio_.load();
     status_.silenceFrames = silence_;
+    // ---- FEATURE: multitrack ----
+    if (haveT0_) status_.t0Ns = t0Ns_;
+    // ---- /FEATURE ----
     status_.segment = segment_;
     status_.bytes = bytesDone_ + (writer_ ? writer_->stats().bytesWritten : 0);
     if (hasVideo_)
@@ -135,14 +138,23 @@ bool Recorder::openSegment(std::string& error) {
 
 void Recorder::closeWriter(std::string& error) {
     if (!writer_) return;
+    bool closedOk = false;   // FEATURE: multitrack
     try {
         std::string e;
         if (!writer_->close(e)) error = e.empty() ? "falha ao finalizar o arquivo" : e;
+        else closedOk = true;
         bytesDone_ += writer_->stats().bytesWritten;
     } catch (...) {
         error = "excecao ao finalizar o arquivo";
     }
     writer_.reset();
+    // ---- FEATURE: multitrack ----
+    // Frozen contract (cloud backup consumes it): every finalised recording file is announced, rotated segments included.
+    if (closedOk) {
+        const std::string closedPath = status().file;
+        publish("recording.fileClosed", {{"path", closedPath}, {"kind", "program"}, {"index", std::to_string(segment_)}});
+    }
+    // ---- /FEATURE ----
 }
 
 bool Recorder::start(std::string& error) {

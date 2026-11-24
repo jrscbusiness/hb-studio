@@ -668,6 +668,49 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'rec', state: 'idle', error: 'Disco cheio', last: 'C:\\v\\a.mp4' }));
   ok((await page.locator('#rec-err').textContent()).includes('Disco cheio'), 'REC: errors are shown');
 
+  // ---- FEATURE: multitrack ----
+  const ISO = (extra) => Object.assign({ t: 'rec_iso', locked: false,
+    cfg: { res: 'native', fps: 'program', vkbps: 0, afmt: 'wav', tap: 'pre', rotmin: 0, expert: false },
+    cams: [{ slot: 0, label: 'CAM 1', device: 'Logitech C920', live: true, w: 1920, h: 1080, fps: 30, sel: true }, { slot: 1, label: 'CAM 2', device: '', live: false, w: 0, h: 0, fps: 0, sel: false }],
+    chans: [{ strip: 0, name: 'MIC 1', sel: true }, { strip: 1, name: 'MIC 2', sel: false }],
+    formats: [{ id: 'wav', label: 'WAV 24 bits' }, { id: 'wav-f32', label: 'WAV float' }],
+    est: { video: 1, audio: 1, mbps: 2.3, gbh: 8.3, load: 66.7, maxCams: 2, minutes: 120, tier: 'MEDIUM', verdict: 'ok', notes: [] },
+    sess: { active: false, dir: '' } }, extra || {});
+  await page.evaluate(m => window.__hbMessage(m), ISO());
+  ok(await page.locator('#mt-card').isVisible(), 'MULTIPISTA: the section is shown in the REC tab');
+  ok(await page.locator('#mt-cams input').count() === 2 && await page.locator('#mt-chans input').count() === 2, 'MULTIPISTA: one checkbox per camera and per audio channel');
+  ok(await page.locator('#mt-cams input').first().isChecked(), 'MULTIPISTA: the saved selection is reflected');
+  ok((await page.locator('#mt-est').textContent()).includes('2,3 MB/s'), 'MULTIPISTA: shows the disk-rate estimate');
+  ok((await page.locator('#mt-est').textContent()).includes('67%'), 'MULTIPISTA: shows the encode load against the safe cap');
+  const sentM = await page.evaluate(() => window.__sent.length);
+  await page.locator('#mt-chans input').nth(1).check();
+  await page.locator('#mt-cams input').first().uncheck();
+  await page.selectOption('#mt-afmt', 'wav-f32');
+  await page.selectOption('#mt-tap', 'post');
+  await page.fill('#mt-rotmin', '10'); await page.locator('#mt-rotmin').dispatchEvent('change');
+  await page.locator('#mt-expert').check();
+  const smm = await page.evaluate(n => window.__sent.slice(n), sentM);
+  ok(smm.includes('rec|iso|ch|1|1') && smm.includes('rec|iso|cam|0|0'), 'MULTIPISTA: checkboxes send rec|iso|ch / rec|iso|cam');
+  ok(smm.includes('rec|iso|cfg|afmt|wav-f32') && smm.includes('rec|iso|cfg|tap|post') && smm.includes('rec|iso|cfg|rotmin|10') && smm.includes('rec|iso|cfg|expert|1'), 'MULTIPISTA: format / tap / rotation / expert send rec|iso|cfg');
+  await page.locator('#mt-open').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sentM)).includes('rec|iso|open'), 'MULTIPISTA: open-folder button sends rec|iso|open');
+  await page.evaluate(m => window.__hbMessage(m), ISO({ locked: true, est: { video: 6, audio: 1, mbps: 9, gbh: 32, load: 300, maxCams: 2, minutes: 4, tier: 'LOW', verdict: 'blocked', notes: ['Carga alta'] },
+    sess: { active: true, seconds: 75, free: 5e10, dir: 'C:\\v\\2026', warnings: ['Espaço baixo'], tracks: [
+      { id: 'CAM01', name: 'Logitech', kind: 'video', state: 'recording', error: '', seconds: 75, segment: 1, repeated: 3, dropped: 2, silence: 0, bytes: 1, drift: 0 },
+      { id: 'CH01', name: 'MIC 1', kind: 'audio', state: 'error', error: 'disco removido', seconds: 10, segment: 1, repeated: 0, dropped: 0, silence: 480, bytes: 1, drift: 0 }] } }));
+  ok(await page.locator('#mt-cams input').first().isDisabled(), 'MULTIPISTA: selection is locked while recording');
+  ok((await page.locator('#mt-est').textContent()).includes('Bloqueado'), 'MULTIPISTA: a blocked plan is flagged');
+  ok(await page.locator('#mt-tracks .mt-trk').count() === 3, 'MULTIPISTA: per-track live status rows (header + 2 tracks)');
+  ok((await page.locator('#mt-tracks').textContent()).includes('disco removido'), 'MULTIPISTA: a failing track shows its own error');
+  for (const theme of ['light', 'dark', 'gray']) {
+    await page.evaluate(th => document.documentElement.setAttribute('data-theme', th), theme);
+    const fits = await page.evaluate(() => { const c = document.querySelector('#mt-card').getBoundingClientRect(); return c.right <= window.innerWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1; });
+    ok(fits, `MULTIPISTA: fits the width in the ${theme} theme`);
+  }
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  await page.evaluate(m => window.__hbMessage(m), ISO());
+  // ---- /FEATURE ----
+
 
   console.log('\n[5c] Tema claro/escuro nativo (sem plugin)');
   await tab('cfg');
