@@ -2,6 +2,7 @@
 // One-shot HTTP listener bound to 127.0.0.1 only, for the OAuth loopback redirect (RFC 8252 7.3).
 // Portable (BSD sockets / Winsock); tested on Linux against a local loopback connection.
 #include <atomic>
+#include <cstdint>
 #include <string>
 
 namespace hb::chat {
