@@ -1,0 +1,37 @@
+{
+  "$schema": "./index.schema.json",
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "com.hbstudio.theme.midnight",
+      "name": "Tema Meia-noite (azul escuro)",
+      "author": "HB Studio",
+      "description": {
+        "pt-BR": "Interface em azul-marinho escuro, ideal para ambientes com pouca luz.",
+        "en": "Dark navy interface, ideal for low-light environments."
+      },
+      "category": "theme",
+      "type": "theme",
+      "tags": ["escuro", "azul"],
+      "license": "MIT",
+      "homepage": "https://github.com/jrscbusiness/hb-studio",
+      "repository": "https://github.com/jrscbusiness/hb-studio/tree/main/plugins/examples/theme-midnight",
+      "verified": true,
+      "permissions": [],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "minAppVersion": "0.3.0",
+          "platforms": ["windows-x64"],
+          "downloadUrls": [
+            "https://raw.githubusercontent.com/jrscbusiness/hb-studio/main/marketplace/packages/com.hbstudio.theme.midnight-1.0.0.hbplugin"
+          ],
+          "sha256": "6613476436c3228acbad36314359a99eace9735be5ae46578942344dddd27d18",
+          "size": 571,
+          "releasedAt": "2026-11-24",
+          "notes": "Tema de exemplo do projeto (somente cores, sem código)."
+        }
+      ]
+    }
+  ]
+}

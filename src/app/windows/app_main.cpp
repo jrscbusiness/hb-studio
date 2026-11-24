@@ -42,6 +42,7 @@
 #include "app/windows/output_window.hpp"
 #include "ndi/ndi.hpp"
 #include "scene/scene_service.hpp"   // FEATURE: scenes
+#include "marketplace/service.hpp"   // FEATURE: marketplace
 // ---- FEATURE: chroma ----
 #include "chroma/service.hpp"
 #include "chroma/windows/winhttp_client.hpp"
@@ -592,6 +593,44 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto postScenes = [&] { host.postQueued("scenes", sceneSvc.stateJson()); };
     // ---- /FEATURE ----
 
+    // ---- FEATURE: marketplace ---- community catalog (static index.json over HTTPS), download + SHA-256 check,
+    // then the EXISTING plugin review/consent dialog (plugins.beginInstall) - never bypassed.
+    const std::string mktDir = mediaDir.empty() ? std::string() : mediaDir + "\\marketplace";
+    const std::string mktUrlFile = mktDir.empty() ? std::string() : mktDir + "\\catalog_url.txt";
+    auto mktDownloader = marketplace::makeDefaultDownloader();
+    marketplace::MarketplaceConfig mktCfg;
+    mktCfg.cacheDirUtf8 = mktDir.empty() ? std::string() : mktDir + "\\cache";
+    mktCfg.downloadDirUtf8 = mktDir.empty() ? std::string() : mktDir + "\\tmp";
+    mktCfg.appVersion = HB_VERSION;
+    mktCfg.platform = "windows-x64";
+    {
+        std::ifstream f(mktUrlFile, std::ios::binary);
+        std::string u;
+        if (f && std::getline(f, u)) {
+            while (!u.empty() && (u.back() == '\r' || u.back() == ' ')) u.pop_back();
+            if (marketplace::isSafeHttpsUrl(u)) mktCfg.catalogUrl = u;   // a bad file just falls back to the default
+        }
+    }
+    marketplace::PluginHooks mktHooks;
+    mktHooks.installedVersions = [&] {
+        std::map<std::string, std::string> m;
+        for (const auto& p : plugins.manager().list()) m[p.manifest.id] = p.manifest.version;
+        return m;
+    };
+    mktHooks.beginInstall = [&](const std::string& path) { return plugins.beginInstall(path); };
+    mktHooks.cancelInstall = [&](const std::string& token) { plugins.cancelInstall(token); };
+    mktHooks.importTemplate = [&](const std::string& path) {
+        const auto r = sceneSvc.handle("sceneimport|" + path);
+        if (r.changed) postScenes();
+        return std::make_pair(r.changed, r.message.empty() ? std::string("Template importado.") : r.message);
+    };
+    marketplace::MarketplaceService marketSvc(*mktDownloader, mktCfg, mktHooks);
+    // Declared after everything its jobs touch: destroyed first. A separate queue so a long download never
+    // delays device enumeration on `tasks`.
+    win::TaskQueue marketTasks;
+    auto postMarket = [&] { host.postQueued("mkt", marketSvc.catalogJson()); };
+    // ---- /FEATURE ----
+
     // ---- FEATURE: teleprompter ---- host-authoritative scroll state + script library
     // (%LOCALAPPDATA%\HBStudio\teleprompter). Commands "tp|..." arrive from the main UI, from the
     // presenter window and (play/pause/speed/seek) from the remote allowlist; see docs/TELEPROMPTER.md.
@@ -801,6 +840,59 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             const std::string t = remoteSvc.handleUi(msg);
             if (!t.empty()) toast(t);
             host.postQueued("remote", remoteSvc.statusJson());
+        }
+        // ---- /FEATURE ----
+        // ---- FEATURE: marketplace ----
+        else if (c.rfind("mkt", 0) == 0) {   // mktlist | mktrefresh | mktinstall|id | mktcancel | mktcfg|url
+            if (c == "mktlist") {
+                postMarket();
+            } else if (c == "mktrefresh") {
+                marketTasks.post([&] {
+                    marketSvc.refresh();
+                    postMarket();
+                });
+            } else if (c == "mktinstall" && a.size() >= 2) {
+                const std::string id = a[1];
+                if (marketSvc.installing()) {
+                    toast("Já existe uma instalação em andamento.");
+                } else {
+                    marketTasks.post([&, id] {
+                        postMarket();   // shows "installing"
+                        const auto out = marketSvc.install(id, [&, id](const std::string& phase, int pct) {
+                            host.postQueued("mkt_progress", "{\"t\":\"mkt_progress\",\"id\":\"" + win::jsonEscape(id) + "\",\"phase\":\"" +
+                                                                phase + "\",\"pct\":" + std::to_string(pct) + "}");
+                        });
+                        if (!out.contextJson.empty()) host.postQueued("", out.contextJson);
+                        if (!out.reviewJson.empty()) host.postQueued("", out.reviewJson);   // opens the existing consent dialog
+                        if (!out.ok || out.imported)
+                            host.postQueued("", "{\"t\":\"mkt_done\",\"id\":\"" + win::jsonEscape(id) + "\",\"ok\":" + (out.ok ? "true" : "false") +
+                                                    ",\"message\":\"" + win::jsonEscape(out.message) + "\"}");
+                        else
+                            host.postQueued("", "{\"t\":\"mkt_done\",\"id\":\"" + win::jsonEscape(id) + "\",\"ok\":true,\"message\":\"\"}");
+                        postMarket();
+                    });
+                }
+            } else if (c == "mktcancel") {
+                marketSvc.cancelInstall();
+            } else if (c == "mktcfg") {
+                const std::string url = a.size() >= 2 ? a[1] : std::string();
+                if (marketSvc.setCatalogUrl(url)) {
+                    if (!mktDir.empty()) {
+                        std::error_code ec;
+                        std::filesystem::create_directories(std::filesystem::path(std::u8string(mktDir.begin(), mktDir.end())), ec);
+                        std::ofstream f(mktUrlFile, std::ios::binary | std::ios::trunc);
+                        f << (url.empty() ? std::string() : url);   // empty file = default catalog
+                    }
+                    toast(url.empty() ? "Catálogo padrão restaurado." : "Catálogo do Marketplace alterado.");
+                    marketTasks.post([&] {
+                        marketSvc.refresh();
+                        postMarket();
+                    });
+                } else {
+                    toast("Endereço inválido: use um link https:// completo.");
+                    postMarket();
+                }
+            }
         }
         // ---- /FEATURE ----
         // ---- FEATURE: scenes ----

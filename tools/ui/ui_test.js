@@ -421,6 +421,86 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'theme', id: '', scheme: '', vars: {} }));
   ok((await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg'))) === '', 'empty theme restores the default look');
 
+  // ---- FEATURE: marketplace ----
+  console.log('\n[4d] PLUGINS: Marketplace');
+  await clearSent();
+  await humanClick('#plg-seg button[data-s=mkt]');
+  ok((await sent()).includes('mktlist') && (await sent()).includes('mktrefresh'), 'MARKETPLACE sub-view: asks the host for the cached list and a refresh');
+  ok(await page.locator('#mk-grid').isVisible() && !(await page.locator('#plg-list').isVisible()), 'MARKETPLACE replaces the installed list');
+  const mkE = (o) => Object.assign({ id: 'com.x.a', name: 'A', author: 'Autor', desc: 'Descrição', cat: 'theme', type: 'theme', native: false, verified: false, license: 'MIT', homepage: '', repository: '',
+    tags: [], screenshots: [], permissions: [], compatible: true, reason: '', version: '1.0.0', size: 2048, minApp: '0.1.0', notes: '', released: '', status: 'available', installedVersion: '' }, o);
+  const mkCat = (list, over) => page.evaluate(m => window.__hbMessage(m), Object.assign({ t: 'mkt_catalog', loaded: true, offline: false, fromCache: false, error: '', dropped: 0, installing: false,
+    catalogUrl: 'https://raw.example.com/index.json', defaultUrl: 'https://raw.example.com/index.json', list }, over || {}));
+  await mkCat([
+    mkE({ id: 'com.x.theme', name: 'Tema Aurora', verified: true, status: 'installed', installedVersion: '1.0.0', tags: ['escuro'], screenshots: ['https://example.com/1.png', 'javascript:alert(1)'] }),
+    mkE({ id: 'com.x.src', name: 'Fonte Câmera X', author: 'Beltrano', cat: 'video-source', type: 'source', native: true, permissions: ['native-code'], size: 3 * 1048576 }),
+    mkE({ id: 'com.x.fx', name: 'Efeito Eco', cat: 'audio-effect', type: 'effect', native: true, status: 'update', installedVersion: '0.9.0', version: '1.1.0' }),
+    mkE({ id: 'com.x.old', name: 'Futuro', compatible: false, reason: 'requer o HB Studio 9.0.0 ou mais novo' }),
+    mkE({ id: 'com.x.xss', name: '<img src=x onerror=window.__pwned=1>', desc: '<b>negrito</b>' }),
+  ]);
+  await page.waitForTimeout(100);
+  ok(await page.locator('#mk-grid .mk-card').count() === 5, 'MARKETPLACE: 5 cards');
+  const grid = await page.locator('#mk-grid').innerText();
+  ok(grid.includes('VERIFICADO') && grid.includes('NÃO VERIFICADO') && grid.includes('CÓDIGO NATIVO') && grid.includes('ATUALIZAR') && grid.includes('INSTALADO'),
+    'cards show verified / not verified / native code / update / installed');
+  ok(!(await page.evaluate(() => window.__pwned)) && await page.locator('#mk-grid img').count() === 0, 'catalog text is rendered as text, never as HTML');
+  await page.fill('#mk-q', 'eco');
+  ok(await page.locator('#mk-grid .mk-card').count() === 1, 'search filters by name');
+  await page.fill('#mk-q', '');
+  await page.selectOption('#mk-cat', 'video-source');
+  ok(await page.locator('#mk-grid .mk-card').count() === 1 && (await page.locator('#mk-grid').innerText()).includes('Fonte Câmera X'), 'category filter');
+  await page.selectOption('#mk-cat', '');
+  ok(await page.locator('.mk-card[data-id="com.x.old"] .mk-act').isDisabled(), 'incompatible entry cannot be installed');
+  ok(await page.locator('.mk-card[data-id="com.x.theme"] .mk-act').isDisabled(), 'installed entry: button disabled');
+  await clearSent();
+  await humanClick('.mk-card[data-id="com.x.src"] .mk-act');
+  ok((await sent()).includes('mktinstall|com.x.src'), 'INSTALAR -> mktinstall|id');
+  await page.evaluate(() => window.__hbMessage({ t: 'mkt_progress', id: 'com.x.src', phase: 'download', pct: 42 }));
+  await page.locator('.mk-card[data-id="com.x.src"]').click();
+  await page.waitForTimeout(60);
+  ok(await page.locator('#mk-drawer').isVisible(), 'click on a card opens the details drawer');
+  const dr = await page.locator('#mk-drawer').innerText();
+  ok(dr.includes('Publicador não verificado') && dr.includes('código nativo') && dr.includes('sandbox'), 'drawer: not-verified and native-code warnings');
+  await page.evaluate(() => window.__hbMessage({ t: 'mkt_done', id: 'com.x.src', ok: true, message: '' }));
+  await page.locator('.mk-card[data-id="com.x.theme"]').click();
+  await page.waitForTimeout(60);
+  ok(await page.locator('#mk-dbody img[loading=lazy]').count() === 1, 'drawer: only https screenshots, lazy loaded');
+  await clearSent();
+  await page.locator('#mk-dbody button', { hasText: 'REMOVER' }).click();
+  ok((await sent()).includes('pluginremove|com.x.theme'), 'REMOVER (after confirmation) -> pluginremove|id (existing flow)');
+  // review dialog banner for unverified publishers
+  await page.evaluate(() => { window.__hbMessage({ t: 'mkt_review', id: 'com.x.src', verified: false, native: true });
+    window.__hbMessage({ t: 'plugin_review', ok: true, token: 'tk9', id: 'com.x.src', name: 'Fonte Câmera X', version: '1.0.0', author: 'B', description: '', license: 'MIT', type: 'source', native: true, files: 2, size: 9000, replaces: false, installedVersion: '', sha: 'aa' }); });
+  await page.waitForTimeout(80);
+  ok(await page.locator('#rv-unver').isVisible() && await page.locator('#rv-risk').isVisible() && await page.locator('#rv-ok').isDisabled(), 'review dialog from the marketplace: "publisher not verified" shown, consent still required');
+  await humanClick('#rv-cancel');
+  await page.evaluate(() => window.__hbMessage({ t: 'plugin_review', ok: true, token: 'tk10', id: 'com.x.file', name: 'Arquivo', version: '1.0.0', author: 'B', description: '', license: '', type: 'theme', native: false, files: 1, size: 9, replaces: false, installedVersion: '', sha: 'bb' }));
+  await page.waitForTimeout(60);
+  ok(!(await page.locator('#rv-unver').isVisible()), 'banner is not shown for a file installed by hand');
+  await humanClick('#rv-cancel');
+  // offline / empty states
+  await mkCat([], { loaded: false, offline: true, error: 'Não foi possível acessar o catálogo (sem internet).' });
+  await page.waitForTimeout(60);
+  ok((await page.locator('#mk-msg').innerText()).includes('sem internet') && (await page.locator('#mk-grid').innerText()).includes('Catálogo indisponível'), 'offline without cache: graceful message');
+  await mkCat([], {});
+  await page.waitForTimeout(60);
+  ok((await page.locator('#mk-grid').innerText()).includes('catálogo está vazio'), 'empty catalog state');
+  await mkCat([mkE({}), mkE({ id: 'com.x.b', name: 'B' })], { error: 'Sem conexão com o catálogo; mostrando a última cópia salva.', offline: true, fromCache: true });
+  await page.waitForTimeout(60);
+  ok(await page.locator('#mk-msg').isVisible() && await page.locator('#mk-grid .mk-card').count() === 2, 'offline with cache: copy is shown with a notice');
+  for (const [w, h] of [[1024, 720], [1280, 800]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.locator('.mk-card').first().click();
+    const fit = await page.evaluate(() => ({ x: document.documentElement.scrollWidth <= window.innerWidth + 1, y: document.documentElement.scrollHeight <= window.innerHeight + 1,
+      drawer: document.querySelector('#mk-drawer').getBoundingClientRect().right <= document.querySelector('#v-plg').getBoundingClientRect().right + 1 }));
+    ok(fit.x && fit.y && fit.drawer, `${w}x${h}: marketplace fits without page scrolling`);
+  }
+  await page.evaluate(() => { document.querySelector('#mk-url-save').click(); });
+  ok((await sent()).some(m => m.startsWith('mktcfg|')), 'CONFIG catalog URL: SALVAR -> mktcfg|url');
+  await humanClick('#plg-seg button[data-s=inst]');
+  ok(await page.locator('#plg-list').isVisible(), 'back to INSTALADOS');
+  // ---- /FEATURE ----
+
   console.log('\n[5] ÁUDIO e CONFIG');
   await tab('aud');
   ok(await page.locator('#v-aud').isVisible(), 'ÁUDIO tab opens');

@@ -568,6 +568,50 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .ovpre button{height:26px;padding:0 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:11.5px;font-weight:600}
 @media (max-width:1100px){.ovwrap{grid-template-columns:1fr}}
 /* /FEATURE */
+/* FEATURE: marketplace */
+#v-plg{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px;align-content:start}
+#v-plg>.plgwrap{min-height:0}
+.mk-top{display:flex;gap:12px;align-items:center}
+.mk-top .seg{flex:none;width:280px}
+.mk{display:none;grid-template-columns:minmax(0,1fr);gap:14px;min-height:0;overflow:hidden;min-width:0;contain:inline-size}
+.mk.on{display:grid}
+.mk.drawer{grid-template-columns:minmax(0,1fr) minmax(300px,360px)}
+.mk-main{display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0}
+.mk-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mk-bar input,.mk-bar select,.mk-cfg input{height:34px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);outline:none;user-select:text;min-width:0}
+.mk-bar input{flex:1 1 180px}
+.mk-bar input:focus,.mk-bar select:focus,.mk-cfg input:focus{border-color:var(--blue)}
+.mk-msg{font-size:12px;padding:8px 12px;border-radius:10px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink);display:none}
+.mk-msg.on{display:block}
+.mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;overflow:auto;align-content:start;padding:2px;min-height:0;flex:1}
+.mk-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;color:var(--ink);box-shadow:var(--shadow)}
+.mk-card:hover,.mk-card.sel{border-color:var(--blue)}
+.mk-card{min-width:0}
+.mk-card b{display:block;font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mk-card .meta{font-size:11px;color:var(--muted)}
+.mk-card p{font-size:12px;color:var(--ink-2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
+.mk-card .foot{display:flex;align-items:center;gap:6px;margin-top:auto;flex-wrap:wrap}
+.mk-b{font-size:9px;letter-spacing:.12em;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--mist);color:var(--blue);white-space:nowrap}
+.mk-b.ok{background:var(--blue);color:var(--on-accent)}
+.mk-b.warn{background:var(--warn-bg);color:var(--warn-ink);border:1px solid var(--warn-line)}
+.mk-act{height:28px;padding:0 12px;border-radius:9px;border:1px solid var(--blue);background:var(--blue);color:var(--on-accent);font-size:10.5px;font-weight:700;letter-spacing:.08em;margin-left:auto}
+.mk-act.ghost{background:var(--surface);color:var(--blue)}
+.mk-act:disabled{opacity:.5}
+.mk-empty{padding:26px 8px;color:var(--ink-2);line-height:1.6}
+.mk-drawer{display:none;overflow:auto;min-height:0}
+.mk.drawer .mk-drawer{display:block}
+.mk-drawer .body{display:flex;flex-direction:column;gap:10px}
+.mk-drawer .rows{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
+.mk-drawer .rows span:nth-child(odd){color:var(--muted)}
+.mk-drawer .rows span:nth-child(even){word-break:break-word}
+.mk-shots{display:flex;gap:8px;overflow-x:auto}
+.mk-shots img{height:110px;border-radius:8px;border:1px solid var(--line);flex:none}
+.mk-bar-prog{height:6px;border-radius:999px;background:var(--mist);overflow:hidden;display:none}
+.mk-bar-prog.on{display:block}
+.mk-bar-prog i{display:block;height:100%;width:0;background:var(--blue);transition:width .15s}
+.mk-cfg{display:flex;gap:8px;flex-wrap:wrap}
+.mk-cfg input{flex:1 1 220px}
+/* /FEATURE: marketplace */
 </style>
 </head>
 <body>
@@ -891,6 +935,22 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 
     <!-- ===================== PLUGINS ===================== -->
     <section class="view" id="v-plg">
+      <!-- FEATURE: marketplace -->
+      <div class="mk-top"><div class="seg" id="plg-seg"><button data-s="inst" class="on">INSTALADOS</button><button data-s="mkt">MARKETPLACE</button></div>
+        <span class="note" id="mk-top-note" style="display:none">Extensões da comunidade. Instalar sempre passa pela tela de revisão e consentimento.</span></div>
+      <div class="mk" id="mk">
+        <div class="mk-main">
+          <div class="mk-bar">
+            <input type="text" id="mk-q" placeholder="Buscar por nome, autor ou etiqueta…" aria-label="Buscar no Marketplace">
+            <select id="mk-cat" aria-label="Categoria"><option value="">Todas as categorias</option><option value="theme">Temas</option><option value="video-source">Fontes de vídeo</option><option value="audio-effect">Efeitos de áudio</option><option value="graphic">Gráficos</option><option value="template">Templates</option></select>
+            <button class="btn sm" id="mk-refresh" style="flex:none">ATUALIZAR LISTA</button>
+          </div>
+          <div class="mk-msg" id="mk-msg"></div>
+          <div class="mk-grid" id="mk-grid"></div>
+        </div>
+        <div class="card mk-drawer" id="mk-drawer"><h3><span class="cap">Detalhes</span><button class="icon" id="mk-dx" aria-label="Fechar">✕</button></h3><div class="body" id="mk-dbody"></div></div>
+      </div>
+      <!-- /FEATURE: marketplace -->
       <div class="plgwrap">
         <div class="card">
           <h3><span class="cap">Plugins instalados</span><button class="btn primary sm" id="plg-install" style="flex:none">INSTALAR PLUGIN…</button></h3>
@@ -941,6 +1001,13 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
           <div class="row"><span class="k">Memória</span><span class="v" id="g-ram">—</span></div>
           <div class="row"><span class="k">Fontes recomendadas / máximo</span><span class="v" id="g-src">—</span></div>
         </div></div>
+      <!-- FEATURE: marketplace -->
+      <div class="card"><h3><span class="cap">Marketplace de plugins</span></h3>
+        <div class="body">
+          <p class="note" style="margin-bottom:8px">Endereço (https) do catálogo <span class="mono">index.json</span>. O padrão é o catálogo público do projeto no GitHub. <b>Só use catálogos de quem você confia</b>: o catálogo decide o que aparece, mas a instalação sempre pede a sua confirmação.</p>
+          <div class="mk-cfg"><input type="text" id="mk-url" aria-label="Endereço do catálogo" spellcheck="false"><button class="btn sm" id="mk-url-save" style="flex:none">SALVAR</button><button class="btn sm" id="mk-url-reset" style="flex:none">PADRÃO</button></div>
+        </div></div>
+      <!-- /FEATURE: marketplace -->
       <div class="card"><h3><span class="cap">Formatos de saída comuns</span></h3>
         <div class="body"><div id="outfmt-list"></div>
         <p class="note" style="margin-top:10px" id="outfmt-note"></p></div></div>
@@ -1083,6 +1150,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 <div id="modal3" class="modal"><div class="sheet small" style="width:520px">
   <div class="sh-head"><div><span class="cap" id="rv-cap">Instalar plugin</span><h2 id="rv-name">—</h2></div><button class="icon" id="rv-x">✕</button></div>
   <div id="rv-body"></div>
+  <div class="riskbox" id="rv-unver" style="display:none"><b>Publicador não verificado.</b>
+    <p>Este plugin veio do Marketplace, mas os mantenedores do catálogo <b>não revisaram</b> o código dele. A integridade do arquivo foi conferida (SHA-256), o que não garante que ele seja seguro.</p></div>
   <div class="riskbox" id="rv-risk" style="display:none">
     <b>Este plugin executa código no seu computador.</b>
     <p>Ele terá os mesmos poderes do HB Studio. Instale somente se confiar em quem o criou. Depois de instalado ele fica desativado até você ativá-lo.</p>
@@ -2861,9 +2930,119 @@ body.cur{cursor:default}
   $('#ovm-cancel').onclick = $('#ovm-x').onclick = () => $('#modal6').classList.remove('on');
   // ---------- /GRÁFICOS ----------
 
+  // ---------- FEATURE: marketplace ----------
+  const mkCats = {theme: 'TEMA', 'video-source': 'FONTE DE VÍDEO', 'audio-effect': 'EFEITO DE ÁUDIO', graphic: 'GRÁFICO', template: 'TEMPLATE'};
+  let mkt = null, mkSel = null, mkProg = null, mkAsked = false, mkErr = {}, mkCtx = {};
+  const mkEl = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const mkSize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  function mkShow(on) {
+    $('#mk').classList.toggle('on', on); $('#mk-top-note').style.display = on ? '' : 'none';
+    const w = document.querySelector('#v-plg .plgwrap'); if (w) w.style.display = on ? 'none' : '';
+    $$('#plg-seg button').forEach(b => b.classList.toggle('on', (b.dataset.s === 'mkt') === on));
+    if (on && !mkAsked) { mkAsked = true; send('mktlist'); send('mktrefresh'); }
+  }
+  $$('#plg-seg button').forEach(b => b.onclick = () => mkShow(b.dataset.s === 'mkt'));
+  const mkActLabel = e => e.status === 'update' ? 'ATUALIZAR' : e.status === 'installed' ? 'INSTALADO' : 'INSTALAR';
+  function mkInstall(e) { mkErr[e.id] = ''; mkProg = {id: e.id, phase: 'download', pct: 0}; renderMkt(); send('mktinstall', e.id); }
+  function mkActBtn(e, cls) {
+    const b = mkEl('button', 'mk-act ' + (cls || ''), mkProg && mkProg.id === e.id ? 'BAIXANDO…' : mkActLabel(e));
+    b.disabled = !e.compatible || e.status === 'installed' || !!mkProg || !!(mkt && mkt.installing);
+    if (!e.compatible) b.title = e.reason || ''; else if (e.status !== 'installed') b.onclick = ev => { ev.stopPropagation(); mkInstall(e); };
+    return b;
+  }
+  function renderMkt() {
+    const grid = $('#mk-grid'), msg = $('#mk-msg');
+    if (!mkt) { grid.innerHTML = ''; grid.appendChild(mkEl('div', 'mk-empty', 'Carregando o catálogo…')); return; }
+    msg.textContent = mkt.error || (mkt.dropped ? mkt.dropped + ' entrada(s) inválida(s) do catálogo foram ignoradas.' : '');
+    msg.classList.toggle('on', !!msg.textContent);
+    if (document.activeElement !== $('#mk-url')) $('#mk-url').value = mkt.catalogUrl === mkt.defaultUrl ? '' : mkt.catalogUrl;
+    $('#mk-url').placeholder = mkt.defaultUrl || '';
+    const q = $('#mk-q').value.trim().toLowerCase(), cat = $('#mk-cat').value;
+    const list = (mkt.list || []).filter(e => (!cat || e.cat === cat) && (!q || (e.name + ' ' + e.author + ' ' + e.tags.join(' ') + ' ' + e.desc).toLowerCase().includes(q)));
+    grid.innerHTML = '';
+    if (!list.length) {
+      const empty = mkEl('div', 'mk-empty');
+      if (!mkt.loaded) empty.append(mkEl('b', '', 'Catálogo indisponível.'), document.createElement('br'), 'Verifique a internet e clique em ATUALIZAR LISTA. Os plugins já instalados continuam funcionando; você também pode instalar um arquivo .hbplugin na aba INSTALADOS.');
+      else if (!(mkt.list || []).length) empty.append(mkEl('b', '', 'O catálogo está vazio.'), document.createElement('br'), 'Ainda não há extensões publicadas. Veja docs/MARKETPLACE.md para publicar a sua.');
+      else empty.append(mkEl('b', '', 'Nada encontrado.'), document.createElement('br'), 'Tente outra busca ou categoria.');
+      grid.appendChild(empty);
+    }
+    list.forEach(e => {
+      const c = mkEl('div', 'mk-card' + (mkSel === e.id ? ' sel' : '')); c.tabIndex = 0; c.dataset.id = e.id; c.setAttribute('role', 'button');
+      c.append(mkEl('b', '', e.name));
+      c.append(mkEl('div', 'meta', e.author + ' · v' + (e.version || '—') + (e.size ? ' · ' + mkSize(e.size) : '')));
+      c.append(mkEl('p', '', e.desc));
+      const f = mkEl('div', 'foot');
+      f.append(mkEl('span', 'mk-b', mkCats[e.cat] || e.cat));
+      f.append(e.verified ? mkEl('span', 'mk-b ok', 'VERIFICADO') : mkEl('span', 'mk-b warn', 'NÃO VERIFICADO'));
+      if (e.native) f.append(mkEl('span', 'mk-b warn', 'CÓDIGO NATIVO'));
+      if (e.status === 'installed') f.append(mkEl('span', 'mk-b', 'INSTALADO'));
+      if (e.status === 'update') f.append(mkEl('span', 'mk-b warn', 'ATUALIZAÇÃO'));
+      f.append(mkActBtn(e, e.status === 'installed' ? 'ghost' : ''));
+      c.append(f);
+      c.onclick = () => { mkSel = e.id; renderMkt(); };
+      c.onkeydown = ev => { if (ev.key === 'Enter') { mkSel = e.id; renderMkt(); } };
+      grid.appendChild(c);
+    });
+    renderDrawer();
+  }
+  function renderDrawer() {
+    const e = mkt && (mkt.list || []).find(x => x.id === mkSel);
+    $('#mk').classList.toggle('drawer', !!e);
+    if (!e) return;
+    const b = $('#mk-dbody'); b.innerHTML = '';
+    b.append(mkEl('b', '', e.name), mkEl('div', 'note', 'por ' + e.author), mkEl('p', 'note', e.desc));
+    if (!e.verified) b.append(mkEl('div', 'riskbox mk-unver', 'Publicador não verificado: os mantenedores do catálogo não revisaram o código deste plugin.'));
+    if (e.native) b.append(mkEl('div', 'riskbox mk-native', 'Executa código nativo no seu computador, com os mesmos poderes do HB Studio. Não existe isolamento (sandbox). Você ainda verá a tela de revisão e precisará consentir.'));
+    if (!e.compatible) b.append(mkEl('div', 'mk-msg on', 'Indisponível: ' + (e.reason || 'incompatível') + '.'));
+    if (mkErr[e.id]) b.append(mkEl('div', 'mk-msg on mk-err', mkErr[e.id]));
+    const rows = mkEl('div', 'rows');
+    [['Categoria', mkCats[e.cat] || e.cat], ['Versão', e.version || '—'], ['Tamanho', e.size ? mkSize(e.size) : '—'], ['Instalada', e.installedVersion || 'não'],
+     ['Licença', e.license || '—'], ['Requer HB Studio', e.minApp || '—'], ['Permissões', e.permissions.length ? e.permissions.join(', ') : 'nenhuma'],
+     ['Site', e.homepage || '—'], ['Código-fonte', e.repository || '—']].forEach(([k, v]) => rows.append(mkEl('span', '', k), mkEl('span', '', v)));
+    b.append(rows);
+    if (e.notes) b.append(mkEl('p', 'note', e.notes));
+    if (e.screenshots.length) {
+      const sh = mkEl('div', 'mk-shots');
+      e.screenshots.filter(u => /^https:\/\//i.test(u)).forEach(u => { const i = document.createElement('img'); i.loading = 'lazy'; i.referrerPolicy = 'no-referrer'; i.alt = 'Captura de tela'; i.src = u; sh.append(i); });
+      b.append(sh);
+    }
+    const pr = mkEl('div', 'mk-bar-prog'); const bar = document.createElement('i'); pr.append(bar); pr.id = 'mk-prog';
+    if (mkProg && mkProg.id === e.id) { pr.classList.add('on'); bar.style.width = mkProg.pct + '%'; }
+    b.append(pr);
+    const row = mkEl('div', 'mk-bar');
+    const act = mkActBtn(e); act.style.marginLeft = '0'; act.style.height = '34px'; row.append(act);
+    if (mkProg && mkProg.id === e.id) { const cn = mkEl('button', 'btn sm', 'CANCELAR'); cn.onclick = () => send('mktcancel'); row.append(cn); }
+    if (e.installedVersion) { const rm = mkEl('button', 'btn sm', 'REMOVER'); rm.onclick = () => { if (confirm('Remover o plugin “' + e.name + '”?')) send('pluginremove', e.id); }; row.append(rm); }
+    b.append(row);
+  }
+  $('#mk-dx').onclick = () => { mkSel = null; renderMkt(); };
+  $('#mk-q').oninput = $('#mk-cat').onchange = () => renderMkt();
+  $('#mk-refresh').onclick = () => { send('mktrefresh'); toast('Atualizando o catálogo…'); };
+  $('#mk-url-save').onclick = () => send('mktcfg', $('#mk-url').value.trim());
+  $('#mk-url-reset').onclick = () => { $('#mk-url').value = ''; send('mktcfg', ''); };
+  function mktMsg(d) {
+    if (d.t === 'mkt_catalog') { mkt = d; renderMkt(); }
+    else if (d.t === 'mkt_progress') {
+      mkProg = {id: d.id, phase: d.phase, pct: d.pct};
+      const bar = document.querySelector('#mk-prog i'); if (bar) { bar.style.width = d.pct + '%'; bar.parentNode.classList.add('on'); }
+    } else if (d.t === 'mkt_done') {
+      mkProg = null;
+      if (!d.ok) { mkErr[d.id] = d.message || 'Falha na instalação.'; toast(d.message || 'Falha na instalação.'); }
+      else if (d.message) toast(d.message);
+      renderMkt();
+    } else if (d.t === 'mkt_review') mkCtx[d.id] = d;
+  }
+  function mktAfterReview(d) {
+    const ctx = d.ok && mkCtx[d.id];
+    $('#rv-unver').style.display = ctx && !ctx.verified ? '' : 'none';
+    if (d.ok) delete mkCtx[d.id];
+  }
+  // ---------- /FEATURE: marketplace ----------
+
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
-    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
+    if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); if (mkAsked) send('mktlist'); } else if (d.t === 'plugin_review') { showReview(d); mktAfterReview(d); } else if (typeof d.t === 'string' && d.t.startsWith('mkt')) mktMsg(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
     else if (d.t === 'scenes_state') onScenesState(d);   // FEATURE: scenes
     else if (d.t === 'devformats') renderCamFormats(d);
     else if (d.t === 'chroma') { chrSt = d; syncChroma(false); }   // FEATURE: chroma

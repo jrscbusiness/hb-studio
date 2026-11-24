@@ -1,0 +1,26 @@
+name: marketplace-validate
+
+# Validates marketplace/index.json on pull requests that touch marketplace/ (the main ci.yml is untouched).
+on:
+  pull_request:
+    paths:
+      - "marketplace/**"
+      - ".github/workflows/marketplace-validate.yml"
+  push:
+    branches: [main]
+    paths:
+      - "marketplace/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate index.json (schema rules + SHA-256 of every reachable download)
+        run: python3 -I marketplace/validate_index.py marketplace/index.json
