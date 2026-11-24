@@ -97,7 +97,7 @@ TEST(SceneCompositor, FitLetterboxesAndFillCoversWithPlaceholderAspect) {
     src.render(f, 0);
     // box = 160x144 px at (80,18); 16:9 content = 160x90, centred vertically => rows 45..135
     EXPECT_EQ(px(f, 160, 90)[2], 255);   // red content
-    EXPECT_EQ(px(f, 160, 30)[0], 0);     // above content (inside box): background (r=0,g=0,b=255 in BGR => [0]=255)
+    EXPECT_EQ(px(f, 160, 30)[0], 255);   // above content (inside box): blue background
     EXPECT_EQ(px(f, 160, 30)[2], 0);
 
     sc = std::make_shared<Scene>(*sc);
@@ -252,7 +252,7 @@ TEST(SceneCompositor, AspectFromSourceChangesGeometry) {
 TEST(SceneCompositor, BmpBackgroundDecodes) {
     // 2x2 24-bit bottom-up BMP: rows (bottom) red,green / (top) blue,white
     std::vector<std::uint8_t> b = {'B', 'M', 0, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 1, 0, 24, 0,
-                                   0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                    0, 0, 255, 0, 255, 0, 0, 0,           // bottom row: red, green (+2 pad)
                                    255, 0, 0, 255, 255, 255, 0, 0};      // top row: blue, white
     video::Frame f;
