@@ -39,7 +39,7 @@ public:
 // ---- FEATURE: chroma (frame filter hook) ----
 // A per-slot post-render filter (e.g. background removal/replacement, src/chroma/). It runs on the
 // thread that renders the slot (the Program clock thread for PGM), so apply() MUST be cheap and
-// never block or throw. Frames are BGRA8 with PREMULTIPLIED alpha (see docs/CHROMA.md).
+// never block or throw. Frames are BGRA8 with STRAIGHT alpha (see docs/CHROMA.md).
 class FrameFilter {
 public:
     virtual ~FrameFilter() = default;

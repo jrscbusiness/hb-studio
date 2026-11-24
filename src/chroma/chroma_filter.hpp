@@ -22,7 +22,7 @@ public:
     Settings settings() const;
     // The shared model runner; null means "AI unavailable" (model missing / runtime not in this build).
     void setSegmenter(std::shared_ptr<ISegmenter> seg);
-    // Decoded replacement image at its native size (premultiplied/opaque BGRA); null clears it.
+    // Decoded replacement image at its native size (opaque BGRA); null clears it.
     void setImage(std::shared_ptr<const video::Frame> img);
 
     void apply(video::Frame& frame) override;

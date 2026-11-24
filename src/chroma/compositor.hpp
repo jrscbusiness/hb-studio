@@ -3,12 +3,13 @@
 // the replacement (blurred copy of the frame, cover-scaled image).
 //
 // ALPHA CONVENTION (documented in docs/CHROMA.md, relied on by overlay/scene code):
-//   Frames are BGRA8 with PREMULTIPLIED alpha: B,G,R are already multiplied by A/255.
+//   Frames are BGRA8 with STRAIGHT (non-premultiplied) alpha, the same convention src/scene's
+//   compositor uses when it reads a slot's render() output.
 //   * Opaque replacement (colour/blur/image): every output pixel has A = 255.
-//   * ReplKind::Transparent: A = matte, colour channels premultiplied (B*A/255 ...). Blending such
-//     a frame "over" another is  out = fg + bg * (255 - A) / 255  per channel (no multiply by A).
-//   Consumers that only know opaque BGRA (JPEG preview, MF encoders) simply show transparent areas
-//   as black, which is the correct premultiplied-over-black result.
+//   * ReplKind::Transparent: A = matte, B/G/R untouched (the camera colours). "Over" blending is
+//     out = fg * A/255 + bg * (255 - A)/255 per channel.
+//   Consumers that ignore alpha (JPEG preview, MF encoders, switcher mixFrames) show the camera
+//   image un-keyed in the transparent areas; only alpha-aware paths (scenes) see the cut-out.
 #include "chroma/chroma_key.hpp"
 #include "chroma/mask_ops.hpp"
 #include "chroma/types.hpp"

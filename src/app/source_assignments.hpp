@@ -11,7 +11,7 @@ namespace hb::app {
 // The last 5 fields are optional (a file written by an older build has only the first 3): missing
 // or unparseable trailing fields default to "enabled, automatic format" - 0 for w/h/fps means
 // "let the device negotiate its own default", exactly like today's behaviour. Unreadable or
-// hostile files are ignored line by line; ids/names are sanitised; anything past the 8th field is
+// hostile files are ignored line by line; ids/names are sanitised; anything past the 9th field is
 // ignored (earlier builds instead merged a stray extra field into the name - that behaviour is
 // superseded by this richer format, not preserved).
 class SourceAssignments {
@@ -21,6 +21,7 @@ public:
         std::string id, name;
         bool enabled = true;
         int w = 0, h = 0, fpsNum = 0, fpsDen = 0;   // 0 = automatic/unspecified
+        std::string bg;   // FEATURE: chroma - opaque compact settings string (src/chroma/types.hpp); empty = off
         bool empty() const { return id.empty(); }
     };
 
@@ -33,6 +34,11 @@ public:
     // Remembers a chosen capture format for the slot's device (0 = automatic/unspecified, same as
     // a fresh assignment). False if the slot is out of range or has no device assigned.
     bool setFormat(int slot, int w, int h, int fpsNum, int fpsDen);
+    // ---- FEATURE: chroma ----
+    // 9th (optional) field: the slot's background-removal settings, an opaque "k=v;k=v" string with
+    // no tabs/newlines. Kept across set() of a new device; dropped by clear(). False if no device.
+    bool setBackground(int slot, const std::string& bg);
+    // ---- /FEATURE: chroma ----
 
     std::string serialize() const;
     void parse(const std::string& text);

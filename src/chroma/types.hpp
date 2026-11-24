@@ -1,6 +1,6 @@
 #pragma once
 // Chroma / AI background removal: shared value types (portable, no platform code).
-// See docs/CHROMA.md for the alpha convention (BGRA8, PREMULTIPLIED) and the limits of each mode.
+// See docs/CHROMA.md for the alpha convention (BGRA8, STRAIGHT alpha) and the limits of each mode.
 #include <cstdint>
 #include <string>
 #include <vector>

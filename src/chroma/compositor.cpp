@@ -45,9 +45,7 @@ void compositeMatte(video::Frame& fg, const Mask& matte, const Background& bg, S
         for (int x = 0; x < fg.width; ++x, p += 4) {
             const int al = a[x];
             if (transparent) {
-                p[0] = static_cast<std::uint8_t>(div255(p[0] * al));
-                p[1] = static_cast<std::uint8_t>(div255(p[1] * al));
-                p[2] = static_cast<std::uint8_t>(div255(p[2] * al));
+                // STRAIGHT alpha (matches src/scene/compositor): colour untouched, A = matte.
                 p[3] = static_cast<std::uint8_t>(al);
                 continue;
             }
