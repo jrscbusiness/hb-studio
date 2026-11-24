@@ -9,6 +9,7 @@
 #include "core/event_bus.hpp"
 #include "core/hardware_profile.hpp"
 #include "core/logger.hpp"
+#include "scene/scene_source.hpp"
 #include "switcher/switcher.hpp"
 #include "video/program_output.hpp"
 #include "video/source.hpp"
@@ -79,6 +80,16 @@ public:
     // UI frames: "pgm", "pvw", "s0".."s7". Returns false for unknown ids.
     bool renderUiFrame(const std::string& id, video::Frame& out);
 
+    // ---- FEATURE: scenes ----
+    // CENAS bank: kSceneCount scene slots appended to the switch bus AFTER the camera slots, so
+    // switcher indices kSourceCount..kSourceCount+kSceneCount-1 are scenes. Cuts, dissolves and the
+    // T-bar need no special case. With no scene set they render a dark panel and nothing else changes.
+    // renderUiFrame also accepts "c0".."c15" (a scene tile; false while that slot is empty).
+    static constexpr int kSceneCount = 16;
+    bool setScene(int slot, std::shared_ptr<const scene::Scene> scene);   // null clears the slot
+    std::shared_ptr<const scene::Scene> sceneAt(int slot) const;
+    // ---- /FEATURE ----
+
 private:
     core::EventBus bus_;
     core::Logger logger_;
@@ -87,6 +98,7 @@ private:
     core::Tier tier_;
     std::vector<std::shared_ptr<video::SlotSource>> slots_;
     std::vector<std::shared_ptr<const video::Source>> sources_;
+    std::vector<std::shared_ptr<scene::SceneSource>> sceneSlots_;  // FEATURE: scenes
     std::unique_ptr<switcher::Switcher> switcher_;
     std::unique_ptr<video::ProgramOutput> program_;
 
