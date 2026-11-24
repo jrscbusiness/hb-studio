@@ -125,6 +125,29 @@ bool WavWriter::writeAudio(const float* interleaved, std::size_t frames, std::in
     return true;
 }
 
+// ---- FEATURE: multitrack ----
+bool WavWriter::syncHeader(std::string& error) {
+    if (closed_ || failed_) {
+        error = "writer WAV fechado";
+        return false;
+    }
+    std::uint8_t v[4];
+    detail::putLe32(v, static_cast<std::uint32_t>(dataBytes_));
+    if (!file_.patch(dataSizeOffset_, v, 4, error)) return false;
+    detail::putLe32(v, static_cast<std::uint32_t>(file_.size() - 8));
+    if (!file_.patch(4, v, 4, error)) return false;
+    if (floatFmt_) {
+        detail::putLe32(v, static_cast<std::uint32_t>(stats_.audioFrames));
+        if (!file_.patch(factOffset_, v, 4, error)) return false;
+    }
+    if (!file_.flush()) {
+        error = "falha ao gravar o cabecalho do WAV";
+        return false;
+    }
+    return true;
+}
+// ---- /FEATURE ----
+
 bool WavWriter::close(std::string& error) {
     if (closed_) return true;
     closed_ = true;

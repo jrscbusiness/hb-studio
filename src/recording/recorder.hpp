@@ -76,6 +76,9 @@ public:
         int segment = 0;                 // 1-based number of the current file
         std::string error;
         std::uint64_t silenceFrames = 0; // sample frames of silence inserted (overruns + stalls)
+        // ---- FEATURE: multitrack ----
+        std::int64_t t0Ns = 0;           // cfg.nowNs() instant of media time zero (first video frame); 0 = not known yet
+        // ---- /FEATURE ----
     };
     Status status() const;
 
