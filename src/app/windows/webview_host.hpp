@@ -35,6 +35,11 @@ public:
         // mode. The web content's own colour scheme is independent (CSS); this only keeps the
         // frame Windows draws around it consistent with whatever the page is about to show.
         bool initialDark = false;
+        // ---- FEATURE: teleprompter ---- secondary windows (e.g. the presenter pop-out) must not end
+        // the process when closed: no PostQuitMessage, and onClosed (UI thread) tells the owner.
+        bool secondary = false;
+        std::function<void()> onClosed;
+        // ---- /FEATURE ----
     };
     using MessageHandler = std::function<void(const std::string&)>;
 
@@ -58,6 +63,11 @@ public:
     int run();
     void close();
     HWND hwnd() const { return hwnd_; }
+    // ---- FEATURE: teleprompter ----
+    // Toggles borderless fullscreen of the native window (UI thread). Same path the page's own
+    // Fullscreen API request takes, usable from the host (remote command, double click, F11).
+    void toggleFullscreen() { setWindowFullscreen(!fullscreen_); }
+    // ---- /FEATURE ----
 
 private:
     static LRESULT CALLBACK wndProc(HWND, UINT, WPARAM, LPARAM);

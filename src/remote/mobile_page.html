@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<title>HB Studio Remoto</title>
+<style>
+:root{--bg:#f2f4f8;--card:#fff;--ink:#14213d;--ink2:#5b6785;--line:#d6dce8;--blue:#1f6bff;--on:#fff;--red:#e5384c;--green:#1faa63;--amber:#e69a12}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1118;--card:#181d29;--ink:#e8edf7;--ink2:#93a0bd;--line:#2a3246;--blue:#4b8cff;--on:#fff;--red:#ff5468;--green:#35c97d;--amber:#f0b03a}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;touch-action:manipulation}
+button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;min-height:52px;padding:0 12px;font-weight:700}
+button:active{filter:brightness(.9)}
+button.on{background:var(--blue);color:var(--on);border-color:var(--blue)}
+button.danger.on{background:var(--red);border-color:var(--red)}
+#app{display:flex;flex-direction:column;height:100%;padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
+header{display:flex;align-items:center;gap:8px;padding:8px 0}
+header h1{font-size:15px;margin:0;flex:1;letter-spacing:.08em}
+#dot{width:12px;height:12px;border-radius:50%;background:var(--red)}
+#dot.ok{background:var(--green)}
+#banner{display:none;background:var(--amber);color:#000;border-radius:10px;padding:10px;font-weight:700;text-align:center;margin-bottom:8px}
+#banner.show{display:block}
+#pair{display:none;margin:auto;max-width:360px;width:100%;text-align:center}
+#pair.show{display:block}
+#pair input{width:100%;font-size:32px;text-align:center;letter-spacing:.3em;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);margin:10px 0}
+#pair .msg{color:var(--red);min-height:1.4em}
+#main{display:none;flex:1;min-height:0;flex-direction:column;gap:8px}
+#main.show{display:flex}
+nav{display:flex;gap:6px}
+nav button{flex:1;min-height:44px}
+.tab{display:none;flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.tab.show{display:block}
+.mons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.mon{position:relative;background:#000;border-radius:10px;aspect-ratio:16/9;overflow:hidden;border:2px solid var(--line)}
+.mon.pgm{border-color:var(--red)}.mon.pvw{border-color:var(--green)}
+.mon img{width:100%;height:100%;object-fit:cover;display:none}
+.mon span{position:absolute;left:6px;top:4px;font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 2px #000;letter-spacing:.1em}
+.mon b{position:absolute;left:0;right:0;bottom:6px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 3px #000}
+.row{display:flex;gap:8px;margin-bottom:8px}
+.row>*{flex:1}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
+.grid button{min-height:64px;font-size:13px;overflow:hidden;position:relative}
+.grid button.pvw{border:3px solid var(--green)}
+.grid button.pgm{border:3px solid var(--red)}
+.grid button i{position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--ink2)}
+.grid button i.online{background:var(--green)}.grid button i.error,.grid button i.nosignal{background:var(--red)}.grid button i.connecting{background:var(--amber)}
+.cut{background:var(--red);color:#fff;border-color:var(--red);min-height:64px;font-size:20px}
+.auto{background:var(--blue);color:#fff;border-color:var(--blue);min-height:64px;font-size:20px}
+input[type=range]{width:100%;height:44px;accent-color:var(--blue)}
+.strip{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:8px}
+.strip .top{display:flex;align-items:center;gap:8px}
+.strip .top b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.strip .top button{min-height:44px;min-width:56px}
+.meter{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.meter div{height:100%;background:var(--green);width:0}
+.lbl{color:var(--ink2);font-size:12px;font-weight:700;letter-spacing:.08em;margin:6px 0}
+.note{color:var(--ink2);font-size:12px}
+@media (orientation:landscape) and (max-height:520px){.mons{grid-template-columns:1fr 1fr;max-width:60%}.grid button{min-height:48px}header{padding:2px 0}.cut,.auto{min-height:52px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>HB STUDIO REMOTO</h1><span id="dev" class="note"></span><span id="dot"></span></header>
+  <div id="banner" role="alert">Conexão perdida. Tentando reconectar…</div>
+  <section id="pair">
+    <p>Digite o PIN de 6 dígitos mostrado no HB Studio (CONFIG &gt; Controle remoto).</p>
+    <input id="pin" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="PIN">
+    <input id="devname" maxlength="30" placeholder="Nome deste aparelho" style="font-size:16px;letter-spacing:0" aria-label="Nome do aparelho">
+    <div class="msg" id="pairmsg"></div>
+    <button id="pairbtn" class="on" style="width:100%">PAREAR</button>
+  </section>
+  <div id="main">
+    <nav id="tabs"><button data-t="v" class="on">VÍDEO</button><button data-t="a">ÁUDIO</button><button data-t="o">SAÍDA</button></nav>
+    <div id="t-v" class="tab show">
+      <div class="mons"><div class="mon pvw"><span>PVW</span><img id="img-pvw" alt=""><b id="nm-pvw"></b></div><div class="mon pgm"><span>PGM</span><img id="img-pgm" alt=""><b id="nm-pgm"></b></div></div>
+      <div class="row"><button id="bank0" class="on">FONTES 1–8</button><button id="bank1">FONTES 9–16</button><button id="mode">TOQUE: PVW</button></div>
+      <div class="grid" id="srcs"></div>
+      <div class="row"><button class="cut" id="cut">CUT</button><button class="auto" id="auto">AUTO</button></div>
+      <div class="row"><select id="dur" style="min-height:44px;font:inherit;border-radius:12px;background:var(--card);color:var(--ink);border:1px solid var(--line)"><option value="300">300 ms</option><option value="500" selected>500 ms</option><option value="1000">1 s</option><option value="2000">2 s</option></select></div>
+      <div class="lbl">T-BAR</div><input type="range" id="tbar" min="0" max="1000" value="0" aria-label="T-bar">
+    </div>
+    <div id="t-a" class="tab"><div id="strips"></div></div>
+    <div id="t-o" class="tab">
+      <div class="row"><button id="rec" class="danger">REC</button></div>
+      <div class="lbl">TRANSMISSÃO</div><div id="tx"></div>
+      <div class="lbl">TELEPROMPTER</div>
+      <div class="row"><button id="tp-play">▶ PLAY</button><button id="tp-pause">⏸ PAUSA</button></div>
+      <div class="row"><button id="tp-slow">− VEL.</button><button id="tp-fast">+ VEL.</button></div>
+      <div class="lbl">MINIATURAS</div>
+      <div class="row"><button id="thumbs">MINIATURAS: DESLIGADAS</button></div>
+      <p class="note">Miniaturas gastam Wi-Fi; deixe desligadas se a conexão estiver fraca.</p>
+      <div class="row"><button id="forget">ESQUECER ESTE APARELHO</button></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s)};
+var ws=null,state=null,bank=0,mode='pvw',retry=0,timer=null,pingT=null,wantThumbs=false,dragging=false,lastTb=0,imgUrl={};
+function store(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}}
+function show(id,on){$(id).classList.toggle('show',on)}
+function view(v){show('#pair',v==='pair');show('#main',v==='main')}
+function setConn(ok){$('#dot').classList.toggle('ok',ok);show('#banner',!ok&&view.cur!=='pair')}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
+function cmd(o){o.t='cmd';send(o)}
+function connect(){
+  clearTimeout(timer);
+  try{ws=new WebSocket('ws://'+location.host+'/ws')}catch(e){later();return}
+  ws.binaryType='arraybuffer';
+  ws.onopen=function(){var tk=store('hbr_token');if(tk)send({t:'auth',token:tk});else{view.cur='pair';view('pair');setConn(false)}};
+  ws.onmessage=function(e){
+    if(typeof e.data!=='string'){thumb(e.data);return}
+    var d;try{d=JSON.parse(e.data)}catch(x){return}
+    if(d.t==='hello'){retry=0;view.cur='main';view('main');setConn(true);if(wantThumbs)send({t:'thumbs',on:true});clearInterval(pingT);pingT=setInterval(function(){send({t:'p'})},5000)}
+    else if(d.t==='paired'){store('hbr_token',d.token)}
+    else if(d.t==='authfail'){store('hbr_token',null);view.cur='pair';view('pair');setConn(false)}
+    else if(d.t==='pairfail'){$('#pairmsg').textContent=d.r==='bad_pin'?'PIN incorreto. Tentativas restantes: '+d.left:d.r==='locked'?'Bloqueado por segurança. Aguarde '+Math.ceil(d.ms/1000)+' s e use o PIN novo.':d.r==='full'?'Limite de aparelhos atingido.':'Erro. Tente de novo.'}
+    else if(d.t==='s'){state=d;render()}
+  };
+  ws.onclose=function(){clearInterval(pingT);setConn(false);later()};
+  ws.onerror=function(){};
+}
+function later(){clearTimeout(timer);retry=Math.min(retry+1,6);timer=setTimeout(connect,Math.min(500*Math.pow(2,retry-1),8000))}
+function thumb(buf){
+  var a=new Uint8Array(buf);if(a.length<2)return;var k=a[0]===1?'pgm':'pvw';
+  var u=URL.createObjectURL(new Blob([a.subarray(1)],{type:'image/jpeg'}));var im=$('#img-'+k);
+  im.onload=function(){im.style.display='block'};im.src=u;if(imgUrl[k])URL.revokeObjectURL(imgUrl[k]);imgUrl[k]=u;
+}
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
+function render(){
+  var s=state;if(!s)return;
+  var g=$('#srcs'),n=(s.src||[]).length,i;
+  if(g.children.length!==8){g.textContent='';for(i=0;i<8;i++){(function(i){var b=el('button');b.appendChild(el('span'));b.appendChild(el('i'));b.onclick=function(){var idx=bank*8+i;cmd({c:mode,i:idx})};g.appendChild(b)})(i)}}
+  for(i=0;i<8;i++){var idx=bank*8+i,b=g.children[i],so=(s.src||[])[idx];b.style.visibility=idx<n?'visible':'hidden';if(!so)continue;
+    b.firstChild.textContent=(idx+1)+' '+so.n;b.lastChild.className=so.st;b.className=(idx===s.pvw?'pvw ':'')+(idx===s.pgm?'pgm':'')}
+  $('#nm-pvw').textContent=s.src&&s.src[s.pvw]?s.src[s.pvw].n:'';$('#nm-pgm').textContent=s.src&&s.src[s.pgm]?s.src[s.pgm].n:'';
+  if(!dragging&&Date.now()-lastTb>400)$('#tbar').value=s.tr?s.prog*10:0;
+  var rb=$('#rec');rb.classList.toggle('on',!!s.rec);rb.textContent=s.rec?'● GRAVANDO — PARAR':'● REC';
+  var st=$('#strips'),a=s.aud||[];
+  if(st.children.length!==a.length){st.textContent='';a.forEach(function(x,i){var d=el('div','strip'),t=el('div','top'),nm=el('b'),m=el('button','','M'),so=el('button','','S'),sl=document.createElement('input');
+    sl.type='range';sl.min=-60;sl.max=6;sl.step=1;sl.setAttribute('aria-label','Fader '+(i+1));
+    var last=0;sl.oninput=function(){var now=Date.now();if(now-last<60)return;last=now;cmd({c:'fader',ch:i,db:+sl.value})};sl.onchange=function(){cmd({c:'fader',ch:i,db:+sl.value})};
+    sl.onpointerdown=function(){sl.dataset.d=1};sl.onpointerup=function(){sl.dataset.d=''};
+    m.onclick=function(){cmd({c:'mute',ch:i,on:!(state.aud[i]&&state.aud[i].m)})};so.onclick=function(){cmd({c:'solo',ch:i,on:!(state.aud[i]&&state.aud[i].s)})};
+    var mt=el('div','meter');mt.appendChild(el('div'));t.appendChild(nm);t.appendChild(m);t.appendChild(so);d.appendChild(t);d.appendChild(sl);d.appendChild(mt);st.appendChild(d)})}
+  a.forEach(function(x,i){var d=st.children[i];if(!d)return;d.querySelector('b').textContent=x.n||('CH '+(i+1));var bs=d.querySelectorAll('button');bs[0].classList.toggle('on',!!x.m);bs[1].classList.toggle('on',!!x.s);
+    var sl=d.querySelector('input');if(!sl.dataset.d)sl.value=Math.max(-60,x.db);d.querySelector('.meter div').style.width=Math.max(0,Math.min(100,(x.pk+60)/66*100))+'%'});
+  var tx=$('#tx');tx.textContent='';(s.tx||[]).forEach(function(d){var b=el('button',d.run?'danger on':'danger',(d.run?(d.pub?'● NO AR — ':'… CONECTANDO — '):'')+d.n+' ('+d.p+')');b.style.width='100%';b.style.marginBottom='8px';b.onclick=function(){cmd({c:'xmit',id:d.id,on:!d.run})};tx.appendChild(b)});
+  if(!(s.tx||[]).length)tx.appendChild(el('p','note','Nenhum destino configurado no HB Studio.'));
+}
+$('#cut').onclick=function(){cmd({c:'cut'})};
+$('#auto').onclick=function(){cmd({c:'auto',ms:+$('#dur').value})};
+$('#rec').onclick=function(){cmd({c:'rec',on:!(state&&state.rec)})};
+$('#tbar').oninput=function(){dragging=true;lastTb=Date.now();var now=Date.now();if(now-($('#tbar').dataset.l|0)>50){$('#tbar').dataset.l=now;cmd({c:'tbar',v:$('#tbar').value/1000})}};
+$('#tbar').onchange=function(){cmd({c:'tbar',v:$('#tbar').value/1000});dragging=false;lastTb=Date.now()};
+$('#bank0').onclick=function(){bank=0;$('#bank0').classList.add('on');$('#bank1').classList.remove('on');render()};
+$('#bank1').onclick=function(){bank=1;$('#bank1').classList.add('on');$('#bank0').classList.remove('on');render()};
+$('#mode').onclick=function(){mode=mode==='pvw'?'pgm':'pvw';$('#mode').textContent='TOQUE: '+mode.toUpperCase();$('#mode').classList.toggle('on',mode==='pgm')};
+var spd=1;
+$('#tp-play').onclick=function(){cmd({c:'tp',a:'play'})};$('#tp-pause').onclick=function(){cmd({c:'tp',a:'pause'})};
+$('#tp-slow').onclick=function(){spd=Math.max(.2,spd-.2);cmd({c:'tp',a:'speed',v:spd})};$('#tp-fast').onclick=function(){spd=Math.min(5,spd+.2);cmd({c:'tp',a:'speed',v:spd})};
+$('#thumbs').onclick=function(){wantThumbs=!wantThumbs;store('hbr_thumbs',wantThumbs?'1':'0');send({t:'thumbs',on:wantThumbs});$('#thumbs').classList.toggle('on',wantThumbs);$('#thumbs').textContent='MINIATURAS: '+(wantThumbs?'LIGADAS':'DESLIGADAS');if(!wantThumbs){$('#img-pvw').style.display=$('#img-pgm').style.display='none'}};
+$('#forget').onclick=function(){store('hbr_token',null);if(ws)ws.close();view.cur='pair';view('pair')};
+$('#tabs').onclick=function(e){var t=e.target.dataset&&e.target.dataset.t;if(!t)return;Array.prototype.forEach.call($('#tabs').children,function(b){b.classList.toggle('on',b===e.target)});['v','a','o'].forEach(function(k){show('#t-'+k,k===t)})};
+$('#pairbtn').onclick=function(){var p=$('#pin').value.replace(/\D/g,'');if(p.length!==6){$('#pairmsg').textContent='O PIN tem 6 dígitos.';return}$('#pairmsg').textContent='';store('hbr_name',$('#devname').value);send({t:'pair',pin:p,name:$('#devname').value||'Celular'})};
+$('#devname').value=store('hbr_name')||'';
+wantThumbs=false;view.cur='main';
+connect();
+})();
+</script>
+</body>
+</html>

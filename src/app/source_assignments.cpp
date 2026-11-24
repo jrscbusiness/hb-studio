@@ -28,7 +28,12 @@ bool SourceAssignments::set(int slot, std::string id, std::string name) {
     name = sanitize(name, 128);
     if (slot < 0 || slot >= kSlots || id.empty()) return false;
     std::lock_guard lock(mutex_);
-    e_[static_cast<std::size_t>(slot)] = {std::move(id), std::move(name)};
+    auto& slotEntry = e_[static_cast<std::size_t>(slot)];
+    std::string keepBg = slotEntry.bg;   // FEATURE: chroma - background settings outlive a device change
+    slotEntry = Entry{};
+    slotEntry.id = std::move(id);
+    slotEntry.name = std::move(name);
+    slotEntry.bg = std::move(keepBg);
     return true;
 }
 
@@ -59,6 +64,18 @@ bool SourceAssignments::setFormat(int slot, int w, int h, int fpsNum, int fpsDen
     return true;
 }
 
+// ---- FEATURE: chroma ----
+bool SourceAssignments::setBackground(int slot, const std::string& bg) {
+    if (slot < 0 || slot >= kSlots) return false;
+    std::string clean = sanitize(bg, 600);
+    std::lock_guard lock(mutex_);
+    auto& e = e_[static_cast<std::size_t>(slot)];
+    if (e.empty()) return false;
+    e.bg = std::move(clean);
+    return true;
+}
+// ---- /FEATURE: chroma ----
+
 std::string SourceAssignments::serialize() const {
     std::lock_guard lock(mutex_);
     std::ostringstream o;
@@ -66,7 +83,9 @@ std::string SourceAssignments::serialize() const {
         const auto& e = e_[static_cast<std::size_t>(i)];
         if (e.empty()) continue;
         o << i << '\t' << e.id << '\t' << e.name << '\t' << (e.enabled ? 1 : 0) << '\t' << e.w << '\t' << e.h
-          << '\t' << e.fpsNum << '\t' << e.fpsDen << '\n';
+          << '\t' << e.fpsNum << '\t' << e.fpsDen;
+        if (!e.bg.empty()) o << '\t' << e.bg;   // FEATURE: chroma (9th field, only when set)
+        o << '\n';
     }
     return o.str();
 }
@@ -85,10 +104,10 @@ void SourceAssignments::parse(const std::string& text) {
     std::string line;
     int lines = 0;
     while (std::getline(in, line) && ++lines <= 64) {
-        // Tokenize by tab into at most 8 fields; anything past the 8th is simply dropped.
+        // Tokenize by tab into at most 9 fields; anything past the 9th is simply dropped.
         std::vector<std::string> f;
         std::size_t pos = 0;
-        while (f.size() < 8) {
+        while (f.size() < 9) {
             const auto t = line.find('\t', pos);
             f.push_back(line.substr(pos, t == std::string::npos ? std::string::npos : t - pos));
             if (t == std::string::npos) break;
@@ -109,6 +128,7 @@ void SourceAssignments::parse(const std::string& text) {
         e.h = f.size() > 5 ? parseNonNegInt(f[5]) : 0;
         e.fpsNum = f.size() > 6 ? parseNonNegInt(f[6]) : 0;
         e.fpsDen = f.size() > 7 ? parseNonNegInt(f[7]) : 0;
+        e.bg = f.size() > 8 ? sanitize(f[8], 600) : std::string();   // FEATURE: chroma
         n[static_cast<std::size_t>(slot)] = std::move(e);
     }
     std::lock_guard lock(mutex_);

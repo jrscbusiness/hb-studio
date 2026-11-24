@@ -111,7 +111,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await setState({});
 
   console.log('\n[1c] PRODUÇÃO - 16 câmeras em 2 fileiras (banco ativo)');
-  ok(await page.locator('.tile').count() === 16, '16 input tiles are shown (2 rows of 8)');
+  ok(await page.locator('.tile:not(.scene)').count() === 16, '16 input tiles are shown (2 rows of 8)');
   ok(await page.locator('#bus-pgm .key').count() === 8 && await page.locator('#bus-pvw .key').count() === 8,
     'the PROGRAM/PREVIEW number-button rows stay at a fixed 8 (one bank at a time)');
   ok(await page.locator('.bankbtn.on').count() === 1 && (await page.locator('.bankbtn.on').getAttribute('data-bank')) === '0',
@@ -289,6 +289,64 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'devformats', id: 'obs', list: [{ w: 9999, h: 9999, fpsNum: 1, fpsDen: 1 }] }));
   ok(await page.locator('#camcfg-res option').count() === 1, 'CÂMERAS: uma resposta de devformats atrasada de outra câmera é ignorada');
   await page.click('#camcfg-cancel');
+
+  // ---- FEATURE: chroma ---- "Fundo" section of the camera-settings dialog
+  const chromaSlot = (o = {}) => Object.assign({ mode: 'off', q: 'med', repl: 'color', color: '#101010', tol: 45, soft: 25, spill: 50, blur: 40,
+    applyMs: 0, inferMs: 0, inferences: 0, dropped: 0, img: '', imgErr: '', aiActive: false, aiWaiting: false, aiFailed: false, aiMsg: '', slowAi: false, slowApply: false }, o);
+  const chromaState = (over = {}, slot0 = {}) => Object.assign({ t: 'chroma', runtime: false, images: true,
+    model: { state: 'none', received: 0, total: 462338, mb: 0.44, msg: '', license: 'Apache-2.0' }, ai: { state: 'idle', msg: '' },
+    slots: Array.from({ length: 16 }, (_, i) => chromaSlot(i === 0 ? slot0 : {})) }, over);
+  const feedChroma = o => page.evaluate(a => window.__hbMessage(a), o);
+  await feedChroma(chromaState());
+  await slot0.locator('.cfg').click();
+  ok(await page.locator('#chr').isVisible(), 'FUNDO: a seção aparece no diálogo da câmera');
+  ok(await page.$eval('#chr-ai-opt', e => e.disabled), 'FUNDO: sem ONNX Runtime a opção IA fica desabilitada e explicada');
+  ok((await page.locator('#chr-model').textContent()).includes('ONNX'), 'FUNDO: mensagem honesta sobre o build sem runtime');
+  ok(!(await page.locator('#chr-tol').isVisible()), 'FUNDO: desligado esconde os controles');
+  await clearSent();
+  await page.selectOption('#chr-mode', 'green');
+  ok((await sent()).includes('chroma|0|mode|green'), 'FUNDO: escolher Chroma verde envia chroma|slot|mode|green');
+  await feedChroma(chromaState({}, { mode: 'green' }));
+  ok(await page.locator('#chr-tol').isVisible() && await page.locator('#chr-spill').isVisible() && !(await page.locator('#chr-q').isVisible()),
+    'FUNDO: chroma clássico mostra tolerância/suavidade/reflexo e não a qualidade da IA');
+  await clearSent();
+  await page.locator('#chr-tol').evaluate(el => { el.value = 70; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.waitForTimeout(200);
+  ok((await sent()).includes('chroma|0|tol|70'), 'FUNDO: slider de tolerância envia chroma|slot|tol|valor');
+  await page.selectOption('#chr-repl', 'image');
+  await feedChroma(chromaState({}, { mode: 'green', repl: 'image' }));
+  await clearSent();
+  await page.click('#chr-img');
+  ok((await sent()).includes('chromaimg|0'), 'FUNDO: ESCOLHER… pede o seletor de imagem ao host');
+  await page.selectOption('#chr-repl', 'blur');
+  await feedChroma(chromaState({}, { mode: 'green', repl: 'blur' }));
+  ok(await page.locator('#chr-blur').isVisible() && !(await page.locator('#chr-color').isVisible()), 'FUNDO: desfoque mostra só a intensidade');
+  // AI available, model missing -> download flow
+  await feedChroma(chromaState({ runtime: true }, { mode: 'ai' }));
+  ok(!(await page.$eval('#chr-ai-opt', e => e.disabled)), 'FUNDO: com runtime a opção IA fica disponível');
+  ok(await page.locator('#chr-dl').isVisible() && await page.locator('#chr-q').isVisible(), 'FUNDO: IA sem modelo oferece BAIXAR MODELO e a qualidade');
+  await clearSent();
+  await page.click('#chr-dl');
+  ok((await sent()).includes('chromamodel|download'), 'FUNDO: BAIXAR MODELO envia chromamodel|download');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'downloading', received: 231169, total: 462338, mb: 0.44, msg: '', license: 'Apache-2.0' } }, { mode: 'ai' }));
+  ok((await page.locator('#chr-model').textContent()).includes('50%') && await page.locator('#chr-bar').isVisible() && await page.locator('#chr-cancel').isVisible(),
+    'FUNDO: mostra o progresso do download com cancelar');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'error', received: 0, total: 0, mb: 0.44, msg: 'O arquivo baixado não confere com a assinatura (SHA-256) esperada e foi descartado.', license: 'x' } }, { mode: 'ai' }));
+  ok((await page.locator('#chr-model').textContent()).includes('SHA-256') && (await page.locator('#chr-dl').textContent()).includes('TENTAR'), 'FUNDO: erro de download é mostrado com TENTAR DE NOVO');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'ready', received: 1, total: 1, mb: 0.44, msg: '', license: 'Apache-2.0' }, ai: { state: 'ready', msg: '' } },
+    { mode: 'ai', aiActive: true, inferMs: 95, inferences: 40, slowAi: true }));
+  ok((await page.locator('#chr-warn').textContent()).includes('lento para IA') && (await page.locator('#chr-warn').textContent()).includes('reduza a qualidade'),
+    'FUNDO: aviso "seu computador está lento para IA: reduza a qualidade"');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'ready', received: 1, total: 1, mb: 0.44, msg: '', license: 'Apache-2.0' } }, { mode: 'ai', aiActive: true, inferMs: 20, inferences: 40 }));
+  ok(!(await page.locator('#chr-warn').isVisible()), 'FUNDO: sem aviso quando a IA acompanha');
+  for (const [w, h] of [[1024, 720], [1280, 800]]) {
+    await page.setViewportSize({ width: w, height: h });
+    const fit = await page.evaluate(() => { const s = document.querySelector('#modal5 .sheet'); return [s.scrollHeight, s.clientHeight, document.documentElement.scrollWidth, innerWidth]; });
+    ok(fit[0] <= fit[1] + 1 && fit[2] <= fit[3] + 1, `${w}x${h}: diálogo com a seção FUNDO cabe sem rolagem (${fit.join('/')})`);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.click('#camcfg-cancel');
+  // ---- /FEATURE: chroma ----
 
   console.log('\n[4b2] PRODUÇÃO: menu de contexto (botão direito) nos quadros de entrada');
   await tab('prod'); await page.waitForTimeout(100);
@@ -645,6 +703,69 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.click('#xmit-stopall');
   ok((await sent()).includes('xmitstopall'), 'TRANSMISSÃO: "ENCERRAR TODAS" envia xmitstopall');
 
+  // ---- FEATURE: overlays ---- GRÁFICOS tab
+  console.log('\n[5f] GRÁFICOS (overlays dinâmicos)');
+  const OVB = e => Object.assign({ x: 0.97, y: 0.05, pivotX: 1, pivotY: 0, z: 0, size: 0.07, font: 'Segoe UI', bold: true, textColor: 16777215, bgColor: 0, accent: 2058239,
+    bgAlpha: 0.6, opacity: 1, animIn: 'fade', animOut: 'fade', animMs: 400, mode: 'down', durationSec: 300, format: 'auto', blinkAtZero: true, label: '',
+    teamA: 'CASA', teamB: 'VISITANTE', period: '', colorA: 1, colorB: 2, scoreA: 0, scoreB: 0, showClock: false, qrText: '', qrCaption: '', qrEcc: 'M', qrSize: 0.28,
+    qrFg: 0, qrBg: 16777215, title: '', subtitle: '', holdSec: 4, maxLines: 2, widthPct: 0.8, clock: '05:00', on: false, running: false, finished: false, qrOk: true }, e);
+  const ovMsg = (els, preview = false) => ({ t: 'overlay_state', preview, elements: els });
+  const ovEls = [OVB({ id: 'ov1', type: 'timer', name: 'Contagem' }), OVB({ id: 'ov2', type: 'scoreboard', name: 'Placar do jogo', teamA: 'AAA', teamB: 'BBB', scoreA: 2 }),
+    OVB({ id: 'ov3', type: 'qr', name: 'Doação', qrOk: false })];
+  await page.evaluate(m => window.__hbMessage(m), ovMsg(ovEls));
+  await tab('gfx');
+  ok(await page.locator('.ovrow').count() === 3, 'GRÁFICOS: uma linha por elemento');
+  ok((await page.textContent('#ov-count')) === '3', 'GRÁFICOS: contador de elementos');
+  ok((await page.textContent('.ovrow[data-id=ov3] .nm em')).includes('⚠'), 'GRÁFICOS: QR com conteúdo inválido mostra aviso');
+  await clearSent();
+  await humanClick('.ovrow[data-id=ov1] [data-a=air]');
+  ok((await sent()).includes('ovshow|ov1|1'), 'GRÁFICOS: NO AR envia ovshow|id|1');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=INICIAR');
+  ok((await sent()).includes('ovtimer|ov1|start'), 'GRÁFICOS: INICIAR envia ovtimer|id|start');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=PAUSAR');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=ZERAR');
+  ok((await sent()).includes('ovtimer|ov1|pause') && (await sent()).includes('ovtimer|ov1|reset'), 'GRÁFICOS: PAUSAR e ZERAR');
+  await humanClick('.ovrow[data-id=ov1] .ctl button >> text=10 min');
+  ok((await sent()).includes('ovtimer|ov1|set|600'), 'GRÁFICOS: preset de 10 min envia ovtimer|id|set|600');
+  await humanClick('.ovrow[data-id=ov2] .ctl button >> text=A +1');
+  await humanClick('.ovrow[data-id=ov2] .ctl button >> text=B −1');
+  ok((await sent()).includes('ovscore|ov2|a|1') && (await sent()).includes('ovscore|ov2|b|-1'), 'GRÁFICOS: pontos do placar');
+  // the live clock updates in place: the row element must survive state refreshes (never rebuilt while clicking)
+  await page.evaluate(() => { window.__row = document.querySelector('.ovrow[data-id=ov1]'); });
+  await page.evaluate(m => window.__hbMessage(m), ovMsg(ovEls.map(e => Object.assign({}, e, { clock: '04:59' }))));
+  ok(await page.evaluate(() => window.__row === document.querySelector('.ovrow[data-id=ov1]')), 'GRÁFICOS: o relógio ao vivo não recria a lista');
+  ok((await page.textContent('.ovrow[data-id=ov1] .nm .live')) === '04:59', 'GRÁFICOS: texto do relógio atualizado');
+  await page.evaluate(m => window.__hbMessage(m), ovMsg(ovEls.map(e => Object.assign({}, e, { on: e.id === 'ov1' }))));
+  ok(await page.locator('.ovrow.on').count() === 1 && (await page.textContent('.ovrow[data-id=ov1] [data-a=air]')) === 'NO AR', 'GRÁFICOS: estado NO AR refletido na lista');
+  await clearSent();
+  await humanClick('.ovrow[data-id=ov1] [data-a=edit]');
+  ok(await page.locator('#modal6.on').count() === 1, 'GRÁFICOS: EDITAR abre o diálogo');
+  ok(await page.locator('#ovm-fields [data-k=durationSec]').count() === 1 && await page.locator('#ovm-fields [data-k=qrText]').count() === 0, 'GRÁFICOS: o diálogo só mostra campos do tipo');
+  await page.fill('#ovm-fields [data-k=name]', 'Minha contagem');
+  await page.click('#ovm-fields .ovpre button >> text=15 min');
+  await page.selectOption('#ovm-fields [data-k=_pos]', '6');
+  await page.click('#ovm-save');
+  const ovs = (await sent()).find(m => m.startsWith('ovsave|'));
+  ok(!!ovs, 'GRÁFICOS: SALVAR envia ovsave');
+  const ovp = JSON.parse(ovs.slice('ovsave|'.length));
+  ok(ovp.id === 'ov1' && ovp.name === 'Minha contagem' && ovp.durationSec === 900 && ovp.x === 0.03 && ovp.y === 0.95 && ovp.pivotY === 1 && !('clock' in ovp), 'GRÁFICOS: payload do ovsave (id, nome, duração, posição, sem campos vivos)');
+  ok(await page.locator('#modal6.on').count() === 0, 'GRÁFICOS: salvar fecha o diálogo');
+  await clearSent();
+  await page.selectOption('#ov-type', 'scoreboard');
+  await page.click('#ov-add');
+  ok((await sent()).includes('ovnew|scoreboard'), 'GRÁFICOS: ADICIONAR envia ovnew|tipo');
+  await page.click('label.chk:has(#ov-prev)');
+  ok((await sent()).includes('ovpreview|1'), 'GRÁFICOS: opção de preview envia ovpreview|1');
+  await clearSent();
+  await humanClick('.ovrow[data-id=ov3] [data-a=del]');   // the harness auto-accepts confirm()
+  ok((await sent()).includes('ovdel|ov3'), 'GRÁFICOS: remover envia ovdel|id');
+  await humanClick('.ovrow[data-id=ov1] [data-a=up]');
+  ok((await sent()).includes('ovmove|ov1|up'), 'GRÁFICOS: ordem (z) envia ovmove');
+  await page.evaluate(m => window.__hbMessage(m), ovMsg([]));
+  ok(await page.locator('.ovrow').count() === 0 && await page.isVisible('#ov-empty'), 'GRÁFICOS: lista vazia mostra a dica');
+  await tab('prod');
+  // ---- /FEATURE ----
+
   console.log('\n[6] Layout em janelas diferentes');
   // The PRODUÇÃO stage (monitors + switcher + 16-camera strip) uses a 3-row CSS grid where the
   // monitors and inputs rows flex to fill whatever's left after the switcher card's own natural
@@ -654,7 +775,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   for (const [w, h] of [[1100, 680], [1280, 800], [1366, 768], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     await tab('prod'); await page.waitForTimeout(100);
-    const tileCount = await page.locator('.tile').count();
+    const tileCount = await page.locator('.tile:not(.scene)').count();
     ok(tileCount === 16, `${w}x${h}: all 16 input tiles are rendered (found ${tileCount})`);
     const tileH = await page.locator('.tile').first().evaluate(el => el.getBoundingClientRect().height);
     ok(tileH > 10, `${w}x${h}: tiles have a real, non-collapsed height (${Math.round(tileH)}px)`);
@@ -666,13 +787,330 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   }
   for (const [w, h] of [[1280, 800], [1024, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
-    for (const v of ['xmit', 'prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {
+    for (const v of ['xmit', 'gfx', 'prod', 'cam', 'aud', 'rec', 'plg', 'cfg']) {  // gfx: FEATURE overlays
       await tab(v);
       const hs = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       ok(hs, `${w}x${h} ${v}: no horizontal overflow`);
     }
   }
   await tab('prod');
+
+  // ---- FEATURE: ai ----
+  await tab('cfg'); await clearSent();
+  ok((await page.locator('#ai-card').count()) === 1, 'IA: card "Inteligência Artificial" existe em CONFIG');
+  ok((await page.locator('#ai-url').inputValue()) === 'https://openrouter.ai/api/v1', 'IA: endereço padrão do OpenRouter preenchido');
+  await page.selectOption('#ai-kind', '9router');
+  ok((await page.locator('#ai-url').inputValue()) === 'http://localhost:20128/v1', 'IA: 9router usa http://localhost:20128/v1');
+  await page.selectOption('#ai-kind', 'openrouter');
+  await page.fill('#ai-key', 'sk-or-v1-SEGREDO1234');
+  await page.fill('#ai-model', 'meta/x:free');
+  await page.click('#ai-save-btn');
+  const aiSave = (await sent()).find(m => m.startsWith('aisave|'));
+  ok(!!aiSave && aiSave.includes('"apiKey":"sk-or-v1-SEGREDO1234"') && aiSave.includes('meta/x:free'), 'IA: SALVAR envia aisave|json com a chave digitada');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_state', active: 'p1', configured: true, canPersistKeys: true, keysLost: false, savedId: 'p1',
+    list: [{ id: 'p1', name: 'OpenRouter', kind: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta/x:free', keySet: true, keyHint: '••••1234' }] }));
+  ok((await page.locator('#ai-key').inputValue()) === '', 'IA: campo da chave fica vazio após salvar (a chave nunca volta)');
+  ok((await page.locator('#ai-key').getAttribute('placeholder')).includes('••••1234'), 'IA: placeholder mostra só a dica mascarada');
+  ok((await page.locator('#ai-active-note').textContent()).includes('Ativo: OpenRouter'), 'IA: nota mostra provedor ativo');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_models', ok: true, id: 'p1', error: '', models: [
+    { id: 'meta/x:free', name: 'X', free: true, ctx: 1000 }, { id: 'pago/y', name: 'Y', free: false, ctx: 1000 }] }));
+  ok((await page.locator('#ai-models-dl option').count()) === 2, 'IA: lista de modelos carregada');
+  await page.check('#ai-onlyfree');
+  ok((await page.locator('#ai-models-dl option').count()) === 1, 'IA: filtro "só grátis" funciona');
+  ok((await page.locator('#ai-free.on').count()) === 1, 'IA: selo "grátis" aparece para modelo grátis');
+  await page.fill('#ai-model', 'pago/y');
+  await page.evaluate(() => document.querySelector('#ai-model').dispatchEvent(new Event('input')));
+  ok((await page.locator('#ai-free.on').count()) === 0, 'IA: selo some para modelo pago');
+  await clearSent();
+  await page.click('#ai-test-btn');
+  ok((await sent()).some(m => m.startsWith('aitest|{"id":"p1"')), 'IA: TESTAR CONEXÃO envia aitest com o id salvo');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_test', ok: false, latencyMs: 12, kind: 'invalid_key', message: 'Chave de API inválida.' }));
+  ok((await page.locator('#ai-res').textContent()).includes('Chave de API inválida'), 'IA: erro do teste é mostrado');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_test', ok: true, latencyMs: 321, kind: 'none', message: 'Conexão OK' }));
+  ok((await page.locator('#ai-res').textContent()).includes('321 ms'), 'IA: sucesso mostra latência');
+  await page.fill('#ai-topic', 'culto de domingo');
+  await page.click('#ai-sug-btn');
+  ok((await sent()).includes('aisuggest|{"topic":"culto de domingo"}'), 'IA: SUGERIR envia aisuggest');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_suggest', ok: true, title: 'Culto ao vivo', description: 'Venha.', error: '' }));
+  ok((await page.locator('#ai-sug-title').inputValue()) === 'Culto ao vivo', 'IA: título sugerido preenchido');
+  await clearSent();
+  await page.click('#ai-del-btn');
+  ok((await sent()).includes('airemove|p1'), 'IA: REMOVER envia airemove|id');
+  await tab('prod');
+  // ---- /FEATURE ----
+
+  // ---- FEATURE: remote (CONFIG card "Controle remoto") ----
+  {
+    await tab('cfg');
+    ok(await page.locator('#remote-card').count() === 1, 'remote: CONFIG has the "Controle remoto" card');
+    ok(await page.locator('#rm-info').isHidden(), 'remote: PIN/URL are hidden while the remote is off');
+    await page.evaluate(() => { window.__sent.length = 0; });
+    await page.click('#rm-toggle');
+    ok(await page.evaluate(() => window.__sent.includes('remote|on')), 'remote: toggle sends remote|on');
+    await page.evaluate(() => window.__hbMessage({ t: 'remote', enabled: true, port: 8787, urls: ['http://192.168.0.10:8787/'], pin: '123456', lockedMs: 0, err: '',
+      devices: [{ id: 3, name: 'iPad <b>x</b>', ip: '192.168.0.22', online: true, thumbs: false, idle: 1 }] }));
+    ok(await page.locator('#rm-pin').textContent() === '123456', 'remote: shows the PIN when on');
+    ok((await page.locator('#rm-urls').textContent()).includes('192.168.0.10:8787'), 'remote: shows the LAN URL');
+    ok(await page.locator('#rm-devs .row').count() === 1 && await page.locator('#rm-devs b').count() === 0, 'remote: device list rendered as text (no HTML injection)');
+    await page.evaluate(() => { window.__sent.length = 0; });
+    await page.click('#rm-devs button');
+    ok(await page.evaluate(() => window.__sent.includes('remote|kick|3')), 'remote: kick sends remote|kick|3');
+    await page.click('#rm-revoke');
+    ok(await page.evaluate(() => window.__sent.includes('remote|revoke')), 'remote: revoke-all sends remote|revoke');
+    await page.click('#rm-newpin');
+    ok(await page.evaluate(() => window.__sent.includes('remote|newpin')), 'remote: new PIN sends remote|newpin');
+    ok((await page.locator('#remote-card').textContent()).includes('sem criptografia'), 'remote: card states the no-TLS limit');
+    await page.evaluate(() => window.__hbMessage({ t: 'remote', enabled: false, err: 'x' }));
+    ok(await page.locator('#rm-info').isHidden(), 'remote: info hidden again when turned off');
+    for (const [w, h] of [[1024, 720], [1280, 800]]) {
+      await page.setViewportSize({ width: w, height: h });
+      ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `remote ${w}x${h}: card causes no horizontal overflow`);
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+  }
+  // ---- /FEATURE ----
+  // ---- FEATURE: scenes ----
+  console.log('\n[7] Templates prontos e banco CENAS');
+  await page.setViewportSize({ width: 1024, height: 720 });
+  await tab('prod');
+  const L = (role, slot, rect, extra) => Object.assign({ role, slot, rect, fit: 'fill' }, extra || {});
+  const TEMPLATES = [
+    { id: 'culto', name: 'Culto', category: 'culto', description: 'Cenas de culto', builtin: true, roles: ['Pregador', 'Slides'],
+      scenes: [{ id: 'pregador', name: 'Pregador em tela cheia', background: { type: 'solid', color: '#000000' }, layers: [L('Pregador', -1, [0, 0, 1, 1])] },
+               { id: 'lado', name: 'Lado a lado', background: { type: 'gradient', from: '#0b1220', to: '#1c2f55', angle: 90 },
+                 layers: [L('Pregador', -1, [0.02, 0.26, 0.47, 0.47], { radius: 0.05, border: { width: 0.004, color: '#fff' }, shadow: { blur: 0.02, dx: 0, dy: 0.01, opacity: 0.5 } }), L('Slides', -1, [0.51, 0.26, 0.47, 0.47], { fit: 'fit' })] }] },
+    { id: 'u-meu', name: 'Meu layout', category: 'meus', description: '', builtin: false, roles: ['Host'],
+      scenes: [{ id: 'a', name: 'A', background: { type: 'solid', color: '#123456' }, layers: [L('Host', -1, [0, 0, 1, 1])], overlays: [{ type: 'lowerthird', text: '{nome}' }] }] },
+  ];
+  const sceneDemo = { id: 'culto.pregador', name: 'Pregador em tela cheia', background: { type: 'solid', color: '#000000' }, layers: [L('Pregador', 0, [0.1, 0.1, 0.5, 0.5])] };
+  const feedScenes = scenes => page.evaluate(m => window.__hbMessage(m), { t: 'scenes_state', max: 16, templates: TEMPLATES, scenes });
+  await feedScenes([]);
+  ok(await page.locator('.tile.scene').count() === 16, '16 scene tiles exist (CENAS bank)');
+  ok(await page.locator('.tile.scene').first().evaluate(el => getComputedStyle(el).display === 'none'), 'scene tiles stay hidden while a camera bank is active (16-slot UI untouched)');
+  await page.click('#sc-open'); await page.waitForTimeout(150);
+  ok(await page.locator('#sc-pick.on').count() === 1, 'TEMPLATES opens the picker');
+  ok(await page.locator('#scp-grid .sc-card').count() === 2, 'picker lists every template');
+  const thumbOk = await page.locator('#scp-grid .sc-card canvas').first().evaluate(c => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n > c.width * c.height / 2; });
+  ok(thumbOk, 'template thumbnails are rendered from placeholder colours (no cameras needed)');
+  await page.click('#scp-tabs button[data-cat="meus"]');
+  ok(await page.locator('#scp-grid .sc-card').count() === 1, 'category tab filters ("Meus")');
+  await page.click('#scp-tabs button[data-cat="todos"]');
+  await page.click('.sc-card[data-id="culto"]');
+  ok(await page.locator('#scp-roles select').count() === 2, 'mapping step: one selector per role');
+  ok(await page.locator('#scp-roles select[data-role="Pregador"]').inputValue() === '0', 'roles are prefilled with the first connected camera');
+  ok(await page.locator('#scp-roles select[data-role="Slides"]').inputValue() !== '0', 'each role gets a different input');
+  await clearSent();
+  await page.click('#scp-apply'); await page.waitForTimeout(100);
+  const ap = await lastSent();
+  ok(/^sceneapply\|culto\|\{.*"Pregador":0.*\}\|pregador,lado$/.test(ap || ''), 'APPLY sends sceneapply|template|roleMap|scenes (' + ap + ')');
+  ok(await page.locator('#sc-pick.on').count() === 0, 'picker closes after applying');
+  await feedScenes([{ slot: 0, scene: sceneDemo }]);
+  ok(await page.locator('.bankbtn[data-bank="2"]').evaluate(el => el.classList.contains('on')), 'the CENAS bank is shown after applying');
+  ok(await page.locator('.tile.scene[data-i="16"]').isVisible() && !(await page.locator('.tile:not(.scene)').first().isVisible()), 'scene tiles replace camera tiles in the CENAS bank');
+  ok((await page.locator('.tile.scene[data-i="16"] b').textContent()) === 'Pregador em tela cheia', 'scene tile shows the scene name');
+  ok(await page.locator('.tile.scene[data-i="17"]').evaluate(el => el.classList.contains('sc-empty')), 'unused scene slots are marked empty');
+  ok((await page.locator('#bus-pvw .key').first().textContent()) === 'C1', 'bus keys of the CENAS bank are labelled C1..C8');
+  await clearSent();
+  await page.locator('.tile.scene[data-i="16"]').click();
+  ok((await lastSent()) === 'preview|16', 'clicking a scene tile sends preview|16 (switch bus index 16)');
+  await page.locator('.tile.scene[data-i="16"]').dblclick();
+  ok((await sent()).includes('program|16'), 'double click sends program|16');
+  await page.keyboard.press('Digit1');
+  ok((await lastSent()) === 'preview|16', 'keyboard 1 addresses the first scene in the CENAS bank');
+  await setState({ pgm: 16, pvw: 0 });
+  await page.waitForTimeout(150);
+  ok((await page.locator('#pgm-name').textContent()) === 'Pregador em tela cheia', 'PGM monitor names the scene on air');
+  await setState({});
+  await page.locator('.tile.scene[data-i="16"]').click({ button: 'right' });
+  await page.click('#scm-edit'); await page.waitForTimeout(100);
+  ok(await page.locator('#sc-edit.on').count() === 1, 'context menu opens the scene editor');
+  const box = await page.locator('#sc-cv').boundingBox();
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35);
+  await page.mouse.down(); await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.45, { steps: 4 }); await page.mouse.up();
+  const nx = +(await page.locator('#sce-x').inputValue());
+  ok(nx > 25 && nx < 35, 'dragging a layer on the preview canvas moves it (x=' + nx + '%)');
+  await page.fill('#sce-w', '40'); await page.fill('#sce-name', 'Minha cena');
+  await clearSent();
+  await page.click('#sce-save'); await page.waitForTimeout(100);
+  const sv = await lastSent();
+  let svj = null; try { svj = JSON.parse(sv.slice('scenesave|'.length)); } catch (e) {}
+  ok(svj && svj.id === 'culto.pregador' && svj.name === 'Minha cena' && Math.abs(svj.layers[0].rect[2] - 0.4) < 1e-6 && svj.layers[0].rect[0] > 0.25, 'SAVE sends scenesave|<scene json> with the edited rect and name');
+  await page.locator('.tile.scene[data-i="16"]').click({ button: 'right' });
+  await page.click('#scm-del');
+  ok(!(await sent()).includes('scenedelete|culto.pregador'), 'deleting a scene needs a second click');
+  await page.click('#scm-del');
+  ok((await sent()).includes('scenedelete|culto.pregador'), 'second click sends scenedelete|id');
+  await page.locator('.tile.scene[data-i="16"]').click({ button: 'right' });
+  await page.click('#scm-edit'); await page.fill('#sce-tname', 'Meu culto'); await clearSent();
+  await page.click('#sce-tpl'); await page.waitForTimeout(100);
+  const ss = await sent();
+  ok(ss.length === 2 && ss[0].startsWith('scenesave|') && ss[1] === 'scenetemplate|culto.pregador|Meu culto', 'save-as-my-template sends scenetemplate|id|name');
+  for (const [w, h] of [[1024, 720], [1280, 800]]) {
+    await page.setViewportSize({ width: w, height: h });
+    const fit = await page.evaluate(() => { const s = document.querySelector('.stage'); return [s.scrollHeight, s.clientHeight, document.documentElement.scrollWidth, innerWidth]; });
+    ok(fit[0] <= fit[1] + 1 && fit[2] <= fit[3] + 1, `${w}x${h}: CENAS bank fits without scrolling (${fit.join('/')})`);
+  }
+  await page.click('#sc-open'); await page.click('.sc-card[data-id="u-meu"]');
+  ok(await page.locator('#scp-del').isVisible(), 'user templates can be deleted');
+  await clearSent(); await page.click('#scp-export');
+  ok((await lastSent()) === 'sceneexport|u-meu', 'EXPORT sends sceneexport|id (host opens the save dialog)');
+  await page.click('#scp-back'); await clearSent(); await page.click('#scp-import');
+  ok((await lastSent()) === 'sceneimport', 'IMPORT sends sceneimport (host opens the open dialog)');
+  await page.keyboard.press('Escape');
+  await humanClick('.bankbtn[data-bank="0"]');
+  ok(await page.locator('.tile:not(.scene)').first().isVisible(), 'back to the camera banks: the 16 camera tiles are untouched');
+  await feedScenes([]);
+  // ---- /FEATURE ----
+
+  // ---- FEATURE: teleprompter ----
+  console.log('\n[tp] TELEPROMPTER');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await tab('tp');
+  ok(await page.locator('#v-tp.on').count() === 1, 'TELEPROMPTER tab opens its view');
+  const tpMsg = m => page.evaluate(x => window.__tpMessage(x), m);
+  const TPS = (over = {}) => Object.assign({ t: 'tp', seq: 1, state: 'stopped', pos: 0, rate: 0, cd: 0, cdSec: 3, remain: 0, total: 120, mode: 'wpm', wpm: 150, pxs: 50, words: 300, script: 's1', presenter: false }, over);
+  await tpMsg({ t: 'tplist', current: 's1', scripts: [{ id: 's1', name: 'Abertura', words: 300 }, { id: 's2', name: 'Final', words: 10 }] });
+  await tpMsg({ t: 'tpstyle', font: 64, lh: 1.4, margin: 8, fg: '#FFFFFF', bg: '#000000', mirror: false, flip: false, marker: true, markerpos: 35, cdSec: 3 });
+  const long = Array.from({ length: 12 }, (_, i) => ({ k: 'p', t: 'Parágrafo número ' + i + ' com bastante texto para ocupar linhas no teleprompter do operador.', w: 14, line: i * 2 + 1, at: i / 12 }));
+  await tpMsg({ t: 'tpscript', id: 's1', name: 'Abertura', text: 'x', words: 300, paragraphs: 12, blocks: [{ k: 'c', t: 'RESPIRAR', w: 0, line: 1 }, ...long] });
+  await tpMsg(TPS());
+  ok(await page.locator('#tp-list button').count() === 2, 'script list shows saved scripts');
+  ok(await page.locator('#tp-txt p.c').count() === 1 && await page.locator('#tp-txt p.p').count() === 12, 'operator view shows cues (as tags) and paragraphs');
+  ok(await page.inputValue('#tp-name') === 'Abertura', 'name field shows the current script');
+  await clearSent();
+  await page.click('#tp-play');
+  ok((await sent()).includes('tp|toggle'), 'PLAY -> tp|toggle');
+  await clearSent();
+  await page.click('#tp-restart');
+  ok((await sent()).includes('tp|restart'), 'rewind -> tp|restart');
+  await clearSent();
+  await page.click('#tp-list button:nth-child(2)');
+  ok((await sent()).includes('tp|select|s2'), 'clicking a script -> tp|select|<id>');
+  // keyboard scoped to the tab: Space must not CUT here
+  await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  await clearSent();
+  await page.keyboard.press('Space'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Home');
+  const tk = await sent();
+  ok(tk.includes('tp|toggle') && tk.includes('tp|nudge|10') && tk.includes('tp|nudge|-10') && tk.includes('tp|restart'), 'keys: Space/up/down/Home -> toggle/nudge/restart');
+  ok(!tk.includes('cut'), 'Space in the TELEPROMPTER tab does not CUT the switcher');
+  await clearSent();
+  await page.focus('#tp-text'); await page.keyboard.press('Space'); await page.keyboard.press('Home');
+  ok(!(await sent()).some(x => x.startsWith('tp|toggle') || x === 'tp|restart' || x === 'cut'), 'typing in the editor does not trigger shortcuts');
+  await page.evaluate(() => document.activeElement.blur());
+  // editor autosave
+  await clearSent();
+  await page.fill('#tp-text', 'novo texto\n\nsegundo');
+  await page.waitForTimeout(800);
+  ok((await sent()).some(x => x.startsWith('tp|save|s1|novo texto')), 'editing autosaves -> tp|save|<id>|<text>');
+  // speed + style controls
+  await clearSent();
+  await page.locator('#tp-speed').evaluate(el => { el.value = 180; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.locator('#tp-font').evaluate(el => { el.value = 90; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.check('#tp-mirror'); await page.check('#tp-flip');
+  await page.locator('#tp-fg').evaluate(el => { el.value = '#ffff00'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  const sc = await sent();
+  ok(sc.includes('tp|speed|180') && sc.includes('tp|style|font|90') && sc.includes('tp|style|mirror|1') && sc.includes('tp|style|flip|1') && sc.includes('tp|style|fg|#FFFF00'), 'speed/font/mirror/flip/color controls -> tp|speed / tp|style');
+  await page.click('#tp-mode button[data-m=pxs]');
+  ok((await sent()).includes('tp|mode|pxs'), 'unit switch -> tp|mode|pxs');
+  // paragraph click jumps
+  await tpMsg(TPS({ state: 'paused', pos: 0 }));
+  await clearSent();
+  await page.locator('#tp-txt p.p').nth(6).click();
+  const seek = (await sent()).find(x => x.startsWith('tp|seek|'));
+  ok(seek && +seek.split('|')[2] > 0.3 && +seek.split('|')[2] < 0.7, 'clicking paragraph 7 of 12 -> tp|seek|~0.5 (' + seek + ')');
+  await clearSent();
+  const pb = await page.locator('#tp-prog').boundingBox();
+  await page.mouse.click(pb.x + pb.width * 0.25, pb.y + pb.height / 2);
+  const seek2 = (await sent()).find(x => x.startsWith('tp|seek|'));
+  ok(seek2 && Math.abs(+seek2.split('|')[2] - 0.25) < 0.03, 'clicking the progress bar -> tp|seek|~0.25');
+  // moving: extrapolates from pos+rate between host messages, with time display
+  await tpMsg(TPS({ state: 'playing', pos: 0.1, rate: 0.05, remain: 18, total: 20 }));
+  const y0 = await page.locator('#tp-txt').evaluate(el => new DOMMatrix(getComputedStyle(el).transform).m42);
+  await page.waitForTimeout(500);
+  const y1 = await page.locator('#tp-txt').evaluate(el => new DOMMatrix(getComputedStyle(el).transform).m42);
+  ok(y1 < y0 - 1, 'while playing the view scrolls between host messages (' + y0.toFixed(1) + ' -> ' + y1.toFixed(1) + ')');
+  ok(/PAUSE/.test(await page.textContent('#tp-play')) && /NO AR/.test(await page.textContent('#tp-state')), 'PLAY button becomes PAUSE while playing');
+  ok(/restam 0:/.test(await page.textContent('#tp-remain')) && /total 0:20/.test(await page.textContent('#tp-total')), 'remaining/total time estimates are shown');
+  await tpMsg(TPS({ state: 'countdown', pos: 0, cd: 3 }));
+  ok(await page.locator('#tp-cd').evaluate(el => getComputedStyle(el).display) === 'flex' && /3/.test(await page.textContent('#tp-cd')), 'countdown overlay shows the seconds left');
+  await tpMsg(TPS({ state: 'paused', pos: 0.3, presenter: true }));
+  ok(await page.locator('#tp-pop').isDisabled() && !(await page.locator('#tp-popfs').isDisabled()), 'presenter buttons follow the window state');
+  await clearSent();
+  await page.click('#tp-popfs');
+  ok((await sent()).includes('tp|presenter|fullscreen'), 'TELA CHEIA -> tp|presenter|fullscreen');
+  await tpMsg(TPS({ presenter: false }));
+  await clearSent();
+  await page.click('#tp-pop');
+  ok((await sent()).includes('tp|presenter|open'), 'ABRIR APRESENTADOR -> tp|presenter|open');
+  // import: UTF-8 and legacy Windows-1252 files
+  await clearSent();
+  await page.setInputFiles('#tp-file', { name: 'Meu roteiro.txt', mimeType: 'text/plain', buffer: Buffer.from('coração\nação', 'utf8') });
+  await page.waitForTimeout(200);
+  ok((await sent()).includes('tp|import|Meu roteiro|coração\nação'), 'import .txt (UTF-8) -> tp|import|<name>|<text>');
+  await clearSent();
+  await page.setInputFiles('#tp-file', { name: 'antigo.txt', mimeType: 'text/plain', buffer: Buffer.from([0x63, 0x6f, 0x72, 0x61, 0xe7, 0xe3, 0x6f]) });
+  await page.waitForTimeout(200);
+  ok((await sent()).includes('tp|import|antigo|coração'), 'import .txt (Windows-1252) is decoded to UTF-8');
+  // layout at several sizes: nothing may scroll the page, no horizontal overflow
+  for (const [w, h] of [[1024, 720], [1280, 800], [1920, 1080]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(150);
+    const fit = await page.evaluate(() => ({ x: document.documentElement.scrollWidth <= innerWidth + 1, y: document.documentElement.scrollHeight <= innerHeight + 1,
+      vis: (() => { const r = document.querySelector('#tp-play').getBoundingClientRect(); const f = document.querySelector('#tp-view').getBoundingClientRect(); return r.bottom <= innerHeight && f.height > 100; })() }));
+    ok(fit.x && fit.y && fit.vis, `${w}x${h} TELEPROMPTER: fits without page scroll and the view/controls are visible`);
+  }
+  // themes
+  for (const th of ['light', 'dark', 'gray']) {
+    await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), th);
+    const c = await page.locator('#tp-list button').first().evaluate(el => getComputedStyle(el).color);
+    ok(!!c, 'theme ' + th + ' renders the TELEPROMPTER tab');
+  }
+  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // presenter page (extracted from index.html exactly like the host does)
+  {
+    const raw = require('fs').readFileSync(html, 'utf8');
+    const open = '<template id="tpPresenterPage">';
+    const b = raw.indexOf(open), e = raw.indexOf('</template>', b);
+    const pres = raw.slice(b + open.length, e);
+    ok(pres.startsWith('<!doctype html>'), 'presenter page is a complete document inside the template');
+    const p2 = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await p2.goto('about:blank');
+    await p2.evaluate(() => { window.__sent = []; window.chrome = { webview: { postMessage: m => window.__sent.push(m), addEventListener: () => {} } }; });
+    await p2.setContent(pres);
+    const pm = m => p2.evaluate(x => window.__tpPresenterMessage(x), m);
+    const ty = () => p2.locator('#txt').evaluate(el => new DOMMatrix(getComputedStyle(el).transform).m42);
+    ok((await p2.evaluate(() => window.__sent)).includes('tp|hello'), 'presenter announces itself with tp|hello');
+    await pm({ t: 'tpstyle', font: 60, lh: 1.4, margin: 8, fg: '#FFFF00', bg: '#001122', mirror: true, flip: false, marker: true, markerpos: 35, cdSec: 3 });
+    await pm({ t: 'tpscript', id: 's1', name: 'x', blocks: [{ k: 'c', t: 'SEGREDO DO OPERADOR', w: 0, line: 1 }, ...long] });
+    ok(await p2.locator('#txt p').count() === 12 && !(await p2.textContent('#txt')).includes('SEGREDO'), 'presenter shows paragraphs only: cues/comments are hidden');
+    ok(await p2.locator('#stage').evaluate(el => el.style.transform.replace(/\s/g, '')) === 'scale(-1,1)', 'mirror horizontal is applied to the presenter stage');
+    await pm({ t: 'tp', seq: 1, state: 'paused', pos: 0, rate: 0, cd: 0 });
+    const ym = await ty();
+    ok(Math.abs(ym - 0.35 * 720) < 1.5, 'at pos 0 the first line sits on the reading line (' + ym.toFixed(1) + ')');
+    await pm({ t: 'tp', seq: 2, state: 'playing', pos: 0.1, rate: 0.05, cd: 0 });
+    const a0 = await ty();
+    await p2.waitForTimeout(400);
+    const a1 = await ty();
+    ok(a1 < a0 - 1, 'presenter scrolls smoothly from (pos, rate) between host syncs');
+    await pm({ t: 'tp', seq: 3, state: 'paused', pos: 0.5, rate: 0, cd: 0 });
+    const a2 = await ty();
+    await p2.waitForTimeout(200);
+    const a3 = await ty();
+    ok(a2 === a3 && a2 < ym, 'a host re-sync/pause snaps the presenter to the host position and holds it');
+    await pm({ t: 'tp', seq: 4, state: 'countdown', pos: 0, rate: 0, cd: 3 });
+    ok(await p2.locator('#cd').evaluate(el => getComputedStyle(el).display) === 'flex', 'presenter shows the countdown');
+    await p2.evaluate(() => { window.__sent.length = 0; });
+    await p2.keyboard.press('Space'); await p2.keyboard.press('ArrowUp'); await p2.keyboard.press('ArrowDown'); await p2.keyboard.press('Home'); await p2.keyboard.press('F11'); await p2.mouse.dblclick(100, 100);
+    const ps = await p2.evaluate(() => window.__sent);
+    ok(['tp|toggle', 'tp|nudge|10', 'tp|nudge|-10', 'tp|restart', 'tp|presenter|fullscreen'].every(x => ps.includes(x)), 'presenter keys/double click send tp commands');
+    await p2.setViewportSize({ width: 1281, height: 720 });
+    await p2.waitForTimeout(400);
+    ok((await p2.evaluate(() => window.__sent)).some(x => /^tp\|layout\|p\|\d+\|720$/.test(x)), 'presenter reports its real layout for the px/s model');
+    await p2.close();
+  }
+  await tab('prod');
+  // ---- /FEATURE ----
 
   ok(errors.length === 0, 'no JavaScript errors' + (errors.length ? ': ' + errors[0] : ''));
   await browser.close();
