@@ -20,7 +20,7 @@ struct Fixture {
         });
     }
 };
-std::string tmpPath(const char* n) { return std::string("/tmp/hb_scene_test_") + n; }
+std::string tmpPath(const char* n) { return ::testing::TempDir() + "hb_scene_test_" + n; }
 }  // namespace
 
 TEST(SceneService, ApplyTemplateMapsRolesAndFillsFirstFreeSlots) {

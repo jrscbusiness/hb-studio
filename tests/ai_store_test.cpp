@@ -163,10 +163,12 @@ TEST(AiStore, SaveLoadRoundTripOnDisk) {
     ProviderStore s2(&ss);
     ASSERT_TRUE(s2.load(path));
     EXPECT_EQ(s2.active().apiKey, "sk-or-disk-key-123");
-    std::ifstream f(path, std::ios::binary);
-    std::stringstream buf;
-    buf << f.rdbuf();
-    EXPECT_EQ(buf.str().find("disk-key"), std::string::npos);
+    {
+        std::ifstream f(path, std::ios::binary);
+        std::stringstream buf;
+        buf << f.rdbuf();
+        EXPECT_EQ(buf.str().find("disk-key"), std::string::npos);
+    }   // closed before remove(): Windows cannot delete a file that is still open
     std::remove(path.c_str());
     EXPECT_FALSE(s2.load(path));
 }

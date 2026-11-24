@@ -277,12 +277,16 @@ TEST(RemoteServer, StateIsDedupedAndRateLimited) {
     EXPECT_EQ(states, 1u);
     // 200 distinct states in ~100 ms must be coalesced to far fewer messages.
     const auto mark = c.msgs.size();
+    const auto t0 = std::chrono::steady_clock::now();
     for (int i = 0; i < 200; ++i) {
         f.srv->broadcastState("{\"t\":\"s\",\"n\":" + std::to_string(i + 1) + "}");
-        std::this_thread::sleep_for(std::chrono::microseconds(500));
+        std::this_thread::sleep_for(std::chrono::microseconds(500));   // Windows sleeps ~15 ms here, so measure instead of assuming 100 ms
     }
+    const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
     c.pump(300);
-    EXPECT_LT(c.msgs.size() - mark, 15u);
+    // At most one push per stateMinIntervalMs (50 ms) however long the burst really took, and far fewer than 200.
+    EXPECT_LE(c.msgs.size() - mark, static_cast<std::size_t>(elapsedMs / 50 + 6));
+    EXPECT_LT(c.msgs.size() - mark, 100u);
     EXPECT_TRUE(c.gotText("\"n\":200"));  // but the latest one always arrives
 }
 
