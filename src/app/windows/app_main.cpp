@@ -27,6 +27,10 @@
 #include "app/ptz_settings.hpp"
 #include "app/source_assignments.hpp"
 #include "app/stream_destinations.hpp"
+// ---- FEATURE: ai ----
+#include "ai/ai_commands.hpp"
+#include "ai/secret_store.hpp"
+// ---- /FEATURE ----
 #include "app/windows/dshow_capture.hpp"
 #include "app/windows/stream_sender.hpp"
 #include "app/windows/task_queue.hpp"
@@ -37,9 +41,32 @@
 #include "app/windows/win_util.hpp"
 #include "app/windows/output_window.hpp"
 #include "ndi/ndi.hpp"
+#include "scene/scene_service.hpp"   // FEATURE: scenes
+// ---- FEATURE: chroma ----
+#include "chroma/service.hpp"
+#include "chroma/windows/winhttp_client.hpp"
+#include "chroma/windows/wic_image.hpp"
+#ifdef HB_HAVE_ONNX
+#include "chroma/onnx/onnx_segmenter.hpp"
+#endif
+// ---- /FEATURE: chroma ----
 #include "video/frame_ops.hpp"
 #include "plugins/service.hpp"
+// ---- FEATURE: remote ----
+#include <functional>
+#include "remote/service.hpp"
+#include "video/frame_ops.hpp"
+// ---- /FEATURE ----
 #include "vst3/vst3.hpp"
+// ---- FEATURE: teleprompter ----
+#include <filesystem>
+#include "app/windows/presenter_window.hpp"
+#include "teleprompter/controller.hpp"
+#include "teleprompter/presenter_page.hpp"
+// ---- FEATURE: overlays ----
+#include "overlay/manager.hpp"
+#include "overlay/windows/gdi_glyphs.hpp"
+// ---- /FEATURE ----
 
 using namespace hb;
 
@@ -263,6 +290,23 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     app::MediaService media(engine.program(), &engine.bus(), &engine.logger(), mediaDir, videosDir);
     media.start();
     win::trace("media service started");
+
+    // ---- FEATURE: overlays ---- timer / scoreboard / QR / lower third / captions / chat pin over PROGRAM
+    // (docs/OVERLAYS.md). Declared after `engine`, so it is destroyed first; the render hook only keeps the
+    // shared render state alive, never the manager or the bus.
+    const std::string overlaysPath = mediaDir.empty() ? std::string() : mediaDir + "\\overlays.json";
+    hb::overlay::OverlayManager overlays(&engine.bus(), nullptr, hb::overlay::makeGdiTextRasterizer());
+    if (!overlaysPath.empty() && !overlays.load(overlaysPath)) engine.logger().info("overlay", "sem overlays salvos");
+    engine.setPostRenderHook(overlays.programHook());
+    std::string overlayLastState;
+    std::mutex overlayMutex;   // guards overlayLastState (UI message thread vs feeder thread)
+    auto postOverlayState = [&](bool force) {
+        const std::string st = overlays.stateJson();
+        if (!force && st == overlayLastState) return;
+        overlayLastState = st;
+        host.postQueued("overlay_state", st);
+    };
+    // ---- /FEATURE ----
 
     // ---- native dark/light mode (built into the app; no plugin needed) ----
     const std::string themePath = mediaDir.empty() ? std::string() : mediaDir + "\\theme.txt";
@@ -497,6 +541,26 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         toastText = t;
         ++toastId;
     };
+    // ---- FEATURE: ai ----
+    // AI providers (CONFIG > Inteligência Artificial). Declared after `host` so worker threads are joined
+    // (AiService destructor) before the window goes away. Keys: DPAPI-encrypted file, never sent to the UI.
+    std::unique_ptr<hb::ai::ISecretStore> aiSecrets = hb::ai::makeDefaultSecretStore();
+    hb::ai::ProviderStore aiStore(aiSecrets.get());
+    std::string aiPath;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            aiPath = win::narrow(std::wstring(p) + L"\\HBStudio\\ai.json");
+            CoTaskMemFree(p);
+        }
+        if (!aiPath.empty()) aiStore.load(aiPath);
+    }
+    hb::ai::AiService aiService(aiStore, hb::ai::AiClient(hb::ai::AiClientDeps{hb::ai::makeDefaultAiHttp(), {}, {}}));
+    // ---- /FEATURE ----
+    // ---- FEATURE: ai ----
+    hb::ai::AiCommands aiCommands(aiService, aiStore, aiPath, [&](const std::string& key, std::string json) { host.postQueued(key, std::move(json)); },
+                                  [&](const std::string& t) { toast(t); });
+    // ---- /FEATURE ----
     auto ptzChanged = [&] {
         if (!ptzPath.empty() && !ptzSettings.save(ptzPath)) engine.logger().warning("ptz", "não foi possível salvar a configuração");
         ptzSent = 0;  // force the feeder to resend
@@ -512,8 +576,79 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         return a;
     };
 
+    // ---- FEATURE: remote ----
+    // Phone/tablet remote control (src/remote). Remote sessions reach THIS SAME handler (onMessage)
+    // after the server's strict command allowlist rebuilt the text, so no logic is duplicated.
+    // OFF until the operator enables it in CONFIG; commands arrive on the server's executor thread
+    // (the allowlisted commands only touch thread-safe parts: switcher, media, senders).
+    std::function<void(const std::string&)> remoteDispatch;
+    hb::remote::RemoteService remoteSvc(
+        [&](const std::string& cmd) { if (remoteDispatch) remoteDispatch(cmd); },
+        [&](const std::string& line) { engine.logger().info("remote", line); });
+    // ---- FEATURE: scenes ---- CENAS bank (scenes.json in %LOCALAPPDATA%\HBStudio)
+    scene::SceneService sceneSvc(mediaDir.empty() ? std::string() : mediaDir + "\\scenes.json",
+                                 [&](int slot, std::shared_ptr<const scene::Scene> s) { engine.setScene(slot, std::move(s)); });
+    sceneSvc.load();
+    auto postScenes = [&] { host.postQueued("scenes", sceneSvc.stateJson()); };
+    // ---- /FEATURE ----
+
+    // ---- FEATURE: teleprompter ---- host-authoritative scroll state + script library
+    // (%LOCALAPPDATA%\HBStudio\teleprompter). Commands "tp|..." arrive from the main UI, from the
+    // presenter window and (play/pause/speed/seek) from the remote allowlist; see docs/TELEPROMPTER.md.
+    hb::teleprompter::SteadyClockSource tpClock;
+    hb::teleprompter::Controller tpc(std::filesystem::path(win::widen(mediaDir) + L"\\teleprompter"), &tpClock);
+    tpc.load();
+    std::function<void(const std::string&)> tpHandle;
+    win::PresenterWindow tpPresenter(
+        [&](const std::string& m) { if (m.rfind("tp|", 0) == 0 && tpHandle) tpHandle(m); },
+        [&](bool open) { tpc.setPresenterOpen(open); host.postQueued("tp", tpc.stateJson()); });
+    auto tpBroadcast = [&](const char* key, const std::string& json) {
+        host.postQueued(key, json);
+        tpPresenter.broadcast(key, json);
+    };
+    tpHandle = [&](const std::string& msg) {
+        const auto fx = tpc.execute(msg);
+        if (!fx.toast.empty()) toast(fx.toast);
+        using P = hb::teleprompter::Effects::Presenter;
+        if (fx.presenter == P::Open) {
+            tpPresenter.open(inst, dataDir, win::widen(mediaDir) + L"\\teleprompter-window.txt",
+                             hb::teleprompter::extractPresenterPage(win::loadResourceText(IDR_UI_HTML)),
+                             [&] { return std::vector<std::string>{tpc.styleJson(), tpc.scriptJson(), tpc.stateJson()}; });
+        } else if (fx.presenter == P::Close) {
+            tpPresenter.close();
+        } else if (fx.presenter == P::Fullscreen) {
+            tpPresenter.toggleFullscreen();
+        }
+        if (fx.list) host.postQueued("tplist", tpc.listJson());
+        if (fx.script) tpBroadcast("tpscript", tpc.scriptJson());
+        if (fx.style) tpBroadcast("tpstyle", tpc.styleJson());
+        if (fx.state) tpBroadcast("tp", tpc.stateJson());
+    };
+    // ---- /FEATURE ----
+    // ---- FEATURE: chroma ---- per-camera background removal (classic chroma key + local AI)
+    chroma::WinHttpClient chromaHttp;
+    chroma::ChromaService::Deps chromaDeps;
+    chromaDeps.modelsDir = mediaDir.empty() ? std::string() : mediaDir + "\\models";
+    chromaDeps.http = &chromaHttp;
+#ifdef HB_HAVE_ONNX
+    chromaDeps.segmenterFactory = [](const std::string& path, std::string& err) { return chroma::createOnnxSegmenter(path, err); };
+#endif
+    chromaDeps.imageLoader = [](const std::string& path, video::Frame& out, std::string& err) { return chroma::loadImageWic(path, out, err); };
+    chromaDeps.onChanged = [&](int slot, const std::string& ser) {
+        // Persisted in inputs.txt's optional 9th field; only slots with an assigned device are saved.
+        if (assignments.setBackground(slot, ser) && !assignPath.empty()) assignments.save(assignPath);
+    };
+    chroma::ChromaService chromaSvc(app::Engine::kSourceCount, std::move(chromaDeps));
+    for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+        engine.setSlotFilter(i, chromaSvc.filter(i));
+        chromaSvc.load(i, assignments.get(i).bg);
+    }
+    auto postChroma = [&] { host.postQueued("chroma", chromaSvc.statusJson()); };
+    // ---- /FEATURE: chroma ----
+
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
+        if (c0 == "tp") { tpHandle(msg); return; }   // FEATURE: teleprompter
         const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
                                      (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : (c0 == "xmitsave" ? 2 : 8)))));
         auto a = split(msg, maxParts);
@@ -522,6 +657,54 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         const std::string& c = a[0];
         const int cam = idx(1);
         const std::string camLabel = "CAM " + std::to_string(cam + 1) + ": ";
+        // ---- FEATURE: ai ----
+        if (c0.rfind("ai", 0) == 0 && aiCommands.handle(msg)) return;
+        // ---- /FEATURE ----
+        // ---- FEATURE: chroma ----
+        if (c == "chroma" && a.size() >= 4) {
+            std::string m;
+            const int slot = idx(1);
+            if (chromaSvc.handleSetting(slot, a[2], a[3], m) && !m.empty()) toast("CAM " + std::to_string(slot + 1) + ": " + m);
+            postChroma();
+            return;
+        }
+        if (c == "chromamodel" && a.size() >= 2) {
+            std::string m;
+            chromaSvc.handleModel(a[1], m);
+            if (!m.empty()) toast(m);
+            postChroma();
+            return;
+        }
+        if (c == "chromaimg" && a.size() >= 2) {
+            // Native file dialog (UI thread): the chosen image becomes this slot's replacement background.
+            const int slot = idx(1);
+            wchar_t file[MAX_PATH * 4] = {0};
+            OPENFILENAMEW ofn{};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = host.hwnd();
+            ofn.lpstrFilter = L"Imagens (*.png;*.jpg;*.jpeg;*.bmp)\0*.png;*.jpg;*.jpeg;*.bmp\0Todos os arquivos\0*.*\0";
+            ofn.lpstrFile = file;
+            ofn.nMaxFile = static_cast<DWORD>(sizeof(file) / sizeof(file[0]));
+            ofn.lpstrTitle = L"Escolha a imagem de fundo";
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+            if (GetOpenFileNameW(&ofn)) {
+                std::string m;
+                chromaSvc.handleSetting(slot, "repl", "image", m);
+                chromaSvc.handleSetting(slot, "img", win::narrow(file), m);
+                postChroma();
+            }
+            return;
+        }
+        // ---- /FEATURE: chroma ----
+        // ---- FEATURE: overlays ----
+        if (c0 == "ready") { std::lock_guard lk(overlayMutex); postOverlayState(true); }
+        else if (c0.rfind("ov", 0) == 0 && overlays.handleCommand(msg)) {
+            std::lock_guard lk(overlayMutex);
+            if (overlays.takeDirty() && !overlaysPath.empty()) overlays.save(overlaysPath);
+            postOverlayState(true);
+            return;
+        }
+        // ---- /FEATURE ----
         if (c == "ready") {
             ptzSent = 0;
             media.forceResend();
@@ -533,6 +716,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postXmitDest();
             postXmitStatus();
             postOutFmt();
+            postScenes();   // FEATURE: scenes
+            postChroma();   // FEATURE: chroma
             host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "system")) {
@@ -611,6 +796,42 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 editor->closeEditor();
             }
         }
+        // ---- FEATURE: remote ----
+        else if (c == "remote") {   // desktop UI only: remote|on / off / newpin / revoke / kick|id
+            const std::string t = remoteSvc.handleUi(msg);
+            if (!t.empty()) toast(t);
+            host.postQueued("remote", remoteSvc.statusJson());
+        }
+        // ---- /FEATURE ----
+        // ---- FEATURE: scenes ----
+        else if (sceneSvc.isSceneCommand(msg)) {
+            std::string m = msg;
+            wchar_t file[MAX_PATH * 4] = {0};
+            OPENFILENAMEW ofn{};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = host.hwnd();
+            ofn.lpstrFile = file;
+            ofn.nMaxFile = static_cast<DWORD>(sizeof(file) / sizeof(file[0]));
+            ofn.lpstrFilter = L"Templates do HB Studio (*.json)\0*.json\0Todos os arquivos\0*.*\0";
+            ofn.lpstrDefExt = L"json";
+            if (c == "sceneimport" && a.size() < 2) {
+                ofn.lpstrTitle = L"Importar template";
+                ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+                if (!GetOpenFileNameW(&ofn)) return;
+                m = "sceneimport|" + win::narrow(file);
+            } else if (c == "sceneexport" && a.size() == 2) {
+                ofn.lpstrTitle = L"Exportar template";
+                ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+                const std::wstring def = win::widen(a[1]) + L".json";
+                wcsncpy_s(file, def.c_str(), _TRUNCATE);
+                if (!GetSaveFileNameW(&ofn)) return;
+                m = "sceneexport|" + a[1] + "|" + win::narrow(file);
+            }
+            const auto r = sceneSvc.handle(m);
+            if (!r.message.empty()) toast(r.message);
+            if (r.changed) postScenes();
+        }
+        // ---- /FEATURE ----
         else if (c == "preview") engine.switcher().setPreview(idx(1));
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
@@ -655,6 +876,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         } else if (c == "devclear") {
             const int slot = idx(1);
             if (slot >= 0 && slot < app::Engine::kSourceCount) {
+                chromaSvc.reset(slot);   // FEATURE: chroma - its saved background goes with the device
                 detach(slot);
                 assignments.clear(slot);
                 if (!assignPath.empty()) assignments.save(assignPath);
@@ -864,6 +1086,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // ptzstop / ptzzoom / ptzfocus: silent no-ops until a provider exists.
     };
 
+    // ---- FEATURE: remote ----
+    remoteDispatch = [&](const std::string& cmd) { onMessage(cmd); };
+    // ---- /FEATURE ----
+
     win::trace("before host.create");
     win::WebViewHost::Options opt;
     opt.userDataDir = dataDir;
@@ -909,6 +1135,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             video::Frame frame;
             video::Frame previewFull;  // full-resolution (not the small UI monitor size) for prevWin
             std::vector<std::uint8_t> bytes;
+            video::Frame remoteThumb;                 // FEATURE: remote
+            std::vector<std::uint8_t> remoteBytes;    // FEATURE: remote
             std::uint64_t tick = 0;
             auto next = std::chrono::steady_clock::now();
             while (running) {
@@ -928,6 +1156,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     const auto& pf = engine.program().format();
                     video::prepareFrame(previewFull, pf.width, pf.height);
                     engine.switcher().renderPreview(previewFull, tick);
+                    overlays.renderPreview(previewFull);   // FEATURE: overlays (only when the option is on)
                     prevWin.present(previewFull);
                 }
                 if (ndiOutputEnabled && progLatest) {
@@ -938,9 +1167,66 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                                        progLatest->stride, pf.fps.num, pf.fps.den);
                     }
                 }
+                // ---- FEATURE: remote ----
+                // Remote devices: compact state ~7.5 Hz (only if someone is connected; the server also
+                // drops it when unchanged) and opt-in low-res thumbnails ~2 fps. Everything here only
+                // stores the latest value in the server's mailbox - it never touches a socket.
+                if (tick % 2 == 0 && remoteSvc.wantsState()) {
+                    hb::remote::RemoteState rs;
+                    const auto sw = engine.switcher().state();
+                    rs.pvw = sw.pvw; rs.pgm = sw.pgm; rs.transitioning = sw.transitioning; rs.progress = sw.progress;
+                    rs.recording = media.recording();
+                    for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+                        const auto info = engine.slotInfo(i);
+                        const auto assigned = assignments.get(i);
+                        const bool enabled = assigned.empty() || assigned.enabled;
+                        hb::remote::RemoteSource src;
+                        src.name = "FONTE " + std::to_string(i + 1);
+                        src.status = "test";
+                        if (info.live) {
+                            using S = video::SourceStatus::State;
+                            src.status = info.status.state == S::Online ? "online" : info.status.state == S::Connecting ? "connecting"
+                                       : info.status.state == S::NoSignal ? "nosignal" : "error";
+                            if (!info.label.empty()) src.name = info.label;
+                        } else if (!assigned.empty() && !enabled) {
+                            src.status = "off";
+                            if (!assigned.name.empty()) src.name = assigned.name;
+                        }
+                        rs.sources.push_back(std::move(src));
+                    }
+                    const auto as = media.audio().snapshot();
+                    for (const auto& st : as.strips)
+                        rs.strips.push_back({st.name, st.faderDb, st.mute, st.solo, std::max(st.peakDb[0], st.peakDb[1])});
+                    rs.masterPeakDb = std::max(as.master.levels.peakDb[0], as.master.levels.peakDb[1]);
+                    // Destinations: name/platform/run state only - never the server URL or the key.
+                    for (const auto& d : destinations.list()) {
+                        hb::remote::RemoteDest rd{d.id, d.name, d.platform, false, false};
+                        std::lock_guard lock(sendersMutex);
+                        auto it = senders.find(d.id);
+                        if (it != senders.end()) {
+                            const auto st = it->second->status();
+                            rd.running = st.running;
+                            rd.publishing = st.publishing;
+                        }
+                        rs.dests.push_back(std::move(rd));
+                    }
+                    remoteSvc.pushState(rs);
+                }
+                if (tick % 8 == 0 && remoteSvc.wantsThumbs()) {
+                    for (int kind = 0; kind < 2; ++kind) {
+                        if (!engine.renderUiFrame(kind ? "pgm" : "pvw", frame)) continue;
+                        video::downscaleBox(frame, remoteThumb, 240, 135);
+                        if (jpeg.encode(remoteThumb, 55, remoteBytes)) remoteSvc.pushThumb(kind, remoteBytes);
+                    }
+                }
+                if (tick % 8 == 0) host.postQueued("remote", remoteSvc.statusJson());
+                // ---- /FEATURE ----
                 // Input tiles: half of them per tick (~7.5 fps each) to save CPU.
                 for (int i = static_cast<int>(tick % 2); i < app::Engine::kSourceCount; i += 2)
                     sendFrame(("s" + std::to_string(i)).c_str(), 70);
+                // FEATURE: scenes - CENAS tiles ("cN"; empty slots render nothing and are skipped)
+                for (int i = static_cast<int>(tick % 2); i < app::Engine::kSceneCount; i += 2)
+                    sendFrame(("c" + std::to_string(i)).c_str(), 70);
                 {
                     int tid; std::string ttxt;
                     { std::lock_guard lock(toastMutex); tid = toastId; ttxt = toastText; }
@@ -949,7 +1235,12 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     const unsigned v = ptzSettings.version();
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
                     if (tick % 4 == 0) postXmitStatus();
+                    if (tick % 4 == 2) { chromaSvc.tick(); postChroma(); }   // FEATURE: chroma
+                    if (tick % 4 == 1) { std::lock_guard lk(overlayMutex); postOverlayState(false); }   // FEATURE: overlays (live clocks)
                 }
+                // ---- FEATURE: teleprompter ---- periodic re-sync / transitions (cheap: a few msgs per second)
+                if (auto j = tpc.poll()) tpBroadcast("tp", *j);
+                // ---- /FEATURE ----
                 ++tick;
                 std::this_thread::sleep_until(next);
             }
@@ -998,13 +1289,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     win::trace("message loop ended");
     running = false;
+    remoteSvc.disable();   // FEATURE: remote - closes the server threads before the engine goes away
     {
         std::lock_guard lock(devMutex);
         for (auto& kv : devices) kv.second->stop();   // close capture graphs before the engine goes away
         for (auto& kv : ndiDevices) kv.second->stop();
     }
+    chromaSvc.shutdown();   // FEATURE: chroma - stop AI workers/download before the engine goes away
     if (feeder.joinable()) feeder.join();
     win::trace("feeder joined");
+    tpPresenter.close();   // FEATURE: teleprompter
+    tpc.flush();           // FEATURE: teleprompter
     progWin.close();
     prevWin.close();
     { std::lock_guard lock(ndiSenderMutex); ndiSender.reset(); }

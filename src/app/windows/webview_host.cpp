@@ -344,6 +344,12 @@ LRESULT WebViewHost::handle(UINT m, WPARAM w, LPARAM l) {
                 if (GetWindowPlacement(hwnd_, &wp))
                     savePlacement(opt_.placementFile, wp.rcNormalPosition, wp.showCmd == SW_SHOWMAXIMIZED);
             }
+            // ---- FEATURE: teleprompter ----
+            if (opt_.secondary) {
+                if (opt_.onClosed) opt_.onClosed();
+                return 0;
+            }
+            // ---- /FEATURE ----
             PostQuitMessage(0);
             return 0;
         default: break;

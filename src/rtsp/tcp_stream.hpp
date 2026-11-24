@@ -28,6 +28,9 @@ public:
     virtual bool waitReadable(int timeoutMs) = 0;
     virtual void close() = 0;
     virtual std::string lastError() const = 0;
+    // Remote IP of an ACCEPTED stream (dotted IPv4, or "" if unknown / not an accepted stream).
+    // Non-pure with a default so existing fakes/implementations are unaffected.
+    virtual std::string peerAddress() const { return {}; }
 };
 
 using TcpStreamFactory = std::function<std::unique_ptr<ITcpStream>()>;
@@ -45,5 +48,9 @@ public:
 };
 // Listens on 127.0.0.1:port (0 = ephemeral). nullptr on failure.
 std::unique_ptr<TcpListener> makeLoopbackListener(std::uint16_t port = 0);
+// Listens on one specific local IPv4 address (dotted literal, e.g. "192.168.0.10"; "127.0.0.1" is
+// the loopback case). nullptr on failure (bad literal, address not local, port in use...).
+// Added for the remote-control server, which binds the LAN addresses only (never 0.0.0.0).
+std::unique_ptr<TcpListener> makeTcpListener(const std::string& ipv4, std::uint16_t port = 0);
 
 }  // namespace hb::rtsp

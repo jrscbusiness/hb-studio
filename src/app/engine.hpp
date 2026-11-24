@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -9,6 +10,7 @@
 #include "core/event_bus.hpp"
 #include "core/hardware_profile.hpp"
 #include "core/logger.hpp"
+#include "scene/scene_source.hpp"
 #include "switcher/switcher.hpp"
 #include "video/program_output.hpp"
 #include "video/source.hpp"
@@ -75,11 +77,35 @@ public:
     bool assignSlot(int slot, std::shared_ptr<const video::LiveSource> device, std::string deviceId, std::string deviceName);
     bool clearSlot(int slot);
     video::SlotSource::Info slotInfo(int slot) const;
+    // ---- FEATURE: chroma ----
+    bool setSlotFilter(int slot, std::shared_ptr<video::FrameFilter> filter);
+    // ---- /FEATURE: chroma ----
+
+    // ---- FEATURE: overlays ----
+    // Called on the Program clock thread right after the switcher rendered the Program frame (graphics
+    // layers draw over it). Must be cheap; may be replaced at any time. nullptr removes it.
+    using PostRenderHook = std::function<void(video::Frame&, std::uint64_t)>;
+    void setPostRenderHook(PostRenderHook hook);
+    // ---- /FEATURE ----
 
     // UI frames: "pgm", "pvw", "s0".."s7". Returns false for unknown ids.
     bool renderUiFrame(const std::string& id, video::Frame& out);
 
+    // ---- FEATURE: scenes ----
+    // CENAS bank: kSceneCount scene slots appended to the switch bus AFTER the camera slots, so
+    // switcher indices kSourceCount..kSourceCount+kSceneCount-1 are scenes. Cuts, dissolves and the
+    // T-bar need no special case. With no scene set they render a dark panel and nothing else changes.
+    // renderUiFrame also accepts "c0".."c15" (a scene tile; false while that slot is empty).
+    static constexpr int kSceneCount = 16;
+    bool setScene(int slot, std::shared_ptr<const scene::Scene> scene);   // null clears the slot
+    std::shared_ptr<const scene::Scene> sceneAt(int slot) const;
+    // ---- /FEATURE ----
+
 private:
+    // ---- FEATURE: overlays ----
+    std::mutex postHookMutex_;
+    std::shared_ptr<const PostRenderHook> postHook_;
+    // ---- /FEATURE ----
     core::EventBus bus_;
     core::Logger logger_;
     std::shared_ptr<core::MemorySink> log_;
@@ -87,6 +113,7 @@ private:
     core::Tier tier_;
     std::vector<std::shared_ptr<video::SlotSource>> slots_;
     std::vector<std::shared_ptr<const video::Source>> sources_;
+    std::vector<std::shared_ptr<scene::SceneSource>> sceneSlots_;  // FEATURE: scenes
     std::unique_ptr<switcher::Switcher> switcher_;
     std::unique_ptr<video::ProgramOutput> program_;
 
