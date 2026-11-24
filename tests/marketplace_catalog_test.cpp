@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <fstream>
+#include <sstream>
+
 #include "marketplace/catalog.hpp"
 #include "marketplace_test_util.hpp"
 
@@ -198,3 +201,21 @@ TEST(MarketplaceCatalog, TemplateEntriesArePureDataAndSmall) {
     // category template must use type template, and type template only category template
     EXPECT_TRUE(parseCatalog(catalog(replaceOnce(t, R"("category":"template")", R"("category":"graphic")"))).catalog.entries.empty());
 }
+
+#ifdef HB_MARKETPLACE_INDEX_PATH
+// Guards the real, shipped catalog: the app's parser must accept every entry of marketplace/index.json.
+TEST(MarketplaceCatalog, ShippedIndexJsonIsAcceptedByTheAppParser) {
+    std::string text;
+    {
+        std::ifstream f(HB_MARKETPLACE_INDEX_PATH, std::ios::binary);
+        ASSERT_TRUE(f.good());
+        std::stringstream ss;
+        ss << f.rdbuf();
+        text = ss.str();
+    }
+    auto r = parseCatalog(text);
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_EQ(r.catalog.dropped, 0u) << (r.catalog.warnings.empty() ? "" : r.catalog.warnings[0]);
+    EXPECT_FALSE(r.catalog.entries.empty());
+}
+#endif

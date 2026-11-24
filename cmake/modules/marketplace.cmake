@@ -23,5 +23,6 @@ if(HB_BUILD_TESTS)
     tests/marketplace_catalog_test.cpp
     tests/marketplace_service_test.cpp)
   target_link_libraries(hb_marketplace_tests PRIVATE hb_marketplace GTest::gtest_main)
+  target_compile_definitions(hb_marketplace_tests PRIVATE HB_MARKETPLACE_INDEX_PATH="${CMAKE_SOURCE_DIR}/marketplace/index.json")
   gtest_discover_tests(hb_marketplace_tests)
 endif()
