@@ -290,6 +290,64 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok(await page.locator('#camcfg-res option').count() === 1, 'CÂMERAS: uma resposta de devformats atrasada de outra câmera é ignorada');
   await page.click('#camcfg-cancel');
 
+  // ---- FEATURE: chroma ---- "Fundo" section of the camera-settings dialog
+  const chromaSlot = (o = {}) => Object.assign({ mode: 'off', q: 'med', repl: 'color', color: '#101010', tol: 45, soft: 25, spill: 50, blur: 40,
+    applyMs: 0, inferMs: 0, inferences: 0, dropped: 0, img: '', imgErr: '', aiActive: false, aiWaiting: false, aiFailed: false, aiMsg: '', slowAi: false, slowApply: false }, o);
+  const chromaState = (over = {}, slot0 = {}) => Object.assign({ t: 'chroma', runtime: false, images: true,
+    model: { state: 'none', received: 0, total: 462338, mb: 0.44, msg: '', license: 'Apache-2.0' }, ai: { state: 'idle', msg: '' },
+    slots: Array.from({ length: 16 }, (_, i) => chromaSlot(i === 0 ? slot0 : {})) }, over);
+  const feedChroma = o => page.evaluate(a => window.__hbMessage(a), o);
+  await feedChroma(chromaState());
+  await slot0.locator('.cfg').click();
+  ok(await page.locator('#chr').isVisible(), 'FUNDO: a seção aparece no diálogo da câmera');
+  ok(await page.$eval('#chr-ai-opt', e => e.disabled), 'FUNDO: sem ONNX Runtime a opção IA fica desabilitada e explicada');
+  ok((await page.locator('#chr-model').textContent()).includes('ONNX'), 'FUNDO: mensagem honesta sobre o build sem runtime');
+  ok(!(await page.locator('#chr-tol').isVisible()), 'FUNDO: desligado esconde os controles');
+  await clearSent();
+  await page.selectOption('#chr-mode', 'green');
+  ok((await sent()).includes('chroma|0|mode|green'), 'FUNDO: escolher Chroma verde envia chroma|slot|mode|green');
+  await feedChroma(chromaState({}, { mode: 'green' }));
+  ok(await page.locator('#chr-tol').isVisible() && await page.locator('#chr-spill').isVisible() && !(await page.locator('#chr-q').isVisible()),
+    'FUNDO: chroma clássico mostra tolerância/suavidade/reflexo e não a qualidade da IA');
+  await clearSent();
+  await page.locator('#chr-tol').evaluate(el => { el.value = 70; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.waitForTimeout(200);
+  ok((await sent()).includes('chroma|0|tol|70'), 'FUNDO: slider de tolerância envia chroma|slot|tol|valor');
+  await page.selectOption('#chr-repl', 'image');
+  await feedChroma(chromaState({}, { mode: 'green', repl: 'image' }));
+  await clearSent();
+  await page.click('#chr-img');
+  ok((await sent()).includes('chromaimg|0'), 'FUNDO: ESCOLHER… pede o seletor de imagem ao host');
+  await page.selectOption('#chr-repl', 'blur');
+  await feedChroma(chromaState({}, { mode: 'green', repl: 'blur' }));
+  ok(await page.locator('#chr-blur').isVisible() && !(await page.locator('#chr-color').isVisible()), 'FUNDO: desfoque mostra só a intensidade');
+  // AI available, model missing -> download flow
+  await feedChroma(chromaState({ runtime: true }, { mode: 'ai' }));
+  ok(!(await page.$eval('#chr-ai-opt', e => e.disabled)), 'FUNDO: com runtime a opção IA fica disponível');
+  ok(await page.locator('#chr-dl').isVisible() && await page.locator('#chr-q').isVisible(), 'FUNDO: IA sem modelo oferece BAIXAR MODELO e a qualidade');
+  await clearSent();
+  await page.click('#chr-dl');
+  ok((await sent()).includes('chromamodel|download'), 'FUNDO: BAIXAR MODELO envia chromamodel|download');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'downloading', received: 231169, total: 462338, mb: 0.44, msg: '', license: 'Apache-2.0' } }, { mode: 'ai' }));
+  ok((await page.locator('#chr-model').textContent()).includes('50%') && await page.locator('#chr-bar').isVisible() && await page.locator('#chr-cancel').isVisible(),
+    'FUNDO: mostra o progresso do download com cancelar');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'error', received: 0, total: 0, mb: 0.44, msg: 'O arquivo baixado não confere com a assinatura (SHA-256) esperada e foi descartado.', license: 'x' } }, { mode: 'ai' }));
+  ok((await page.locator('#chr-model').textContent()).includes('SHA-256') && (await page.locator('#chr-dl').textContent()).includes('TENTAR'), 'FUNDO: erro de download é mostrado com TENTAR DE NOVO');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'ready', received: 1, total: 1, mb: 0.44, msg: '', license: 'Apache-2.0' }, ai: { state: 'ready', msg: '' } },
+    { mode: 'ai', aiActive: true, inferMs: 95, inferences: 40, slowAi: true }));
+  ok((await page.locator('#chr-warn').textContent()).includes('lento para IA') && (await page.locator('#chr-warn').textContent()).includes('reduza a qualidade'),
+    'FUNDO: aviso "seu computador está lento para IA: reduza a qualidade"');
+  await feedChroma(chromaState({ runtime: true, model: { state: 'ready', received: 1, total: 1, mb: 0.44, msg: '', license: 'Apache-2.0' } }, { mode: 'ai', aiActive: true, inferMs: 20, inferences: 40 }));
+  ok(!(await page.locator('#chr-warn').isVisible()), 'FUNDO: sem aviso quando a IA acompanha');
+  for (const [w, h] of [[1024, 720], [1280, 800]]) {
+    await page.setViewportSize({ width: w, height: h });
+    const fit = await page.evaluate(() => { const s = document.querySelector('#modal5 .sheet'); return [s.scrollHeight, s.clientHeight, document.documentElement.scrollWidth, innerWidth]; });
+    ok(fit[0] <= fit[1] + 1 && fit[2] <= fit[3] + 1, `${w}x${h}: diálogo com a seção FUNDO cabe sem rolagem (${fit.join('/')})`);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.click('#camcfg-cancel');
+  // ---- /FEATURE: chroma ----
+
   console.log('\n[4b2] PRODUÇÃO: menu de contexto (botão direito) nos quadros de entrada');
   await tab('prod'); await page.waitForTimeout(100);
   await page.locator('.tile[data-i="0"]').click({ button: 'right' });
