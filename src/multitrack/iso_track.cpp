@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "recording/file_io.hpp"
+#include "recording/pcm.hpp"
 #include "recording/wav_writer.hpp"
 
 namespace hb::multitrack {
