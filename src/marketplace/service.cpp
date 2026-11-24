@@ -237,7 +237,7 @@ InstallOutcome MarketplaceService::install(const std::string& id, const Progress
     const Selection sel = selectVersion(entry, cfg_.appVersion, cfg_.platform);
     if (!sel.version) return fail("Este plugin não pode ser instalado: " + sel.reason + ".");
     const VersionEntry ver = *sel.version;
-    if (!hooks_.beginInstall) return fail("Instalação indisponível.");
+    if (entry.type != PackageType::Template && !hooks_.beginInstall) return fail("Instalação indisponível.");
 
     // Temp area: only the newest review is ever valid, so older downloads can go.
     std::error_code ec;
@@ -297,6 +297,7 @@ InstallOutcome MarketplaceService::install(const std::string& id, const Progress
         discard();
         return fail("O tamanho do arquivo baixado não confere com o catálogo. Instalação cancelada.");
     }
+    std::string actualSha;
     {
         std::ifstream f(dest, std::ios::binary);
         core::Sha256 h;
@@ -305,12 +306,27 @@ InstallOutcome MarketplaceService::install(const std::string& id, const Progress
             f.read(buf.data(), static_cast<std::streamsize>(buf.size()));
             if (f.gcount() > 0) h.update(buf.data(), static_cast<std::size_t>(f.gcount()));
         }
-        if (h.hexDigest() != ver.sha256) {
-            discard();
-            return fail("A assinatura SHA-256 do arquivo baixado não confere com a do catálogo. Instalação cancelada por segurança.");
-        }
+        actualSha = h.hexDigest();
+    }   // the stream is closed here: deleting an open file fails on Windows
+    if (actualSha != ver.sha256) {
+        discard();
+        return fail("A assinatura SHA-256 do arquivo baixado não confere com a do catálogo. Instalação cancelada por segurança.");
     }
 
+    if (entry.type == PackageType::Template) {   // data only: the scenes importer validates the content again
+        if (!hooks_.importTemplate) {
+            discard();
+            return fail("Importação de templates indisponível.");
+        }
+        report("review", 100);
+        const auto res = hooks_.importTemplate(destUtf8);
+        discard();
+        InstallOutcome o;
+        o.ok = res.first;
+        o.imported = res.first;
+        o.message = res.second;
+        return o;
+    }
     // ---- hand over to the existing review/consent flow (never bypassed) ----
     report("review", 100);
     const std::string review = hooks_.beginInstall(destUtf8);

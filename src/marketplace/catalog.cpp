@@ -132,9 +132,11 @@ bool parseEntry(const Value& v, CatalogEntry& e, std::string& err) {
     if (type == "theme") e.type = PackageType::Theme;
     else if (type == "source") e.type = PackageType::Source;
     else if (type == "effect") e.type = PackageType::Effect;
+    else if (type == "template") e.type = PackageType::Template;
     else { err = "type desconhecido"; return false; }
-    // theme <-> theme, video-source <-> source, audio-effect <-> effect; graphic/template ride on any package type.
+    // theme -> theme, template <-> template, video-source -> source, audio-effect -> effect; graphic: any plugin type.
     if ((e.category == Category::Theme && e.type != PackageType::Theme) ||
+        (e.category == Category::Template) != (e.type == PackageType::Template) ||
         (e.category == Category::VideoSource && e.type != PackageType::Source) ||
         (e.category == Category::AudioEffect && e.type != PackageType::Effect)) {
         err = "category e type incompatíveis";
@@ -173,6 +175,7 @@ bool parseEntry(const Value& v, CatalogEntry& e, std::string& err) {
         VersionEntry ve;
         if (!parseVersion(item, ve, err)) return false;
         if (!seen.insert(ve.version).second) { err = "versão duplicada"; return false; }
+        if (e.type == PackageType::Template && ve.size > kMaxTemplateBytes) { err = "template maior que 1 MB"; return false; }
         e.versions.push_back(std::move(ve));
     }
     return true;
@@ -278,6 +281,7 @@ const char* packageTypeName(PackageType t) {
         case PackageType::Theme: return "theme";
         case PackageType::Source: return "source";
         case PackageType::Effect: return "effect";
+        case PackageType::Template: return "template";
     }
     return "theme";
 }

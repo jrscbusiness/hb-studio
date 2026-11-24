@@ -15,9 +15,12 @@ inline constexpr int kSupportedSchemaVersion = 1;
 inline constexpr std::size_t kMaxCatalogBytes = 2 * 1024 * 1024;     // size of index.json
 inline constexpr std::size_t kMaxCatalogEntries = 500;
 inline constexpr std::uint64_t kMaxPackageBytes = 64ull * 1024 * 1024;   // same cap as the plugin package reader
+inline constexpr std::uint64_t kMaxTemplateBytes = 1024 * 1024;           // same cap as the template importer
 
 enum class Category { Theme, VideoSource, AudioEffect, Graphic, Template };
-enum class PackageType { Theme, Source, Effect };   // what the .hbplugin manifest "type" will say
+// Theme/Source/Effect: a .hbplugin package (its manifest "type"). Template: a plain `hb-templates` v1 JSON file
+// (docs/TEMPLATES.md): pure data, no code, imported by the scenes module, no consent dialog needed.
+enum class PackageType { Theme, Source, Effect, Template };
 
 struct VersionEntry {
     std::string version;
@@ -42,7 +45,7 @@ struct CatalogEntry {
     std::vector<VersionEntry> versions;
 
     // Risk model shared with the plugin system: themes never execute code, everything else is native code.
-    bool native() const { return type != PackageType::Theme; }
+    bool native() const { return type == PackageType::Source || type == PackageType::Effect; }
 };
 
 struct Catalog {

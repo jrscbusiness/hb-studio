@@ -4,6 +4,7 @@
 #include <map>
 #include <mutex>
 #include <string>
+#include <utility>
 
 #include "marketplace/catalog.hpp"
 #include "marketplace/downloader.hpp"
@@ -25,12 +26,15 @@ struct PluginHooks {
     std::function<std::map<std::string, std::string>()> installedVersions;   // id -> version
     std::function<std::string(const std::string& packagePath)> beginInstall;  // PluginService::beginInstall
     std::function<void(const std::string& token)> cancelInstall;              // PluginService::cancelInstall
+    // Template entries (pure data): import the verified hb-templates file; returns {ok, message pt-BR}.
+    std::function<std::pair<bool, std::string>(const std::string& jsonPath)> importTemplate;
 };
 
 struct InstallOutcome {
     bool ok = false;
     std::string message;        // pt-BR, when !ok (or a short status)
     std::string reviewJson;     // the plugin system's {"t":"plugin_review",...} (set when the review dialog should open)
+    bool imported = false;      // template entries: already imported, no review dialog
     std::string contextJson;    // {"t":"mkt_review",...}: marketplace facts for the dialog (verified, native)
 };
 

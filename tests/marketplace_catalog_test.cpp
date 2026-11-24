@@ -102,7 +102,8 @@ TEST(MarketplaceCatalog, RiskModelIsEnforced) {
     EXPECT_TRUE(parseCatalog(catalog(replaceOnce(themeEntry(), R"("category":"theme")", R"("category":"video-source")"))).catalog.entries.empty());
     EXPECT_TRUE(parseCatalog(catalog(replaceOnce(nativeEntry(), R"("type":"source")", R"("type":"effect")"))).catalog.entries.empty());
     EXPECT_FALSE(parseCatalog(catalog(replaceOnce(nativeEntry(), R"("category":"video-source")", R"("category":"graphic")"))).catalog.entries.empty());
-    EXPECT_FALSE(parseCatalog(catalog(replaceOnce(themeEntry(), R"("category":"theme")", R"("category":"template")"))).catalog.entries.empty());
+    EXPECT_TRUE(parseCatalog(catalog(replaceOnce(themeEntry(), R"("category":"theme")", R"("category":"template")"))).catalog.entries.empty());   // template needs type template
+    EXPECT_FALSE(parseCatalog(catalog(replaceOnce(themeEntry(), R"("category":"theme","type":"theme")", R"("category":"graphic","type":"theme")"))).catalog.entries.empty());
     EXPECT_TRUE(parseCatalog(catalog(replaceOnce(themeEntry(), R"("category":"theme")", R"("category":"jogo")"))).catalog.entries.empty());
 }
 
@@ -182,4 +183,18 @@ TEST(MarketplaceCatalog, Utf8Validation) {
     EXPECT_FALSE(isValidUtf8("\xC0\x80"));          // overlong
     EXPECT_FALSE(isValidUtf8("\xED\xA0\x80"));      // surrogate
     EXPECT_FALSE(isValidUtf8("\xF5\x80\x80\x80"));  // > U+10FFFF
+}
+
+TEST(MarketplaceCatalog, TemplateEntriesArePureDataAndSmall) {
+    const std::string t = replaceOnce(themeEntry("com.example.culto", kHash, 4000), R"("category":"theme","type":"theme")", R"("category":"template","type":"template")");
+    auto r = parseCatalog(catalog(t));
+    ASSERT_EQ(r.catalog.entries.size(), 1u);
+    EXPECT_EQ(r.catalog.entries[0].type, PackageType::Template);
+    EXPECT_FALSE(r.catalog.entries[0].native());
+    // a template may not claim native code, and may not exceed the importer's 1 MB cap
+    EXPECT_TRUE(parseCatalog(catalog(replaceOnce(t, R"("permissions":[])", R"("permissions":["native-code"])"))).catalog.entries.empty());
+    const std::string big = replaceOnce(themeEntry("com.example.culto", kHash, 2 * 1024 * 1024), R"("category":"theme","type":"theme")", R"("category":"template","type":"template")");
+    EXPECT_TRUE(parseCatalog(catalog(big)).catalog.entries.empty());
+    // category template must use type template, and type template only category template
+    EXPECT_TRUE(parseCatalog(catalog(replaceOnce(t, R"("category":"template")", R"("category":"graphic")"))).catalog.entries.empty());
 }

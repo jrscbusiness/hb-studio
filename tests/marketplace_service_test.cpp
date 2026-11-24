@@ -395,3 +395,42 @@ TEST(MarketplaceService, HostileCatalogJsonInTheCacheIsIgnored) {
     auto j = f.json(f.svc->catalogJson());
     EXPECT_TRUE(j.get("list")->a.empty());          // the poisoned entry was dropped by the same validator
 }
+
+TEST(MarketplaceService, TemplateEntryIsVerifiedThenImportedWithoutAReviewDialog) {
+    Fixture f;
+    const std::string tpl = R"({"format":"hb-templates","version":1,"templates":[]})";
+    const std::string sha = core::Sha256::hex(tpl);
+    const std::string e = replaceOnce(themeEntry("com.example.culto", sha, tpl.size(), "1.0.0", "https://example.com/culto.json"),
+                                      R"("category":"theme","type":"theme")", R"("category":"template","type":"template")");
+    f.http.catalogResponse = ok200(catalog(e));
+    f.http.files["https://example.com/culto.json"] = tpl;
+    std::string importedPath, importedBody;
+    f.svc.reset();
+    MarketplaceConfig c;
+    c.catalogUrl = "https://example.com/index.json";
+    c.cacheDirUtf8 = (f.root / "cache").string();
+    c.downloadDirUtf8 = (f.root / "dl").string();
+    c.appVersion = "0.3.0";
+    PluginHooks h;
+    h.importTemplate = [&](const std::string& p) {
+        importedPath = p;
+        std::ifstream in(fs::path(std::u8string(p.begin(), p.end())), std::ios::binary);
+        importedBody.assign(std::istreambuf_iterator<char>(in), {});
+        return std::make_pair(true, std::string("Template importado."));
+    };
+    f.svc = std::make_unique<MarketplaceService>(f.http, c, h);
+    f.svc->refresh();
+    auto out = f.svc->install("com.example.culto", {});
+    ASSERT_TRUE(out.ok) << out.message;
+    EXPECT_TRUE(out.imported);
+    EXPECT_TRUE(out.reviewJson.empty());
+    EXPECT_EQ(importedBody, tpl);                                  // the importer saw exactly the hash-pinned bytes
+    EXPECT_FALSE(fs::exists(fs::path(importedPath)));              // temp file removed afterwards
+
+    // a tampered template never reaches the importer
+    importedPath.clear();
+    f.http.files["https://example.com/culto.json"] = std::string(tpl.size(), 'x');
+    out = f.svc->install("com.example.culto", {});
+    EXPECT_FALSE(out.ok);
+    EXPECT_TRUE(importedPath.empty());
+}
