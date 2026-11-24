@@ -846,6 +846,82 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await tab('prod');
   // ---- /FEATURE ----
 
+  // ---- FEATURE: cloudbackup ---- CONFIG card "Backup em nuvem"
+  console.log('\n[cloud] Backup em nuvem (CONFIG)');
+  {
+    const cloudMsg = (over = {}) => Object.assign({
+      t: 'cloud_state', status: 'Armazenamento S3 configurado',
+      cfg: { enabled: true, provider: 's3', s3Endpoint: 'https://s3.us-east-005.backblazeb2.com', s3Region: 'us-east-005', s3Bucket: 'meu-bucket', s3Prefix: '',
+        s3Addressing: 'auto', partSizeMiB: 8, gClientId: '', gFolderName: 'HB Studio', gAccount: '', bandwidthMbps: 4, pauseWhileStreaming: true,
+        upProgram: true, upIsoVideo: false, upIsoAudio: false, deleteAfterUpload: false, watchFolder: true, stableSeconds: 30 },
+      secrets: { s3Access: '••••ETID', s3Secret: '••••••••', gClientSecret: '', gConnected: false },
+      test: { state: 'idle', msg: '' }, auth: { state: 'idle', msg: '' },
+      totals: { queued: 1, uploading: 1, done: 1, error: 1, bytesTotal: 4000, bytesDone: 1500, bps: 250000, paused: false, pauseReason: '' },
+      jobs: [
+        { id: 'u1', name: 'HBStudio_a.mp4', kind: 'program', state: 'uploading', size: 1000, done: 500, attempts: 0, error: '', note: '' },
+        { id: 'u2', name: 'HBStudio_b.mp4', kind: 'program', state: 'error', size: 1000, done: 0, attempts: 3, error: 'Cota/limite de armazenamento do provedor atingido', note: '' },
+        { id: 'u3', name: 'iso1.wav', kind: 'iso-audio', state: 'done', size: 1000, done: 1000, attempts: 0, error: '', note: '' },
+      ] }, over);
+    await page.evaluate(m => window.__hbMessage(m), cloudMsg());
+    await tab('cfg');
+    await page.waitForTimeout(100);
+    ok(await page.locator('#cb-card').isVisible(), 'NUVEM: o cartão "Backup em nuvem" aparece em CONFIG');
+    ok((await page.textContent('#cb-badge')) === 'ENVIANDO', 'NUVEM: selo mostra ENVIANDO');
+    ok((await page.inputValue('#cb-bucket')) === 'meu-bucket' && (await page.inputValue('#cb-bw')) === '4', 'NUVEM: campos preenchidos com a configuração do host');
+    ok((await page.inputValue('#cb-akey')) === '' && (await page.inputValue('#cb-skey')) === '', 'NUVEM: campos de credencial NUNCA vêm preenchidos');
+    ok((await page.getAttribute('#cb-akey', 'placeholder')).includes('••••ETID'), 'NUVEM: dica mascarada da chave aparece como placeholder');
+    ok((await page.locator('.cb-job').count()) === 3, 'NUVEM: lista de status mostra os 3 envios');
+    ok((await page.locator('.cb-job.error .e').textContent()).includes('Cota'), 'NUVEM: erro de cota aparece de forma clara');
+    const w = await page.locator('.cb-job.uploading .bar i').evaluate(el => el.style.width);
+    ok(w === '50%', 'NUVEM: barra de progresso do envio em andamento (50%)');
+    ok((await page.textContent('#cb-sum')).includes('1 na fila') && (await page.textContent('#cb-sum')).includes('/s'), 'NUVEM: resumo global com velocidade');
+
+    // The list must survive the 15 Hz-style refresh without losing clickable buttons.
+    await page.evaluate(m => { for (let i = 0; i < 5; i++) window.__hbMessage(m); }, cloudMsg());
+    await clearSent();
+    await humanClick('.cb-job.error button[data-a=retry]');
+    ok((await sent()).includes('cloudretry|u2'), 'NUVEM: REPETIR envia cloudretry|id');
+    await clearSent();
+    await humanClick('.cb-job.uploading button[data-a=cancel]');
+    ok((await sent()).includes('cloudcancel|u1'), 'NUVEM: CANCELAR envia cloudcancel|id');
+    await clearSent();
+    await page.click('#cb-retryall');
+    ok((await sent()).includes('cloudretry|all'), 'NUVEM: TENTAR TODOS envia cloudretry|all');
+
+    await clearSent();
+    await page.fill('#cb-skey', 'SEGREDO-NOVO-123');
+    await page.fill('#cb-bw', '2.5');
+    await page.evaluate(m => window.__hbMessage(m), cloudMsg());   // a host refresh must not wipe what the user is typing
+    ok((await page.inputValue('#cb-skey')) === 'SEGREDO-NOVO-123' && (await page.inputValue('#cb-bw')) === '2.5', 'NUVEM: atualização do host não apaga a edição em andamento');
+    await page.click('#cb-test');
+    const msgs = await sent();
+    const saveMsg = msgs.find(m => m.startsWith('cloudsave|'));
+    const payload = saveMsg ? JSON.parse(saveMsg.slice('cloudsave|'.length)) : {};
+    ok(payload.s3SecretKey === 'SEGREDO-NOVO-123' && payload.s3Bucket === 'meu-bucket' && payload.bandwidthMbps === 2.5, 'NUVEM: TESTAR CONEXÃO salva o formulário (segredo só se digitado)');
+    ok(!('s3AccessKey' in payload), 'NUVEM: chave de acesso em branco não é enviada (o host mantém a guardada)');
+    ok(msgs.indexOf('cloudtest') > msgs.indexOf(saveMsg), 'NUVEM: cloudtest vem depois do cloudsave');
+    ok((await page.inputValue('#cb-skey')) === '', 'NUVEM: o campo secreto é limpo depois de enviado');
+
+    await clearSent();
+    await page.click('#cb-prov button[data-p=gdrive]');
+    ok(await page.locator('#cb-gd').isVisible() && !(await page.locator('#cb-s3').isVisible()), 'NUVEM: Google Drive mostra os campos próprios');
+    await page.fill('#cb-gid', 'cid.apps.googleusercontent.com');
+    await page.click('#cb-glogin');
+    const gm = await sent();
+    ok(gm.includes('cloudgoogle|login') && JSON.parse(gm.find(m => m.startsWith('cloudsave|')).slice(10)).provider === 'gdrive', 'NUVEM: CONECTAR GOOGLE salva e inicia o login');
+
+    await page.evaluate(m => window.__hbMessage(m), cloudMsg({ cfg: { ...cloudMsg().cfg, enabled: false }, totals: { queued: 0, uploading: 0, done: 0, error: 0, bytesTotal: 0, bytesDone: 0, bps: 0, paused: false, pauseReason: '' }, jobs: [] }));
+    await page.waitForTimeout(50);
+    ok((await page.textContent('#cb-sum')) === 'Nada na fila.', 'NUVEM: fila vazia mostra "Nada na fila."');
+    for (const th of ['light', 'dark', 'gray']) {
+      await page.evaluate(x => document.documentElement.setAttribute('data-theme', x), th);
+      const bg = await page.locator('#cb-card').evaluate(el => getComputedStyle(el).backgroundColor);
+      ok(bg !== 'rgba(0, 0, 0, 0)', `NUVEM: cartão tem fundo próprio no tema ${th}`);
+    }
+    await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+  }
+  // ---- /FEATURE: cloudbackup ----
+
   console.log('\n[6] Layout em janelas diferentes');
   // The PRODUÇÃO stage (monitors + switcher + 16-camera strip) uses a 3-row CSS grid where the
   // monitors and inputs rows flex to fill whatever's left after the switcher card's own natural

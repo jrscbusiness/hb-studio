@@ -1062,6 +1062,54 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         </div>
       </div>
       <!-- /FEATURE -->
+      <!-- FEATURE: cloudbackup -->
+      <div class="card" id="cb-card"><h3><span class="cap">Backup em nuvem</span></h3>
+        <div class="body">
+          <div class="row" style="padding-top:0"><span class="k">Estado</span><span class="v"><span class="badge" id="cb-badge">DESLIGADO</span></span></div>
+          <label class="chk" style="margin:8px 0"><input type="checkbox" id="cb-enabled"><span class="box"></span>Enviar as gravações para a nuvem automaticamente (chave geral)</label>
+          <div class="dur"><span class="cap" style="width:62px">Destino</span>
+            <div class="seg" id="cb-prov"><button data-p="s3" class="on">S3 / R2 / B2</button><button data-p="gdrive">GOOGLE DRIVE</button></div>
+          </div>
+          <div id="cb-s3" class="cb-grid" style="margin-top:10px">
+            <label class="cb-f cb-w2"><span class="cap">Endpoint</span><input type="text" id="cb-endpoint" maxlength="200" placeholder="https://s3.us-east-005.backblazeb2.com"></label>
+            <label class="cb-f"><span class="cap">Região</span><input type="text" id="cb-region" maxlength="40" placeholder="us-east-1"></label>
+            <label class="cb-f"><span class="cap">Bucket</span><input type="text" id="cb-bucket" maxlength="63"></label>
+            <label class="cb-f"><span class="cap">Pasta (prefixo)</span><input type="text" id="cb-prefix" maxlength="120" placeholder="igreja/cultos"></label>
+            <label class="cb-f"><span class="cap">Endereçamento</span><select id="cb-addr"><option value="auto">Automático</option><option value="path">Path-style (MinIO, R2, B2)</option><option value="virtual">Virtual-host (AWS)</option></select></label>
+            <label class="cb-f"><span class="cap">Chave de acesso (Access Key ID)</span><input type="password" id="cb-akey" maxlength="200" autocomplete="off"></label>
+            <label class="cb-f"><span class="cap">Chave secreta</span><input type="password" id="cb-skey" maxlength="200" autocomplete="off"></label>
+          </div>
+          <div id="cb-gd" class="cb-grid" style="margin-top:10px;display:none">
+            <label class="cb-f cb-w2"><span class="cap">Client ID (seu projeto no Google Cloud)</span><input type="text" id="cb-gid" maxlength="200" placeholder="123-abc.apps.googleusercontent.com"></label>
+            <label class="cb-f"><span class="cap">Client secret</span><input type="password" id="cb-gsec" maxlength="200" autocomplete="off"></label>
+            <label class="cb-f"><span class="cap">Pasta no Drive</span><input type="text" id="cb-gfolder" maxlength="64" placeholder="HB Studio"></label>
+            <div class="cb-w2" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sm" id="cb-glogin">CONECTAR CONTA GOOGLE</button><span class="note" id="cb-gstate"></span></div>
+          </div>
+          <div class="cb-grid" style="margin-top:12px">
+            <label class="cb-f"><span class="cap">Limite de upload (Mbps, 0 = sem limite)</span><input type="number" id="cb-bw" min="0" max="10000" step="0.5" value="0"></label>
+            <div class="cb-f"><span class="cap">O que enviar</span>
+              <label class="chk"><input type="checkbox" id="cb-up-prog" checked><span class="box"></span>Gravação do PROGRAM</label>
+              <label class="chk"><input type="checkbox" id="cb-up-isov"><span class="box"></span>Trilhas ISO de vídeo</label>
+              <label class="chk"><input type="checkbox" id="cb-up-isoa"><span class="box"></span>Trilhas ISO de áudio</label>
+            </div>
+          </div>
+          <label class="chk" style="margin-top:10px"><input type="checkbox" id="cb-pause" checked><span class="box"></span>Pausar durante a transmissão (recomendado)</label>
+          <label class="chk" style="margin-top:6px"><input type="checkbox" id="cb-watch" checked><span class="box"></span>Também detectar gravações novas pela pasta (reserva)</label>
+          <label class="chk" style="margin-top:6px"><input type="checkbox" id="cb-del"><span class="box"></span>Apagar o arquivo local depois de confirmar o envio (cuidado)</label>
+          <div class="row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px;gap:8px;flex-wrap:wrap;justify-content:flex-start">
+            <button class="btn primary sm" id="cb-save" style="flex:none">SALVAR</button>
+            <button class="btn sm" id="cb-test">TESTAR CONEXÃO</button>
+            <button class="btn sm" id="cb-clear">REMOVER CREDENCIAIS</button>
+          </div>
+          <p class="note" id="cb-msg" style="margin-top:8px"></p>
+          <div class="row" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"><span class="cap">Fila de envio</span>
+            <span class="v"><button class="btn sm" id="cb-retryall">TENTAR TODOS</button> <button class="btn sm" id="cb-clearfin">LIMPAR CONCLUÍDOS</button></span></div>
+          <div class="cb-bar"><i id="cb-gbar"></i></div>
+          <p class="note" id="cb-sum">Nada na fila.</p>
+          <div id="cb-jobs" class="cb-jobs"></div>
+        </div>
+      </div>
+      <!-- /FEATURE: cloudbackup -->
       <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
         <div class="body">
           <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
@@ -1280,6 +1328,24 @@ body.cur{cursor:default}
 #bar{position:absolute;left:0;bottom:0;height:5px;width:100%;background:rgba(80,160,255,.9);transform-origin:0 50%;transform:scaleX(0)}
 #cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font:700 40vh/1 "Cascadia Mono",Consolas,monospace;color:#fff;background:rgba(0,0,0,.6)}
 #wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 24px "Segoe UI",Arial,sans-serif;opacity:.6}
+/* FEATURE: cloudbackup */
+.cb-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.cb-w2{grid-column:1/-1}
+.cb-f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cb-f input[type=text],.cb-f input[type=password],.cb-f input[type=number],.cb-f select{height:32px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);min-width:0}
+.cb-bar{height:6px;border-radius:4px;background:var(--mist);overflow:hidden;margin:8px 0 4px}
+.cb-bar i{display:block;height:100%;width:0;background:var(--blue)}
+.cb-jobs{display:flex;flex-direction:column;gap:6px;max-height:210px;overflow:auto}
+.cb-job{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--surface);font-size:12px}
+.cb-job .t{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.cb-job .t b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cb-job .e{color:var(--ink-2);margin-top:3px;word-break:break-word}
+.cb-job.error .e{color:var(--red,#d93025)}
+.cb-job .bar{height:5px;border-radius:4px;background:var(--mist);overflow:hidden;margin:5px 0 0}
+.cb-job .bar i{display:block;height:100%;width:0;background:var(--blue)}
+.cb-job.done .bar i{background:var(--green,#1e9e5a)}
+.cb-job button{height:24px;font-size:10px;padding:0 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);flex:none}
+/* /FEATURE: cloudbackup */
 </style></head>
 <body>
 <div id="stage"><div id="txt"></div></div>
@@ -3040,6 +3106,102 @@ body.cur{cursor:default}
   }
   // ---------- /FEATURE: marketplace ----------
 
+  // ---- FEATURE: cloudbackup ---- CONFIG card "Backup em nuvem" (credentials are write-only: the host only sends masked hints)
+  let cbSt = null, cbDirty = false, cbProv = 's3', cbSig = '';
+  const cbFmt = n => n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  const cbKind = { program: 'PROGRAM', 'iso-video': 'ISO VÍDEO', 'iso-audio': 'ISO ÁUDIO' };
+  const cbStateTxt = { queued: 'Na fila', uploading: 'Enviando', done: 'Concluído', error: 'Erro' };
+  function cbSetProv(p) {
+    cbProv = p;
+    $$('#cb-prov button').forEach(b => b.classList.toggle('on', b.dataset.p === p));
+    $('#cb-s3').style.display = p === 's3' ? '' : 'none';
+    $('#cb-gd').style.display = p === 'gdrive' ? '' : 'none';
+  }
+  function cbForm() {
+    const o = {
+      enabled: $('#cb-enabled').checked, provider: cbProv, s3Endpoint: $('#cb-endpoint').value.trim(), s3Region: $('#cb-region').value.trim(),
+      s3Bucket: $('#cb-bucket').value.trim(), s3Prefix: $('#cb-prefix').value.trim(), s3Addressing: $('#cb-addr').value,
+      gClientId: $('#cb-gid').value.trim(), gFolderName: $('#cb-gfolder').value.trim(),
+      bandwidthMbps: Math.max(0, parseFloat($('#cb-bw').value) || 0), pauseWhileStreaming: $('#cb-pause').checked,
+      upProgram: $('#cb-up-prog').checked, upIsoVideo: $('#cb-up-isov').checked, upIsoAudio: $('#cb-up-isoa').checked,
+      deleteAfterUpload: $('#cb-del').checked, watchFolder: $('#cb-watch').checked,
+    };
+    // Secrets are only included when typed; blank means "keep the stored one".
+    if ($('#cb-akey').value) o.s3AccessKey = $('#cb-akey').value;
+    if ($('#cb-skey').value) o.s3SecretKey = $('#cb-skey').value;
+    if ($('#cb-gsec').value) o.gClientSecret = $('#cb-gsec').value;
+    return o;
+  }
+  function cbSave() { send('cloudsave', JSON.stringify(cbForm())); ['#cb-akey', '#cb-skey', '#cb-gsec'].forEach(s => { $(s).value = ''; }); cbDirty = false; }
+  function cbRender(d) {
+    cbSt = d;
+    const c = d.cfg || {}, sec = d.secrets || {}, t = d.totals || {};
+    if (!cbDirty) {
+      $('#cb-enabled').checked = !!c.enabled; cbSetProv(c.provider || 's3');
+      $('#cb-endpoint').value = c.s3Endpoint || ''; $('#cb-region').value = c.s3Region || ''; $('#cb-bucket').value = c.s3Bucket || '';
+      $('#cb-prefix').value = c.s3Prefix || ''; $('#cb-addr').value = c.s3Addressing || 'auto';
+      $('#cb-gid').value = c.gClientId || ''; $('#cb-gfolder').value = c.gFolderName || '';
+      $('#cb-bw').value = c.bandwidthMbps || 0; $('#cb-pause').checked = !!c.pauseWhileStreaming;
+      $('#cb-up-prog').checked = !!c.upProgram; $('#cb-up-isov').checked = !!c.upIsoVideo; $('#cb-up-isoa').checked = !!c.upIsoAudio;
+      $('#cb-del').checked = !!c.deleteAfterUpload; $('#cb-watch').checked = !!c.watchFolder;
+    }
+    $('#cb-akey').placeholder = sec.s3Access ? sec.s3Access + ' (guardada; deixe em branco para manter)' : 'não definida';
+    $('#cb-skey').placeholder = sec.s3Secret ? sec.s3Secret + ' (guardada; deixe em branco para manter)' : 'não definida';
+    $('#cb-gsec').placeholder = sec.gClientSecret ? sec.gClientSecret + ' (guardado)' : 'opcional / não definido';
+    const au = d.auth || {};
+    $('#cb-gstate').textContent = au.state === 'waiting' || au.state === 'error' ? (au.msg || '') : (sec.gConnected ? 'Conta conectada' + (c.gAccount ? ' (' + c.gAccount + ')' : '') : 'Conta não conectada');
+    const badge = $('#cb-badge');
+    badge.textContent = !c.enabled ? 'DESLIGADO' : t.paused ? 'PAUSADO' : (t.uploading ? 'ENVIANDO' : 'ATIVO');
+    const te = d.test || {};
+    $('#cb-msg').textContent = te.state === 'running' ? 'Testando a conexão…' : te.msg ? (te.state === 'ok' ? '✓ ' : '✗ ') + te.msg : (d.status || '');
+    const total = t.bytesTotal || 0;
+    $('#cb-gbar').style.width = (total ? Math.min(100, 100 * (t.bytesDone || 0) / total) : 0) + '%';
+    const parts = [];
+    if (t.uploading) parts.push(t.uploading + ' enviando'); if (t.queued) parts.push(t.queued + ' na fila');
+    if (t.done) parts.push(t.done + ' concluído(s)'); if (t.error) parts.push(t.error + ' com erro');
+    let sum = parts.length ? parts.join(' · ') : 'Nada na fila.';
+    if (t.bps > 0) sum += ' · ' + cbFmt(t.bps) + '/s';
+    if (t.paused && t.pauseReason) sum += ' · ' + t.pauseReason;
+    $('#cb-sum').textContent = sum;
+    const jobs = d.jobs || [];
+    const sig = jobs.map(j => j.id + j.state + j.error + j.note + j.attempts).join('|');
+    const box = $('#cb-jobs');
+    if (sig !== cbSig) {   // rebuild only when something other than progress changed (keeps buttons clickable at 4 Hz)
+      cbSig = sig; box.innerHTML = '';
+      jobs.forEach(j => {
+        const row = document.createElement('div'); row.className = 'cb-job ' + j.state; row.dataset.id = j.id;
+        const top = document.createElement('div'); top.className = 't';
+        const nm = document.createElement('b'); nm.textContent = j.name; nm.title = j.name;
+        const bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = (cbKind[j.kind] || j.kind) + ' · ' + (cbStateTxt[j.state] || j.state);
+        const act = document.createElement('span'); act.style.display = 'flex'; act.style.gap = '6px';
+        if (j.state === 'error') { const b = document.createElement('button'); b.textContent = 'REPETIR'; b.dataset.a = 'retry'; act.appendChild(b); }
+        if (j.state !== 'done') { const b = document.createElement('button'); b.textContent = 'CANCELAR'; b.dataset.a = 'cancel'; act.appendChild(b); }
+        top.append(nm, bd, act); row.appendChild(top);
+        const msg = j.error || j.note;
+        if (msg) { const e = document.createElement('div'); e.className = 'e'; e.textContent = (j.state === 'queued' && j.attempts ? 'Nova tentativa em breve: ' : '') + msg; row.appendChild(e); }
+        const bar = document.createElement('div'); bar.className = 'bar'; bar.appendChild(document.createElement('i')); row.appendChild(bar);
+        box.appendChild(row);
+      });
+    }
+    jobs.forEach(j => {
+      const row = box.querySelector('[data-id="' + j.id + '"] .bar i');
+      if (row) row.style.width = (j.state === 'done' ? 100 : j.size ? Math.min(100, 100 * j.done / j.size) : 0) + '%';
+    });
+  }
+  $('#cb-jobs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-a]'); if (!b) return;
+    const id = b.closest('.cb-job').dataset.id;
+    send(b.dataset.a === 'retry' ? 'cloudretry' : 'cloudcancel', id);
+  });
+  $$('#cb-prov button').forEach(b => { b.onclick = () => { cbDirty = true; cbSetProv(b.dataset.p); }; });
+  $$('#cb-card input, #cb-card select').forEach(el => el.addEventListener('input', () => { cbDirty = true; }));
+  $('#cb-save').onclick = cbSave;
+  $('#cb-test').onclick = () => { cbSave(); send('cloudtest'); };
+  $('#cb-glogin').onclick = () => { cbSave(); send('cloudgoogle', 'login'); };
+  $('#cb-clear').onclick = () => { if (confirm('Remover as credenciais guardadas deste destino?')) send('cloudclear', cbProv === 'gdrive' ? 'gdrive' : 's3'); };
+  $('#cb-retryall').onclick = () => send('cloudretry', 'all');
+  $('#cb-clearfin').onclick = () => send('cloudclearfinished');
+  // ---- /FEATURE: cloudbackup ----
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); if (mkAsked) send('mktlist'); } else if (d.t === 'plugin_review') { showReview(d); mktAfterReview(d); } else if (typeof d.t === 'string' && d.t.startsWith('mkt')) mktMsg(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
@@ -3052,6 +3214,7 @@ body.cur{cursor:default}
     else if (d.t === 'overlay_state') ovState(d);   // FEATURE: overlays
     else if (typeof d.t === 'string' && d.t.startsWith('ai_')) aiMsg(d);   // FEATURE: ai
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
+    else if (d.t === 'cloud_state') cbRender(d);   // FEATURE: cloudbackup
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
   };
