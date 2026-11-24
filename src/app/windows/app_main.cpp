@@ -43,6 +43,10 @@
 #include "ndi/ndi.hpp"
 #include "scene/scene_service.hpp"   // FEATURE: scenes
 #include "marketplace/service.hpp"   // FEATURE: marketplace
+// ---- FEATURE: cloudbackup ----
+#include "cloud/cloud_platform.hpp"
+#include "cloud/cloud_service.hpp"
+// ---- /FEATURE: cloudbackup ----
 // ---- FEATURE: chroma ----
 #include "chroma/service.hpp"
 #include "chroma/windows/winhttp_client.hpp"
@@ -400,6 +404,37 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         j += "]}";
         host.postQueued("xmit_status", j);
     };
+    // ---- FEATURE: cloudbackup ---- automatic recording backup to S3-compatible storage / Google Drive.
+    // Uploads run on one low-priority background thread, never while a live stream runs (default),
+    // credentials are DPAPI-protected (cloud_secrets.json) and never sent to the UI.
+    std::shared_ptr<hb::cloud::ISecretStore> cloudSecrets;
+    if (!mediaDir.empty()) cloudSecrets = hb::cloud::makePlatformSecretStore(mediaDir + "\\cloud_secrets.json");
+    if (!cloudSecrets) cloudSecrets = std::make_shared<hb::cloud::MemorySecretStore>();
+    hb::cloud::CloudServiceDeps cloudDeps;
+    cloudDeps.dataDir = mediaDir;
+    cloudDeps.http = hb::cloud::makePlatformHttp();
+    cloudDeps.secrets = cloudSecrets;
+    cloudDeps.fs = hb::cloud::makePlatformFileSystem();
+    cloudDeps.bus = &engine.bus();
+    cloudDeps.recordingsFolder = [&] { return media.settings().folder; };
+    cloudDeps.streamingActive = [&] {
+        std::lock_guard lock(sendersMutex);
+        for (const auto& kv : senders)
+            if (kv.second->status().running) return true;
+        return false;
+    };
+    cloudDeps.openBrowser = [](const std::string& url) { ShellExecuteW(nullptr, L"open", win::widen(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL); };
+    cloudDeps.threadInit = [] { hb::cloud::setBackgroundThreadPriority(); };
+    hb::cloud::CloudService cloudSvc(cloudDeps);
+    cloudSvc.start();
+    std::mutex cloudMutex;
+    std::string cloudLast;
+    auto postCloud = [&](bool force) {
+        const std::string j = cloudSvc.stateJson();
+        std::lock_guard lock(cloudMutex);
+        if (force || j != cloudLast) { cloudLast = j; host.postQueued("cloud_state", j); }
+    };
+    // ---- /FEATURE: cloudbackup ----
     std::atomic<bool> scanning{false};
     // Declared AFTER everything its jobs touch: destroyed first, so queued jobs finish while those still exist.
     win::TaskQueue tasks;                                   // slow jobs: enumeration, closing capture graphs
@@ -688,6 +723,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
         if (c0 == "tp") { tpHandle(msg); return; }   // FEATURE: teleprompter
+        // ---- FEATURE: cloudbackup ----
+        if (c0.rfind("cloud", 0) == 0) {
+            const std::string t = cloudSvc.handle(split(msg, c0 == "cloudsave" ? 2 : 3));
+            if (!t.empty()) toast(t);
+            postCloud(true);
+            return;
+        }
+        // ---- /FEATURE: cloudbackup ----
         const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
                                      (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : (c0 == "xmitsave" ? 2 : 8)))));
         auto a = split(msg, maxParts);
@@ -757,6 +800,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postOutFmt();
             postScenes();   // FEATURE: scenes
             postChroma();   // FEATURE: chroma
+            postCloud(true);   // FEATURE: cloudbackup
             host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "system")) {
@@ -1328,6 +1372,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
                     if (tick % 4 == 0) postXmitStatus();
                     if (tick % 4 == 2) { chromaSvc.tick(); postChroma(); }   // FEATURE: chroma
+                    if (tick % 4 == 3) postCloud(false);   // FEATURE: cloudbackup
                     if (tick % 4 == 1) { std::lock_guard lk(overlayMutex); postOverlayState(false); }   // FEATURE: overlays (live clocks)
                 }
                 // ---- FEATURE: teleprompter ---- periodic re-sync / transitions (cheap: a few msgs per second)
@@ -1401,6 +1446,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         for (auto& kv : doomed) kv.second->stop();   // joins each sender's thread; while program_/audio_ still exist
     }
     media.stop();     // finishes an ongoing recording (valid file) and saves the mixer settings
+    cloudSvc.stop();  // FEATURE: cloudbackup - after media.stop() so the last file is journaled for the next launch
     win::trace("media stopped");
     vcam.shutdown();
     win::trace("vcam shut down");
