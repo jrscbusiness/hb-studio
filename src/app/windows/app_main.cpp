@@ -69,6 +69,13 @@
 #include "overlay/windows/gdi_glyphs.hpp"
 // ---- /FEATURE ----
 #include "chat/service.hpp"   // FEATURE: chat
+// ---- FEATURE: captions ----
+#include "captions/controller.hpp"
+#include "captions/windows/winhttp_client.hpp"
+#ifdef HB_HAVE_WHISPER
+#include "captions/whisper_recognizer.hpp"
+#endif
+// ---- /FEATURE ----
 
 using namespace hb;
 
@@ -713,6 +720,27 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (fx.state) tpBroadcast("tp", tpc.stateJson());
     };
     // ---- /FEATURE ----
+    // ---- FEATURE: captions ---- Legendas ao vivo: local whisper.cpp (or optional cloud) -> "caption.text" on the bus
+    // (docs/LEGENDAS.md). Taps the Program audio through a bounded drop-oldest queue on its own worker thread.
+    hb::captions::win::WinHttpClient captionHttp;
+    hb::captions::ControllerDeps captionDeps;
+    captionDeps.bus = &engine.bus();
+    captionDeps.settingsPath = mediaDir.empty() ? std::string() : mediaDir + "\\captions.json";
+    captionDeps.modelsDir = mediaDir.empty() ? std::string() : mediaDir + "\\models";
+    captionDeps.srtFolder = [&] { const std::string f = media.settings().folder; return f.empty() ? videosDir : f; };
+    captionDeps.downloader = &captionHttp;
+    captionDeps.http = &captionHttp;
+    captionDeps.addProgramConsumer = [&](std::function<void(const float*, std::size_t)> c) {
+        return media.audio().addProgramConsumer(std::move(c));
+    };
+    captionDeps.removeProgramConsumer = [&](std::uint64_t id) { media.audio().removeProgramConsumer(id); };
+#ifdef HB_HAVE_WHISPER
+    captionDeps.makeWhisper = [](const std::string& path) -> std::unique_ptr<hb::captions::ISpeechRecognizer> {
+        return std::make_unique<hb::captions::WhisperRecognizer>(path);
+    };
+#endif
+    hb::captions::CaptionController captions(std::move(captionDeps));
+    // ---- /FEATURE ----
     // ---- FEATURE: chroma ---- per-camera background removal (classic chroma key + local AI)
     chroma::WinHttpClient chromaHttp;
     chroma::ChromaService::Deps chromaDeps;
@@ -737,6 +765,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
         if (c0 == "tp") { tpHandle(msg); return; }   // FEATURE: teleprompter
+        if (c0 == "cap") { captions.handleCommand(msg); host.postQueued("cap", captions.pollJson(true)); return; }   // FEATURE: captions
         const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
                                      (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : (c0 == "xmitsave" ? 2 : 8)))));
         auto a = split(msg, maxParts);
@@ -810,6 +839,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postOutFmt();
             postScenes();   // FEATURE: scenes
             postChroma();   // FEATURE: chroma
+            host.postQueued("cap", captions.pollJson(true));   // FEATURE: captions
             host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
         else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "system")) {
@@ -1389,6 +1419,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
                     if (tick % 4 == 0) postXmitStatus();
                     if (tick % 4 == 2) { chromaSvc.tick(); postChroma(); }   // FEATURE: chroma
+                    if (tick % 4 == 3) { const std::string cj = captions.pollJson(false); if (!cj.empty()) host.postQueued("cap", cj); }   // FEATURE: captions
                     if (tick % 4 == 1) { std::lock_guard lk(overlayMutex); postOverlayState(false); }   // FEATURE: overlays (live clocks)
                 }
                 // ---- FEATURE: teleprompter ---- periodic re-sync / transitions (cheap: a few msgs per second)
@@ -1462,6 +1493,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         { std::lock_guard lock(sendersMutex); doomed = std::move(senders); }
         for (auto& kv : doomed) kv.second->stop();   // joins each sender's thread; while program_/audio_ still exist
     }
+    captions.shutdown();   // FEATURE: captions - stops the worker + removes the audio tap while the engine still exists
     media.stop();     // finishes an ongoing recording (valid file) and saves the mixer settings
     win::trace("media stopped");
     vcam.shutdown();

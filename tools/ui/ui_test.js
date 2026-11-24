@@ -889,6 +889,90 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await tab('prod');
   // ---- /FEATURE ----
 
+  // ---- FEATURE: captions ----
+  console.log('\n[5g] CONFIG: Legendas ao vivo');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await tab('cfg');
+  const CAP = (over = {}) => Object.assign({
+    t: 'cap', on: false, state: 'stopped', engine: '', latencyMs: 0, decodeMs: 0, droppedMs: 0, finals: 0, error: '', msg: '',
+    partial: '', lines: [], srtFile: '', whisper: true,
+    cfg: { engine: 'whisper', model: 'leve', language: 'pt', profanity: false, saveSrt: true, maxChars: 42, maxLines: 2, cloudUrl: 'https://api.openai.com/v1', cloudModel: 'whisper-1', hasKey: false },
+    models: [{ id: 'leve', label: 'Modelo leve (base, quantizado)', note: 'Mais rápido.', sizeMb: 59, ramMb: 300, installed: true },
+             { id: 'medio', label: 'Modelo médio (small, quantizado)', note: 'Mais preciso.', sizeMb: 190, ramMb: 700, installed: false }],
+    dl: { active: false, id: '', pct: 0, error: '' } }, over);
+  const capMsg = m => page.evaluate(x => window.__hbMessage(x), m);
+  await capMsg(CAP());
+  ok(await page.locator('#cap-card').isVisible(), 'Legendas: o cartão aparece na aba CONFIG (sem nova aba no cabeçalho)');
+  ok((await page.locator('#tabs button').count()) === (await page.locator('.view').count()), 'Legendas: nenhuma aba nova foi adicionada');
+  ok((await page.textContent('#cap-toggle')) === 'LIGAR' && (await page.textContent('#cap-status')) === 'Desligado', 'Legendas: começa desligado');
+  ok((await page.locator('#cap-lang option').count()) === 7 && (await page.inputValue('#cap-lang')) === 'pt', 'Legendas: 7 idiomas, português é o padrão');
+  await clearSent();
+  await humanClick('#cap-toggle');
+  ok((await sent()).includes('cap|on'), 'Legendas: LIGAR envia cap|on');
+  await capMsg(CAP({ on: true, state: 'loading' }));
+  ok((await page.textContent('#cap-status')) === 'Carregando modelo…' && (await page.textContent('#cap-toggle')) === 'DESLIGAR', 'Legendas: mostra "carregando modelo" e o botão vira DESLIGAR');
+  await clearSent();
+  await humanClick('#cap-toggle');
+  ok((await sent()).includes('cap|off'), 'Legendas: DESLIGAR envia cap|off');
+  await capMsg(CAP({ on: true, state: 'listening', latencyMs: 1830, lines: ['Bom dia a todos.', '<b>x</b>'], partial: 'estamos ao vivo' }));
+  ok((await page.textContent('#cap-status')) === 'Ouvindo' && (await page.textContent('#cap-lat')) === '1830 ms', 'Legendas: mostra "ouvindo" e a latência em ms');
+  ok((await page.locator('#cap-box div').count()) === 3 && (await page.locator('#cap-box .cp').textContent()) === 'estamos ao vivo', 'Legendas: transcrição ao vivo mostra finais e a hipótese parcial');
+  ok((await page.locator('#cap-box b').count()) === 0, 'Legendas: o texto da transcrição é escapado (sem HTML injetado)');
+  await capMsg(CAP({ on: true, state: 'error', error: 'modelo ausente' }));
+  ok((await page.textContent('#cap-status')).includes('modelo ausente'), 'Legendas: erro aparece no status');
+  await capMsg(CAP());
+
+  await clearSent();
+  await page.selectOption('#cap-lang', 'en');
+  ok((await sent()).includes('cap|set|language|en'), 'Legendas: trocar idioma envia cap|set|language|en');
+  await page.click('#cap-card label.chk:has(#cap-prof)');
+  ok((await sent()).includes('cap|set|profanity|1'), 'Legendas: filtro de palavrões envia cap|set|profanity|1');
+  await page.click('#cap-card label.chk:has(#cap-srt)');
+  ok((await sent()).includes('cap|set|saveSrt|0'), 'Legendas: alternar o .srt envia cap|set|saveSrt|0');
+
+  // The page is refreshed ~4x/s by the host: a slow human click on a model row / download button must still work.
+  await page.evaluate(c => { window.__capFeed = setInterval(() => window.__hbMessage(c), 250); }, CAP());
+  await clearSent();
+  await humanClick('#cap-models .fmt', 1);
+  ok((await sent()).includes('cap|set|model|medio'), 'Legendas: clicar num modelo envia cap|set|model|id (mesmo com a tela atualizando)');
+  await clearSent();
+  await humanClick('#cap-models .fmt:nth-child(2) button');
+  const dlSent = await sent();
+  ok(dlSent.includes('cap|dl|medio') && !dlSent.includes('cap|set|model|medio'), 'Legendas: BAIXAR envia cap|dl|id sem trocar o modelo selecionado');
+  ok(await page.locator('#cap-models .fmt:nth-child(1) button').isDisabled(), 'Legendas: modelo já instalado mostra INSTALADO desabilitado');
+  await page.evaluate(() => clearInterval(window.__capFeed));
+  await capMsg(CAP({ dl: { active: true, id: 'medio', pct: 42, error: '' } }));
+  ok(await page.locator('#cap-models .fmt:nth-child(2) .capbar').isVisible() && (await page.textContent('#cap-models .fmt:nth-child(2) button')) === 'CANCELAR 42%', 'Legendas: barra de progresso e CANCELAR durante o download');
+  await clearSent();
+  await humanClick('#cap-models .fmt:nth-child(2) button');
+  ok((await sent()).includes('cap|dlcancel'), 'Legendas: CANCELAR envia cap|dlcancel');
+  await capMsg(CAP({ dl: { active: false, id: 'medio', pct: 0, error: 'sem rede' } }));
+  ok((await page.textContent('#cap-models .fmt:nth-child(2) em')).includes('ERRO: sem rede'), 'Legendas: erro de download aparece no modelo');
+
+  await page.selectOption('#cap-engine', 'cloud');
+  await capMsg(CAP({ cfg: Object.assign(CAP().cfg, { engine: 'cloud', hasKey: true }) }));
+  ok(await page.locator('#cap-cloud').isVisible() && !(await page.locator('#cap-local').isVisible()), 'Legendas: motor Nuvem mostra os campos da API e esconde os modelos locais');
+  ok((await page.textContent('#cap-keyhint')).includes('salva'), 'Legendas: indica que há chave salva sem mostrá-la');
+  await clearSent();
+  await page.fill('#cap-ckey', 'sk-teste|123');
+  await page.locator('#cap-ckey').blur();
+  ok((await sent()).includes('cap|set|cloudKey|sk-teste|123') && (await page.inputValue('#cap-ckey')) === '', 'Legendas: a chave é enviada e o campo é limpo em seguida');
+  await capMsg(CAP());
+
+  const capSpill = await page.evaluate(() => {
+    const card = document.getElementById('cap-card').getBoundingClientRect();
+    return [...document.querySelectorAll('#cap-card *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && (r.right > card.right + 1 || r.left < card.left - 1); }).map(e => e.id || e.className || e.tagName);
+  });
+  ok(capSpill.length === 0, 'Legendas: nenhum elemento ultrapassa o cartão' + (capSpill.length ? ' -> ' + capSpill.slice(0, 4).join(' | ') : ''));
+  for (const th of ['light', 'dark', 'gray']) {
+    await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), th);
+    const vis = await page.evaluate(() => { const el = document.getElementById('cap-box'); const cs = getComputedStyle(el); return cs.backgroundColor !== cs.color; });
+    ok(vis, `Legendas: tema ${th} mantém caixa de transcrição legível`);
+  }
+  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+  await tab('prod');
+  // ---- /FEATURE: captions ----
+
   console.log('\n[6] Layout em janelas diferentes');
   // The PRODUÇÃO stage (monitors + switcher + 16-camera strip) uses a 3-row CSS grid where the
   // monitors and inputs rows flex to fill whatever's left after the switcher card's own natural
