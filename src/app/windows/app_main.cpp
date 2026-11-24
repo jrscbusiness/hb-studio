@@ -50,6 +50,10 @@
 #include "video/frame_ops.hpp"
 // ---- /FEATURE ----
 #include "vst3/vst3.hpp"
+// ---- FEATURE: overlays ----
+#include "overlay/manager.hpp"
+#include "overlay/windows/gdi_glyphs.hpp"
+// ---- /FEATURE ----
 
 using namespace hb;
 
@@ -273,6 +277,23 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     app::MediaService media(engine.program(), &engine.bus(), &engine.logger(), mediaDir, videosDir);
     media.start();
     win::trace("media service started");
+
+    // ---- FEATURE: overlays ---- timer / scoreboard / QR / lower third / captions / chat pin over PROGRAM
+    // (docs/OVERLAYS.md). Declared after `engine`, so it is destroyed first; the render hook only keeps the
+    // shared render state alive, never the manager or the bus.
+    const std::string overlaysPath = mediaDir.empty() ? std::string() : mediaDir + "\\overlays.json";
+    hb::overlay::OverlayManager overlays(&engine.bus(), nullptr, hb::overlay::makeGdiTextRasterizer());
+    if (!overlaysPath.empty() && !overlays.load(overlaysPath)) engine.logger().info("overlay", "sem overlays salvos");
+    engine.setPostRenderHook(overlays.programHook());
+    std::string overlayLastState;
+    std::mutex overlayMutex;   // guards overlayLastState (UI message thread vs feeder thread)
+    auto postOverlayState = [&](bool force) {
+        const std::string st = overlays.stateJson();
+        if (!force && st == overlayLastState) return;
+        overlayLastState = st;
+        host.postQueued("overlay_state", st);
+    };
+    // ---- /FEATURE ----
 
     // ---- native dark/light mode (built into the app; no plugin needed) ----
     const std::string themePath = mediaDir.empty() ? std::string() : mediaDir + "\\theme.txt";
@@ -570,6 +591,15 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         const std::string camLabel = "CAM " + std::to_string(cam + 1) + ": ";
         // ---- FEATURE: ai ----
         if (c0.rfind("ai", 0) == 0 && aiCommands.handle(msg)) return;
+        // ---- /FEATURE ----
+        // ---- FEATURE: overlays ----
+        if (c0 == "ready") { std::lock_guard lk(overlayMutex); postOverlayState(true); }
+        else if (c0.rfind("ov", 0) == 0 && overlays.handleCommand(msg)) {
+            std::lock_guard lk(overlayMutex);
+            if (overlays.takeDirty() && !overlaysPath.empty()) overlays.save(overlaysPath);
+            postOverlayState(true);
+            return;
+        }
         // ---- /FEATURE ----
         if (c == "ready") {
             ptzSent = 0;
@@ -1020,6 +1050,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     const auto& pf = engine.program().format();
                     video::prepareFrame(previewFull, pf.width, pf.height);
                     engine.switcher().renderPreview(previewFull, tick);
+                    overlays.renderPreview(previewFull);   // FEATURE: overlays (only when the option is on)
                     prevWin.present(previewFull);
                 }
                 if (ndiOutputEnabled && progLatest) {
@@ -1098,6 +1129,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     const unsigned v = ptzSettings.version();
                     if (ptzSent.load() != v) { ptzSent = v; host.postQueued("ptz", ptzSettings.uiJson()); }
                     if (tick % 4 == 0) postXmitStatus();
+                    if (tick % 4 == 1) { std::lock_guard lk(overlayMutex); postOverlayState(false); }   // FEATURE: overlays (live clocks)
                 }
                 ++tick;
                 std::this_thread::sleep_until(next);

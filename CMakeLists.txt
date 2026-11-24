@@ -125,7 +125,7 @@ if(WIN32)
     set_target_properties(hb_studio PROPERTIES OUTPUT_NAME HBStudio)
     target_include_directories(hb_studio PRIVATE src "${HB_WEBVIEW2_DIR}/build/native/include")
     target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION_DISPLAY}")
-    target_link_libraries(hb_studio PRIVATE hb_core hb_plugins hb_media hb_ndi hb_vcam_sender hb_streaming hb_streaming_win mfplat mf mfuuid comdlg32 ${HB_WIN_LIBS}
+    target_link_libraries(hb_studio PRIVATE hb_core hb_plugins hb_media hb_ndi hb_overlay hb_vcam_sender hb_streaming hb_streaming_win mfplat mf mfuuid comdlg32 ${HB_WIN_LIBS}
       hb_ai)   # FEATURE: ai
     target_link_libraries(hb_studio PRIVATE hb_remote)   # FEATURE: remote (defined in cmake/modules/remote.cmake)
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
