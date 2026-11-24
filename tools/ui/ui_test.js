@@ -841,6 +841,156 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await feedScenes([]);
   // ---- /FEATURE ----
 
+  // ---- FEATURE: teleprompter ----
+  console.log('\n[tp] TELEPROMPTER');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await tab('tp');
+  ok(await page.locator('#v-tp.on').count() === 1, 'TELEPROMPTER tab opens its view');
+  const tpMsg = m => page.evaluate(x => window.__tpMessage(x), m);
+  const TPS = (over = {}) => Object.assign({ t: 'tp', seq: 1, state: 'stopped', pos: 0, rate: 0, cd: 0, cdSec: 3, remain: 0, total: 120, mode: 'wpm', wpm: 150, pxs: 50, words: 300, script: 's1', presenter: false }, over);
+  await tpMsg({ t: 'tplist', current: 's1', scripts: [{ id: 's1', name: 'Abertura', words: 300 }, { id: 's2', name: 'Final', words: 10 }] });
+  await tpMsg({ t: 'tpstyle', font: 64, lh: 1.4, margin: 8, fg: '#FFFFFF', bg: '#000000', mirror: false, flip: false, marker: true, markerpos: 35, cdSec: 3 });
+  const long = Array.from({ length: 12 }, (_, i) => ({ k: 'p', t: 'Parágrafo número ' + i + ' com bastante texto para ocupar linhas no teleprompter do operador.', w: 14, line: i * 2 + 1, at: i / 12 }));
+  await tpMsg({ t: 'tpscript', id: 's1', name: 'Abertura', text: 'x', words: 300, paragraphs: 12, blocks: [{ k: 'c', t: 'RESPIRAR', w: 0, line: 1 }, ...long] });
+  await tpMsg(TPS());
+  ok(await page.locator('#tp-list button').count() === 2, 'script list shows saved scripts');
+  ok(await page.locator('#tp-txt p.c').count() === 1 && await page.locator('#tp-txt p.p').count() === 12, 'operator view shows cues (as tags) and paragraphs');
+  ok(await page.inputValue('#tp-name') === 'Abertura', 'name field shows the current script');
+  await clearSent();
+  await page.click('#tp-play');
+  ok((await sent()).includes('tp|toggle'), 'PLAY -> tp|toggle');
+  await clearSent();
+  await page.click('#tp-restart');
+  ok((await sent()).includes('tp|restart'), 'rewind -> tp|restart');
+  await clearSent();
+  await page.click('#tp-list button:nth-child(2)');
+  ok((await sent()).includes('tp|select|s2'), 'clicking a script -> tp|select|<id>');
+  // keyboard scoped to the tab: Space must not CUT here
+  await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  await clearSent();
+  await page.keyboard.press('Space'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Home');
+  const tk = await sent();
+  ok(tk.includes('tp|toggle') && tk.includes('tp|nudge|10') && tk.includes('tp|nudge|-10') && tk.includes('tp|restart'), 'keys: Space/up/down/Home -> toggle/nudge/restart');
+  ok(!tk.includes('cut'), 'Space in the TELEPROMPTER tab does not CUT the switcher');
+  await clearSent();
+  await page.focus('#tp-text'); await page.keyboard.press('Space'); await page.keyboard.press('Home');
+  ok(!(await sent()).some(x => x.startsWith('tp|toggle') || x === 'tp|restart' || x === 'cut'), 'typing in the editor does not trigger shortcuts');
+  await page.evaluate(() => document.activeElement.blur());
+  // editor autosave
+  await clearSent();
+  await page.fill('#tp-text', 'novo texto\n\nsegundo');
+  await page.waitForTimeout(800);
+  ok((await sent()).some(x => x.startsWith('tp|save|s1|novo texto')), 'editing autosaves -> tp|save|<id>|<text>');
+  // speed + style controls
+  await clearSent();
+  await page.locator('#tp-speed').evaluate(el => { el.value = 180; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.locator('#tp-font').evaluate(el => { el.value = 90; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.check('#tp-mirror'); await page.check('#tp-flip');
+  await page.locator('#tp-fg').evaluate(el => { el.value = '#ffff00'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  const sc = await sent();
+  ok(sc.includes('tp|speed|180') && sc.includes('tp|style|font|90') && sc.includes('tp|style|mirror|1') && sc.includes('tp|style|flip|1') && sc.includes('tp|style|fg|#FFFF00'), 'speed/font/mirror/flip/color controls -> tp|speed / tp|style');
+  await page.click('#tp-mode button[data-m=pxs]');
+  ok((await sent()).includes('tp|mode|pxs'), 'unit switch -> tp|mode|pxs');
+  // paragraph click jumps
+  await tpMsg(TPS({ state: 'paused', pos: 0 }));
+  await clearSent();
+  await page.locator('#tp-txt p.p').nth(6).click();
+  const seek = (await sent()).find(x => x.startsWith('tp|seek|'));
+  ok(seek && +seek.split('|')[2] > 0.3 && +seek.split('|')[2] < 0.7, 'clicking paragraph 7 of 12 -> tp|seek|~0.5 (' + seek + ')');
+  await clearSent();
+  const pb = await page.locator('#tp-prog').boundingBox();
+  await page.mouse.click(pb.x + pb.width * 0.25, pb.y + pb.height / 2);
+  const seek2 = (await sent()).find(x => x.startsWith('tp|seek|'));
+  ok(seek2 && Math.abs(+seek2.split('|')[2] - 0.25) < 0.03, 'clicking the progress bar -> tp|seek|~0.25');
+  // moving: extrapolates from pos+rate between host messages, with time display
+  await tpMsg(TPS({ state: 'playing', pos: 0.1, rate: 0.05, remain: 18, total: 20 }));
+  const y0 = await page.locator('#tp-txt').evaluate(el => new DOMMatrix(getComputedStyle(el).transform).m42);
+  await page.waitForTimeout(500);
+  const y1 = await page.locator('#tp-txt').evaluate(el => new DOMMatrix(getComputedStyle(el).transform).m42);
+  ok(y1 < y0 - 1, 'while playing the view scrolls between host messages (' + y0.toFixed(1) + ' -> ' + y1.toFixed(1) + ')');
+  ok(/PAUSE/.test(await page.textContent('#tp-play')) && /NO AR/.test(await page.textContent('#tp-state')), 'PLAY button becomes PAUSE while playing');
+  ok(/restam 0:/.test(await page.textContent('#tp-remain')) && /total 0:20/.test(await page.textContent('#tp-total')), 'remaining/total time estimates are shown');
+  await tpMsg(TPS({ state: 'countdown', pos: 0, cd: 3 }));
+  ok(await page.locator('#tp-cd').evaluate(el => getComputedStyle(el).display) === 'flex' && /3/.test(await page.textContent('#tp-cd')), 'countdown overlay shows the seconds left');
+  await tpMsg(TPS({ state: 'paused', pos: 0.3, presenter: true }));
+  ok(await page.locator('#tp-pop').isDisabled() && !(await page.locator('#tp-popfs').isDisabled()), 'presenter buttons follow the window state');
+  await clearSent();
+  await page.click('#tp-popfs');
+  ok((await sent()).includes('tp|presenter|fullscreen'), 'TELA CHEIA -> tp|presenter|fullscreen');
+  await tpMsg(TPS({ presenter: false }));
+  await clearSent();
+  await page.click('#tp-pop');
+  ok((await sent()).includes('tp|presenter|open'), 'ABRIR APRESENTADOR -> tp|presenter|open');
+  // import: UTF-8 and legacy Windows-1252 files
+  await clearSent();
+  await page.setInputFiles('#tp-file', { name: 'Meu roteiro.txt', mimeType: 'text/plain', buffer: Buffer.from('coração\nação', 'utf8') });
+  await page.waitForTimeout(200);
+  ok((await sent()).includes('tp|import|Meu roteiro|coração\nação'), 'import .txt (UTF-8) -> tp|import|<name>|<text>');
+  await clearSent();
+  await page.setInputFiles('#tp-file', { name: 'antigo.txt', mimeType: 'text/plain', buffer: Buffer.from([0x63, 0x6f, 0x72, 0x61, 0xe7, 0xe3, 0x6f]) });
+  await page.waitForTimeout(200);
+  ok((await sent()).includes('tp|import|antigo|coração'), 'import .txt (Windows-1252) is decoded to UTF-8');
+  // layout at several sizes: nothing may scroll the page, no horizontal overflow
+  for (const [w, h] of [[1024, 720], [1280, 800], [1920, 1080]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(150);
+    const fit = await page.evaluate(() => ({ x: document.documentElement.scrollWidth <= innerWidth + 1, y: document.documentElement.scrollHeight <= innerHeight + 1,
+      vis: (() => { const r = document.querySelector('#tp-play').getBoundingClientRect(); const f = document.querySelector('#tp-view').getBoundingClientRect(); return r.bottom <= innerHeight && f.height > 100; })() }));
+    ok(fit.x && fit.y && fit.vis, `${w}x${h} TELEPROMPTER: fits without page scroll and the view/controls are visible`);
+  }
+  // themes
+  for (const th of ['light', 'dark', 'gray']) {
+    await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), th);
+    const c = await page.locator('#tp-list button').first().evaluate(el => getComputedStyle(el).color);
+    ok(!!c, 'theme ' + th + ' renders the TELEPROMPTER tab');
+  }
+  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // presenter page (extracted from index.html exactly like the host does)
+  {
+    const raw = require('fs').readFileSync(html, 'utf8');
+    const open = '<template id="tpPresenterPage">';
+    const b = raw.indexOf(open), e = raw.indexOf('</template>', b);
+    const pres = raw.slice(b + open.length, e);
+    ok(pres.startsWith('<!doctype html>'), 'presenter page is a complete document inside the template');
+    const p2 = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await p2.goto('about:blank');
+    await p2.evaluate(() => { window.__sent = []; window.chrome = { webview: { postMessage: m => window.__sent.push(m), addEventListener: () => {} } }; });
+    await p2.setContent(pres);
+    const pm = m => p2.evaluate(x => window.__tpPresenterMessage(x), m);
+    const ty = () => p2.locator('#txt').evaluate(el => new DOMMatrix(getComputedStyle(el).transform).m42);
+    ok((await p2.evaluate(() => window.__sent)).includes('tp|hello'), 'presenter announces itself with tp|hello');
+    await pm({ t: 'tpstyle', font: 60, lh: 1.4, margin: 8, fg: '#FFFF00', bg: '#001122', mirror: true, flip: false, marker: true, markerpos: 35, cdSec: 3 });
+    await pm({ t: 'tpscript', id: 's1', name: 'x', blocks: [{ k: 'c', t: 'SEGREDO DO OPERADOR', w: 0, line: 1 }, ...long] });
+    ok(await p2.locator('#txt p').count() === 12 && !(await p2.textContent('#txt')).includes('SEGREDO'), 'presenter shows paragraphs only: cues/comments are hidden');
+    ok(await p2.locator('#stage').evaluate(el => el.style.transform.replace(/\s/g, '')) === 'scale(-1,1)', 'mirror horizontal is applied to the presenter stage');
+    await pm({ t: 'tp', seq: 1, state: 'paused', pos: 0, rate: 0, cd: 0 });
+    const ym = await ty();
+    ok(Math.abs(ym - 0.35 * 720) < 1.5, 'at pos 0 the first line sits on the reading line (' + ym.toFixed(1) + ')');
+    await pm({ t: 'tp', seq: 2, state: 'playing', pos: 0.1, rate: 0.05, cd: 0 });
+    const a0 = await ty();
+    await p2.waitForTimeout(400);
+    const a1 = await ty();
+    ok(a1 < a0 - 1, 'presenter scrolls smoothly from (pos, rate) between host syncs');
+    await pm({ t: 'tp', seq: 3, state: 'paused', pos: 0.5, rate: 0, cd: 0 });
+    const a2 = await ty();
+    await p2.waitForTimeout(200);
+    const a3 = await ty();
+    ok(a2 === a3 && a2 < ym, 'a host re-sync/pause snaps the presenter to the host position and holds it');
+    await pm({ t: 'tp', seq: 4, state: 'countdown', pos: 0, rate: 0, cd: 3 });
+    ok(await p2.locator('#cd').evaluate(el => getComputedStyle(el).display) === 'flex', 'presenter shows the countdown');
+    await p2.evaluate(() => { window.__sent.length = 0; });
+    await p2.keyboard.press('Space'); await p2.keyboard.press('ArrowUp'); await p2.keyboard.press('ArrowDown'); await p2.keyboard.press('Home'); await p2.keyboard.press('F11'); await p2.mouse.dblclick(100, 100);
+    const ps = await p2.evaluate(() => window.__sent);
+    ok(['tp|toggle', 'tp|nudge|10', 'tp|nudge|-10', 'tp|restart', 'tp|presenter|fullscreen'].every(x => ps.includes(x)), 'presenter keys/double click send tp commands');
+    await p2.setViewportSize({ width: 1281, height: 720 });
+    await p2.waitForTimeout(400);
+    ok((await p2.evaluate(() => window.__sent)).some(x => /^tp\|layout\|p\|\d+\|720$/.test(x)), 'presenter reports its real layout for the px/s model');
+    await p2.close();
+  }
+  await tab('prod');
+  // ---- /FEATURE ----
+
   ok(errors.length === 0, 'no JavaScript errors' + (errors.length ? ': ' + errors[0] : ''));
   await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed`);

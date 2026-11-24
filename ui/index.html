@@ -488,6 +488,50 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .ai-res.ok{color:var(--blue)}
 .ai-sub{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 /* /FEATURE */
+/* FEATURE: teleprompter */
+#v-tp{grid-template-columns:minmax(210px,260px) minmax(0,1fr) minmax(250px,290px);gap:14px;min-height:0;padding:2px}
+#v-tp .card{display:flex;flex-direction:column;min-height:0;min-width:0}
+#v-tp .card .body{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;overflow:auto}
+.tp-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tp-row .btn{flex:1;min-width:0}
+.tp-list{border:1px solid var(--line-2);border-radius:10px;background:var(--surface);max-height:116px;overflow:auto;flex:none}
+.tp-list button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:6px 10px;font-size:12px;border-bottom:1px dashed var(--line)}
+.tp-list button:last-child{border-bottom:0}
+.tp-list button:hover{background:var(--mist)}
+.tp-list button.on{background:var(--blue);color:var(--on-accent)}
+.tp-list button em{font-style:normal;font-family:var(--mono);font-size:10.5px;opacity:.75;flex:none}
+.tp-list button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#v-tp input[type=text],#v-tp input[type=number]{height:32px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);min-width:0;width:100%}
+#v-tp textarea{flex:1;min-height:90px;resize:none;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);color:var(--ink);padding:10px;font:inherit;font-size:13px;line-height:1.5;user-select:text;cursor:text}
+#v-tp textarea:focus,#v-tp input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,107,255,.15)}
+.tp-view{position:relative;flex:1;min-height:150px;border-radius:12px;overflow:hidden;background:#000;border:1px solid var(--line-2)}
+.tpv-stage{position:absolute;inset:0;overflow:hidden}
+.tpv-txt{position:absolute;left:0;right:0;top:0;will-change:transform;font-family:var(--sans);font-weight:600}
+.tpv-txt p{margin:0 0 .7em;white-space:pre-wrap;overflow-wrap:anywhere}
+.tpv-txt p.p{cursor:pointer}
+.tpv-txt p.p:hover{background:rgba(127,127,127,.22)}
+.tpv-txt .c{height:0;position:relative;margin:0}
+.tpv-txt .c span{position:absolute;right:0;top:-.1em;transform:translateY(-100%);font-family:var(--sans);font-size:.3em;font-weight:700;color:#111;background:#F5C65A;padding:.1em .6em;border-radius:.4em;white-space:nowrap;max-width:70%;overflow:hidden;text-overflow:ellipsis}
+.tpv-mark{position:absolute;left:0;right:0;height:0;border-top:2px solid rgba(255,64,64,.85);pointer-events:none}
+.tpv-mark::before,.tpv-mark::after{content:"";position:absolute;top:-8px;border:7px solid transparent}
+.tpv-mark::before{left:0;border-left-color:rgba(255,64,64,.95)}
+.tpv-mark::after{right:0;border-right-color:rgba(255,64,64,.95)}
+.tpv-cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font:700 min(40vh,160px)/1 var(--mono);color:#fff;background:rgba(0,0,0,.55);pointer-events:none}
+.tp-prog{height:12px;border-radius:6px;background:var(--mist);border:1px solid var(--line-2);cursor:pointer;overflow:hidden;flex:none}
+.tp-prog i{display:block;height:100%;width:100%;transform-origin:0 50%;transform:scaleX(0);background:linear-gradient(90deg,var(--blue-2),var(--blue))}
+.tp-info{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--ink-2);flex:none}
+.tp-trans{display:flex;gap:8px;flex:none}
+.tp-trans .btn{height:42px}
+.tp-set{display:grid;grid-template-columns:78px minmax(0,1fr) 44px;gap:6px 8px;align-items:center;font-size:11.5px;color:var(--ink-2)}
+.tp-set .cap{font-size:9.5px}
+.tp-set input[type=range]{width:100%;height:24px;accent-color:var(--blue)}
+.tp-set output{font-family:var(--mono);font-size:11px;text-align:right}
+.tp-set input[type=color]{width:100%;height:26px;border:1px solid var(--line-2);border-radius:7px;padding:0;background:var(--surface)}
+.tp-chk{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2)}
+.tp-chk label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.tp-chk input{accent-color:var(--blue)}
+.tp-keys{font-size:10.5px;color:var(--muted);line-height:1.5}
+/* /FEATURE */
 </style>
 </head>
 <body>
@@ -501,6 +545,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       <button data-v="xmit">TRANSMISSÃO</button>
       <button class="on" data-v="prod">PRODUÇÃO</button>
       <button data-v="cam">CÂMERAS</button>
+      <button data-v="tp">TELEPROMPTER</button><!-- FEATURE: teleprompter -->
       <button data-v="aud">ÁUDIO</button>
       <button data-v="rec">GRAVAÇÃO</button>
       <button data-v="plg">PLUGINS</button>
@@ -661,6 +706,66 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         </div>
       </div>
     </section>
+
+    <!-- FEATURE: teleprompter -->
+    <section class="view" id="v-tp">
+      <div class="card">
+        <h3><span class="cap">Roteiros</span></h3>
+        <div class="body">
+          <div class="tp-list" id="tp-list"></div>
+          <div class="tp-row">
+            <button class="btn sm" id="tp-new">NOVO</button>
+            <button class="btn sm" id="tp-import" title="Importar um arquivo .txt">IMPORTAR .TXT</button>
+            <button class="btn sm" id="tp-del">EXCLUIR</button>
+          </div>
+          <div class="tp-row"><input type="text" id="tp-name" maxlength="80" placeholder="Nome do roteiro" aria-label="Nome do roteiro"><button class="btn sm" id="tp-rename" style="flex:none">RENOMEAR</button></div>
+          <input type="file" id="tp-file" accept=".txt,text/plain" hidden>
+          <textarea id="tp-text" spellcheck="false" placeholder="Digite ou cole o roteiro aqui. Uma linha em branco separa parágrafos. Linhas que começam com # são anotações só para o operador."></textarea>
+          <div class="tp-keys" id="tp-edstat">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="cap">Visão do apresentador</span><span class="cap mono" id="tp-state">PARADO</span></h3>
+        <div class="body">
+          <div class="tp-view" id="tp-view"><div class="tpv-stage" id="tp-stage"><div class="tpv-txt" id="tp-txt"></div></div><div class="tpv-mark" id="tp-mark"></div><div class="tpv-cd" id="tp-cd"></div></div>
+          <div class="tp-prog" id="tp-prog" title="Clique para saltar"><i id="tp-progbar"></i></div>
+          <div class="tp-info"><span id="tp-pct">0%</span><span id="tp-remain">restam —</span><span id="tp-total">total —</span></div>
+          <div class="tp-trans">
+            <button class="btn sm" id="tp-restart" title="Voltar ao início (Home)">⏮</button>
+            <button class="btn primary" id="tp-play" title="Play / pause (Espaço)">PLAY</button>
+          </div>
+          <div class="tp-row">
+            <button class="btn sm" id="tp-pop">ABRIR APRESENTADOR</button>
+            <button class="btn sm" id="tp-popfs" title="Tela cheia na janela do apresentador (F11 ou duplo clique nela)">TELA CHEIA</button>
+            <button class="btn sm" id="tp-popx">FECHAR</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="cap">Ajustes</span></h3>
+        <div class="body">
+          <div class="seg" id="tp-mode"><button data-m="wpm" class="on">PALAVRAS/MIN</button><button data-m="pxs">PX/S</button></div>
+          <div class="tp-set">
+            <span class="cap" id="tp-speedlbl">Velocidade</span><input type="range" id="tp-speed" min="20" max="400" step="1" value="150" aria-label="Velocidade"><output id="tp-speedv">150</output>
+            <span class="cap">Fonte</span><input type="range" id="tp-font" min="20" max="220" step="2" value="64"><output id="tp-fontv">64</output>
+            <span class="cap">Entrelinha</span><input type="range" id="tp-lh" min="1" max="2.5" step="0.05" value="1.4"><output id="tp-lhv">1.4</output>
+            <span class="cap">Margens</span><input type="range" id="tp-margin" min="0" max="30" step="1" value="8"><output id="tp-marginv">8%</output>
+            <span class="cap">Linha leitura</span><input type="range" id="tp-markpos" min="10" max="80" step="1" value="35"><output id="tp-markposv">35%</output>
+            <span class="cap">Contagem</span><input type="range" id="tp-cdsec" min="0" max="30" step="1" value="3"><output id="tp-cdsecv">3s</output>
+            <span class="cap">Cor do texto</span><input type="color" id="tp-fg" value="#ffffff"><span></span>
+            <span class="cap">Cor do fundo</span><input type="color" id="tp-bg" value="#000000"><span></span>
+          </div>
+          <div class="tp-chk">
+            <label><input type="checkbox" id="tp-mirror"> Espelhar (H)</label>
+            <label><input type="checkbox" id="tp-flip"> Inverter (V)</label>
+            <label><input type="checkbox" id="tp-marker" checked> Linha de leitura</label>
+          </div>
+          <div class="tp-keys">Nesta aba: <kbd>Espaço</kbd> play/pause · <kbd>↑</kbd>/<kbd>↓</kbd> velocidade · <kbd>Home</kbd> início. Espaço aqui NÃO faz CUT. Clique num parágrafo da visão para saltar até ele.</div>
+        </div>
+      </div>
+    </section>
+    <!-- /FEATURE -->
+
 
     <!-- ===================== ÁUDIO ===================== -->
     <section class="view" id="v-aud">
@@ -978,6 +1083,101 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   </div>
   <div class="sh-foot"><button class="btn sm" id="sce-del">EXCLUIR CENA</button><input id="sce-tname" type="text" maxlength="60" placeholder="Nome do template" style="width:180px;height:34px"><button class="btn sm" id="sce-tpl">SALVAR COMO MEU TEMPLATE</button><span style="flex:1"></span><button class="btn sm" id="sce-cancel">CANCELAR</button><button class="btn primary sm" id="sce-save" style="flex:none">SALVAR</button></div>
 </div></div>
+<!-- /FEATURE -->
+<!-- FEATURE: teleprompter - presenter window page. Inert here (template); the Windows host extracts
+     it (src/teleprompter/presenter_page.cpp) and loads it into a second WebView2. It must never
+     contain the literal closing-template tag. Rendering is transform-only (no layout per frame). -->
+<template id="tpPresenterPage"><!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Teleprompter</title>
+<style>
+:root{--fg:#fff;--bg:#000;--fs:64px;--lh:1.4;--mg:8%}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);cursor:none;user-select:none}
+body.cur{cursor:default}
+#stage{position:absolute;inset:0;overflow:hidden}
+#txt{position:absolute;left:var(--mg);right:var(--mg);top:0;will-change:transform;font:600 var(--fs)/var(--lh) "Segoe UI","Segoe UI Variable Display",Arial,sans-serif}
+#txt p{margin:0 0 .7em;white-space:pre-wrap;overflow-wrap:anywhere}
+#mk{position:absolute;left:0;right:0;height:0;border-top:3px solid rgba(255,64,64,.85)}
+#mk::before,#mk::after{content:"";position:absolute;top:-12px;border:11px solid transparent}
+#mk::before{left:0;border-left-color:rgba(255,64,64,.95)}
+#mk::after{right:0;border-right-color:rgba(255,64,64,.95)}
+#bar{position:absolute;left:0;bottom:0;height:5px;width:100%;background:rgba(80,160,255,.9);transform-origin:0 50%;transform:scaleX(0)}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font:700 40vh/1 "Cascadia Mono",Consolas,monospace;color:#fff;background:rgba(0,0,0,.6)}
+#wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 24px "Segoe UI",Arial,sans-serif;opacity:.6}
+</style></head>
+<body>
+<div id="stage"><div id="txt"></div></div>
+<div id="mk"></div><div id="bar"></div><div id="cd"></div><div id="wait">Aguardando o HB Studio…</div>
+<script>
+(() => {
+  const host = window.chrome && window.chrome.webview;
+  const send = m => { if (host) host.postMessage(m); };
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage'), txt = $('#txt'), cdEl = $('#cd'), bar = $('#bar'), mk = $('#mk');
+  let st = null, recv = 0, H = 1, V = 1, mark = 0.35, raf = 0, rt = 0, fs = false, hasText = false;
+  const pos = () => !st ? 0 : st.state === 'playing' ? Math.min(1, st.pos + st.rate * (performance.now() - recv) / 1000) : st.pos;
+  function frame() {
+    cancelAnimationFrame(raf);
+    const p = pos();
+    txt.style.transform = 'translate3d(0,' + (mark * V - p * H).toFixed(2) + 'px,0)';
+    bar.style.transform = 'scaleX(' + p.toFixed(5) + ')';
+    if (st && st.state === 'countdown') {
+      const left = Math.max(0, st.cd - (performance.now() - recv) / 1000);
+      cdEl.style.display = 'flex'; cdEl.textContent = String(Math.max(1, Math.ceil(left)));
+    } else cdEl.style.display = 'none';
+    if (st && (st.state === 'playing' || st.state === 'countdown')) raf = requestAnimationFrame(frame);
+  }
+  function report() {   // layout size for the px/s <-> wpm model; debounced, never per frame
+    clearTimeout(rt);
+    rt = setTimeout(() => send('tp|layout|p|' + Math.round(H) + '|' + Math.round(V)), 150);
+  }
+  function measure() { H = Math.max(1, txt.offsetHeight); V = Math.max(1, innerHeight); report(); frame(); }
+  function applyStyle(s) {
+    const r = document.documentElement.style;
+    r.setProperty('--fg', s.fg); r.setProperty('--bg', s.bg); r.setProperty('--fs', s.font + 'px');
+    r.setProperty('--lh', s.lh); r.setProperty('--mg', s.margin + '%');
+    stage.style.transform = 'scale(' + (s.mirror ? -1 : 1) + ',' + (s.flip ? -1 : 1) + ')';
+    mark = s.markerpos / 100;
+    mk.style.display = s.marker ? 'block' : 'none';
+    mk.style.top = ((s.flip ? 1 - mark : mark) * 100) + '%';   // the stage is flipped, the marker must follow
+    measure();
+  }
+  function build(d) {
+    txt.textContent = '';
+    hasText = false;
+    for (const b of d.blocks || []) {
+      if (b.k !== 'p') continue;   // cues/comments are for the operator only
+      const p = document.createElement('p'); p.textContent = b.t; txt.appendChild(p); hasText = true;
+    }
+    $('#wait').style.display = hasText ? 'none' : 'flex';
+    measure();
+  }
+  function onMsg(m) {
+    let d; try { d = typeof m === 'string' ? JSON.parse(m) : m; } catch (e) { return; }
+    if (!d || typeof d.t !== 'string') return;
+    if (d.t === 'tp') { st = d; recv = performance.now(); frame(); }
+    else if (d.t === 'tpscript') build(d);
+    else if (d.t === 'tpstyle') applyStyle(d);
+  }
+  if (host) host.addEventListener('message', e => onMsg(e.data));
+  window.__tpPresenterMessage = onMsg;   // test hook
+  addEventListener('resize', measure);
+  const toggleFs = () => { fs = !fs; send('tp|presenter|fullscreen'); };
+  addEventListener('dblclick', toggleFs);
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); send('tp|toggle'); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); send('tp|nudge|10'); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); send('tp|nudge|-10'); }
+    else if (e.key === 'Home') { e.preventDefault(); send('tp|restart'); }
+    else if (e.key === 'F11') { e.preventDefault(); toggleFs(); }
+    else if (e.key === 'Escape' && fs) { fs = false; send('tp|presenter|fullscreen'); }
+  });
+  let ct = 0;
+  addEventListener('mousemove', () => { document.body.classList.add('cur'); clearTimeout(ct); ct = setTimeout(() => document.body.classList.remove('cur'), 2000); });
+  send('tp|hello');
+})();
+</script>
+</body></html>
+</template>
 <!-- /FEATURE -->
 <div id="toast"></div>
 
@@ -2178,6 +2378,183 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     if ($('#sc-pick').classList.contains('on')) renderPicker();
   }
   // ---------- /FEATURE: scenes ----------
+
+  // ---------- FEATURE: teleprompter ----------
+  // The host is authoritative for position (src/teleprompter/controller.*). It sends {t:'tp', state,
+  // pos, rate, ...} on every change plus a ~2 Hz re-sync; this page (and the presenter window)
+  // extrapolate pos + rate*dt between messages, so both stay in step and nothing here keeps its own clock.
+  const tp = {st: null, recv: 0, script: null, style: null, list: null, H: 1, V: 1, mark: .35, raf: 0, dragging: false, saveT: 0, dirty: false, loadedId: ''};
+  const tpEl = {txt: $('#tp-txt'), view: $('#tp-view'), mark: $('#tp-mark'), cd: $('#tp-cd'), area: $('#tp-text')};
+  const tpFmt = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const tpPos = () => !tp.st ? 0 : tp.st.state === 'playing' ? Math.min(1, tp.st.pos + tp.st.rate * (performance.now() - tp.recv) / 1000) : tp.st.pos;
+  const tpActive = () => !!document.querySelector('#v-tp.on');
+  function tpFrame() {
+    cancelAnimationFrame(tp.raf);
+    const p = tpPos();
+    tpEl.txt.style.transform = 'translate3d(0,' + (tp.mark * tp.V - p * tp.H).toFixed(2) + 'px,0)';
+    $('#tp-progbar').style.transform = 'scaleX(' + p.toFixed(5) + ')';
+    const st = tp.st || {};
+    $('#tp-pct').textContent = Math.round(p * 100) + '%';
+    const rate = st.rate || 0;
+    const remain = st.state === 'playing' && rate > 0 ? (1 - p) / rate : st.remain;
+    $('#tp-remain').textContent = 'restam ' + (st.remain || remain ? tpFmt(remain) : '—');
+    $('#tp-total').textContent = 'total ' + (st.total ? tpFmt(st.total) : '—');
+    if (st.state === 'countdown') {
+      const left = Math.max(0, st.cd - (performance.now() - tp.recv) / 1000);
+      tpEl.cd.style.display = 'flex'; tpEl.cd.textContent = String(Math.max(1, Math.ceil(left)));
+    } else tpEl.cd.style.display = 'none';
+    if (tpActive() && (st.state === 'playing' || st.state === 'countdown')) tp.raf = requestAnimationFrame(tpFrame);
+  }
+  function tpMeasure() {   // only on script/style/resize, never per frame
+    const w = tpEl.view.clientWidth || 1;
+    tp.V = Math.max(1, tpEl.view.clientHeight);
+    const s = tp.style;
+    if (s) tpEl.txt.style.fontSize = (s.font * Math.max(.18, w / 1280)).toFixed(1) + 'px';
+    tp.H = Math.max(1, tpEl.txt.offsetHeight);
+    tpFrame();
+    clearTimeout(tp.layoutT);
+    // The presenter window reports the real layout when it is open; the host ignores this one then.
+    tp.layoutT = setTimeout(() => send('tp', 'layout', 'o', Math.round(tp.H), Math.round(tp.V)), 200);
+  }
+  function tpApplyStyle() {
+    const s = tp.style; if (!s) return;
+    const v = tpEl.view.style;
+    v.background = s.bg; v.color = s.fg;
+    tpEl.txt.style.lineHeight = s.lh; tpEl.txt.style.left = tpEl.txt.style.right = s.margin + '%';
+    tp.mark = s.markerpos / 100;
+    tpEl.mark.style.display = s.marker ? 'block' : 'none'; tpEl.mark.style.top = (tp.mark * 100) + '%';
+    const set = (id, val, out) => { const e = $('#' + id); if (!tp.dragging || document.activeElement !== e) e.value = val; if (out) $('#' + id + 'v').textContent = out; };
+    set('tp-font', s.font, s.font); set('tp-lh', s.lh, (+s.lh).toFixed(2).replace(/0$/, '')); set('tp-margin', s.margin, s.margin + '%');
+    set('tp-markpos', s.markerpos, s.markerpos + '%'); set('tp-cdsec', s.cdSec, s.cdSec + 's');
+    $('#tp-fg').value = s.fg; $('#tp-bg').value = s.bg;
+    $('#tp-mirror').checked = !!s.mirror; $('#tp-flip').checked = !!s.flip; $('#tp-marker').checked = !!s.marker;
+    tpMeasure();
+  }
+  function tpBuild() {
+    const d = tp.script; if (!d) return;
+    tpEl.txt.textContent = '';
+    for (const b of d.blocks || []) {
+      const p = document.createElement('p');
+      if (b.k === 'c') { p.className = 'c'; const sp = document.createElement('span'); sp.textContent = b.t || '·'; p.appendChild(sp); }
+      else { p.className = 'p'; p.textContent = b.t; p.dataset.at = b.at; p.addEventListener('click', () => send('tp', 'seek', (p.offsetTop / tp.H).toFixed(5))); }
+      tpEl.txt.appendChild(p);
+    }
+    tpMeasure();
+  }
+  function tpRenderState() {
+    const st = tp.st; if (!st) return;
+    const names = {stopped: 'PARADO', countdown: 'CONTAGEM', playing: 'NO AR', paused: 'PAUSADO', finished: 'FIM'};
+    $('#tp-state').textContent = names[st.state] || st.state;
+    const moving = st.state === 'playing' || st.state === 'countdown';
+    $('#tp-play').textContent = moving ? 'PAUSE' : 'PLAY';
+    $$('#tp-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === st.mode));
+    const sp = $('#tp-speed'), isW = st.mode === 'wpm';
+    sp.min = isW ? 20 : 10; sp.max = isW ? 400 : 800;
+    if (!tp.dragging) sp.value = isW ? st.wpm : st.pxs;
+    $('#tp-speedv').textContent = Math.round(isW ? st.wpm : st.pxs);
+    $('#tp-speedlbl').textContent = isW ? 'Palavras/min' : 'Pixels/s';
+    $('#tp-pop').disabled = !!st.presenter; $('#tp-popfs').disabled = !st.presenter; $('#tp-popx').disabled = !st.presenter;
+    tpFrame();
+  }
+  function tpRenderList() {
+    const d = tp.list; if (!d) return;
+    const box = $('#tp-list'); box.textContent = '';
+    for (const s of d.scripts || []) {
+      const b = document.createElement('button');
+      b.className = s.id === d.current ? 'on' : '';
+      const n = document.createElement('span'); n.textContent = s.name;
+      const w = document.createElement('em'); w.textContent = s.words + ' pal.';
+      b.append(n, w);
+      b.addEventListener('click', () => { tpFlushSave(); send('tp', 'select', s.id); });
+      box.appendChild(b);
+    }
+  }
+  function tpOnScript(d) {
+    tp.script = d;
+    const a = tpEl.area;
+    if (d.id !== tp.loadedId || (document.activeElement !== a && a.value !== d.text)) { a.value = d.text; tp.loadedId = d.id; }
+    if (document.activeElement !== $('#tp-name')) $('#tp-name').value = d.name || '';
+    $('#tp-edstat').textContent = d.words + ' palavras · ' + d.paragraphs + ' parágrafos';
+    tpBuild();
+  }
+  function tpOnMsg(m) {
+    let d; try { d = typeof m === 'string' ? JSON.parse(m) : m; } catch (e) { return; }
+    if (!d || typeof d.t !== 'string' || d.t.slice(0, 2) !== 'tp') return;
+    if (d.t === 'tp') { tp.st = d; tp.recv = performance.now(); tpRenderState(); }
+    else if (d.t === 'tplist') { tp.list = d; tpRenderList(); }
+    else if (d.t === 'tpscript') tpOnScript(d);
+    else if (d.t === 'tpstyle') { tp.style = d; tpApplyStyle(); }
+  }
+  window.__tpMessage = tpOnMsg;   // test hook (the browser harness has no host event channel)
+  if (host) host.addEventListener('message', e => tpOnMsg(e.data));
+  // editor: debounced autosave, flushed before switching script
+  function tpFlushSave() {
+    clearTimeout(tp.saveT);
+    if (tp.dirty && tp.loadedId) { tp.dirty = false; send('tp', 'save', tp.loadedId, tpEl.area.value); }
+  }
+  tpEl.area.addEventListener('input', () => { tp.dirty = true; clearTimeout(tp.saveT); tp.saveT = setTimeout(tpFlushSave, 500); });
+  tpEl.area.addEventListener('blur', tpFlushSave);
+  $('#tp-new').onclick = () => { tpFlushSave(); send('tp', 'new', 'Novo roteiro'); };
+  $('#tp-del').onclick = () => { if (tp.loadedId && confirm('Excluir o roteiro "' + (tp.script ? tp.script.name : '') + '"?')) send('tp', 'delete', tp.loadedId); };
+  const tpRename = () => { const n = $('#tp-name').value.trim(); if (n && tp.loadedId) send('tp', 'rename', tp.loadedId, n); };
+  $('#tp-rename').onclick = tpRename;
+  $('#tp-name').addEventListener('keydown', e => { if (e.key === 'Enter') tpRename(); });
+  $('#tp-import').onclick = () => $('#tp-file').click();
+  // Old Brazilian .txt files are often Windows-1252 or UTF-16 (Notepad "Unicode"): detect, never trust blindly.
+  async function tpDecode(file) {
+    const u = new Uint8Array(await file.arrayBuffer());
+    if (u.length >= 2 && u[0] === 0xFF && u[1] === 0xFE) return new TextDecoder('utf-16le').decode(u.subarray(2));
+    if (u.length >= 2 && u[0] === 0xFE && u[1] === 0xFF) return new TextDecoder('utf-16be').decode(u.subarray(2));
+    try { return new TextDecoder('utf-8', {fatal: true}).decode(u); } catch (e) { return new TextDecoder('windows-1252').decode(u); }
+  }
+  $('#tp-file').addEventListener('change', async ev => {
+    const f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+    if (!f) return;
+    if (f.size > 1024 * 1024) { $('#tp-edstat').textContent = 'Arquivo grande demais (máximo 1 MB).'; return; }
+    try { tpFlushSave(); send('tp', 'import', f.name.replace(/\.[^.]*$/, ''), await tpDecode(f)); }
+    catch (e) { $('#tp-edstat').textContent = 'Não foi possível ler o arquivo.'; }
+  });
+  // transport
+  $('#tp-play').onclick = () => send('tp', 'toggle');
+  $('#tp-restart').onclick = () => send('tp', 'restart');
+  $('#tp-prog').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); send('tp', 'seek', Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)).toFixed(4)); });
+  $('#tp-pop').onclick = () => send('tp', 'presenter', 'open');
+  $('#tp-popfs').onclick = () => send('tp', 'presenter', 'fullscreen');
+  $('#tp-popx').onclick = () => send('tp', 'presenter', 'close');
+  $$('#tp-mode button').forEach(b => b.onclick = () => send('tp', 'mode', b.dataset.m));
+  // settings: sliders send on input; while dragging, incoming state must not fight the thumb
+  addEventListener('pointerup', () => { tp.dragging = false; });
+  for (const [id, cmd] of [['tp-speed', 'speed'], ['tp-font', 'font'], ['tp-lh', 'lh'], ['tp-margin', 'margin'], ['tp-markpos', 'markerpos'], ['tp-cdsec', 'cd']]) {
+    const el = $('#' + id);
+    el.addEventListener('pointerdown', () => { tp.dragging = true; });
+    el.addEventListener('input', () => {
+      if (cmd === 'speed') send('tp', 'speed', el.value);
+      else if (cmd === 'cd') send('tp', 'countdown', el.value);
+      else send('tp', 'style', cmd, el.value);
+    });
+  }
+  for (const [id, key] of [['tp-fg', 'fg'], ['tp-bg', 'bg']]) $('#' + id).addEventListener('input', e => send('tp', 'style', key, e.target.value.toUpperCase()));
+  for (const [id, key] of [['tp-mirror', 'mirror'], ['tp-flip', 'flip'], ['tp-marker', 'marker']]) $('#' + id).addEventListener('change', e => send('tp', 'style', key, e.target.checked ? '1' : '0'));
+  addEventListener('resize', () => { if (tpActive()) tpMeasure(); });
+  $$('#tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.v === 'tp') setTimeout(tpMeasure, 0); }));
+  // Keyboard, scoped to this tab (capture phase + stopImmediatePropagation so Space does NOT reach the
+  // switcher's global "cut" handler). Ignored while typing in a text field/select/textarea.
+  addEventListener('keydown', e => {
+    if (!tpActive() || e.ctrlKey || e.metaKey || e.altKey) return;
+    const a = document.activeElement || {};
+    const typing = a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && /^(text|number|password|search|)$/.test(a.type || ''));
+    if (typing || document.querySelector('.modal.on')) return;
+    let cmd = null;
+    if (e.code === 'Space') cmd = ['toggle'];
+    else if (e.key === 'ArrowUp') cmd = ['nudge', 10];
+    else if (e.key === 'ArrowDown') cmd = ['nudge', -10];
+    else if (e.key === 'Home') cmd = ['restart'];
+    if (!cmd) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!e.repeat || cmd[0] === 'nudge') send('tp', ...cmd);
+  }, true);
+  if (host) send('tp', 'hello');
+  // ---------- /FEATURE: teleprompter ----------
 
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
