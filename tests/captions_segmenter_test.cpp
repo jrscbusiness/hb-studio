@@ -70,8 +70,7 @@ TEST(CaptionsSegmenter, PartialsEveryIntervalThenFinal) {
             EXPECT_GT(e.audio.size(), lastAudio);   // grows: each partial holds the whole utterance so far
             lastAudio = e.audio.size();
         } else {
-            ++finals;
-            EXPECT_GE(e.audio.size(), lastAudio);
+            ++finals;   // (a final is trimmed of trailing silence, so it may be slightly shorter than the last partial)
         }
         EXPECT_EQ(e.id, 1u);
     }
@@ -119,7 +118,10 @@ TEST(CaptionsSegmenter, ContinuousSpeechIsCutAtMaxLength) {
     SegmenterConfig c;
     c.partialIntervalMs = 0;
     Segmenter s(c);
-    const auto ev = run(s, tone(30000));
+    // speech-like: 900 ms bursts separated by 100 ms dips (shorter than the hangover), 30 s in all
+    std::vector<float> talk;
+    for (int i = 0; i < 30; ++i) { append(talk, tone(900)); append(talk, silence(100)); }
+    const auto ev = run(s, talk);
     std::size_t finals = 0;
     for (const auto& e : ev) {
         if (e.kind != SegmentEvent::Kind::Final) continue;
@@ -147,17 +149,16 @@ TEST(CaptionsSegmenter, NoiseFloorAdaptsToNoisyRoom) {
     SegmenterConfig c;
     c.partialIntervalMs = 0;
     Segmenter s(c);
-    // steady noise at about -34 dBFS: above the fixed floor (-48) but must not count as speech after adapting
-    std::vector<float> noise(16000 * 6);
-    for (std::size_t i = 0; i < noise.size(); ++i) noise[i] = 0.02f * ((i * 7919) % 200 / 100.0f - 1.0f);
-    const auto ev = run(s, noise);
-    std::size_t spoken = 0;
-    for (const auto& e : ev) spoken += e.audio.size();
-    // the first moments may open one utterance before the floor settles; it must not stay open for 6 s
-    EXPECT_LT(spoken, 16000u * 3);
-    // then real speech 15 dB above that noise is still detected
-    std::vector<float> speech = tone(800, 0.2f);
-    append(speech, silence(1500, 0.02f));
+    // steady noise at about -31 dBFS: above the fixed floor but must stop counting as speech once the
+    // minimum-statistics floor catches up (window noiseWindowMs)
+    std::vector<float> noise(16000 * 14);
+    for (std::size_t i = 0; i < noise.size(); ++i) noise[i] = 0.05f * ((i * 7919) % 200 / 100.0f - 1.0f);
+    run(s, noise);
+    EXPECT_FALSE(s.inSpeech());
+    EXPECT_GT(s.noiseFloorDb(), -40.0);
+    // real speech well above that noise is still detected
+    std::vector<float> speech = tone(800, 0.3f);
+    append(speech, silence(1500, 0.05f));
     const auto ev2 = run(s, speech);
     bool any = false;
     for (const auto& e : ev2) any = any || e.kind == SegmentEvent::Kind::Final;

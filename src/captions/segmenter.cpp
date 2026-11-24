@@ -31,6 +31,15 @@ void Segmenter::processFrame(const float* f, std::vector<SegmentEvent>& out) {
     const double rms = std::sqrt(sum / static_cast<double>(frameSamples_));
     const double db = rms > 1e-9 ? 20.0 * std::log10(rms) : -180.0;
     if (!noiseInit_) { noiseDb_ = std::min(db, cfg_.minThresholdDb); noiseInit_ = true; }
+    // Minimum statistics over the window: raises the floor for steady noise, never for speech (which pauses).
+    {
+        const std::uint64_t idx = frameIdx_++;
+        while (!minWin_.empty() && minWin_.back().second >= db) minWin_.pop_back();
+        minWin_.emplace_back(idx, db);
+        const std::uint64_t win = static_cast<std::uint64_t>(std::max(cfg_.noiseWindowMs / cfg_.frameMs, 1));
+        while (minWin_.front().first + win <= idx) minWin_.pop_front();
+        if (idx + 1 >= win && minWin_.front().second > noiseDb_) noiseDb_ = minWin_.front().second;
+    }
     const double threshold = std::max(cfg_.minThresholdDb, noiseDb_ + cfg_.marginDb);
     const bool voiced = db > threshold;
     const std::int64_t frameStartMs = samplesToMs(totalSamples_);

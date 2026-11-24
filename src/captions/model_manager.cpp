@@ -85,6 +85,8 @@ bool ModelManager::ensure(const std::string& id, const std::function<bool(std::u
     if (!m) { error = "modelo desconhecido"; return false; }
     if (dir_.empty()) { error = "pasta de modelos indisponível"; return false; }
     if (isInstalled(id)) return true;
+    const std::function<bool(std::uint64_t, std::uint64_t)> prog =
+        progress ? progress : [](std::uint64_t, std::uint64_t) { return true; };
     if (!dl_) { error = "download indisponível nesta compilação"; return false; }
     try {
         std::error_code ec;
@@ -94,7 +96,7 @@ bool ModelManager::ensure(const std::string& id, const std::function<bool(std::u
         part += ".part";
         fs::remove(part, ec);
         const std::string partUtf8 = toUtf8(part);
-        if (!dl_->download(m->url, partUtf8, progress, error)) {
+        if (!dl_->download(m->url, partUtf8, prog, error)) {
             fs::remove(part, ec);
             if (error.empty()) error = "download falhou";
             return false;

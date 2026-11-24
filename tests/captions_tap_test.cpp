@@ -19,7 +19,7 @@ TEST(CaptionsTap, FifoOrderAndWrap) {
     EXPECT_EQ(q.sizeFrames(), 800u);
     EXPECT_EQ(q.pop(out.data(), 1000), 800u);
     EXPECT_EQ(out[0], 800.0f);                 // remaining of first block
-    EXPECT_EQ(out[399 * 2], 1198.0f);
+    EXPECT_EQ(out[199 * 2], 1198.0f);
     EXPECT_EQ(out[200 * 2], 0.0f);             // second block starts
     EXPECT_EQ(q.droppedFrames(), 0u);
 }

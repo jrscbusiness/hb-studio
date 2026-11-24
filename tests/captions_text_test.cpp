@@ -49,11 +49,11 @@ TEST(CaptionsText, WrapsByCodePoints) {
 }
 
 TEST(CaptionsText, WrapHardSplitsLongWordsWithoutBreakingUtf8) {
-    const auto l = wrapLines("ççççççççççççç", 5);   // 14 x 2-byte chars
+    const auto l = wrapLines("ççççççççççççç", 5);   // 13 x 2-byte chars
     ASSERT_EQ(l.size(), 3u);
     EXPECT_EQ(utf8Length(l[0]), 5u);
     EXPECT_EQ(utf8Length(l[1]), 5u);
-    EXPECT_EQ(utf8Length(l[2]), 4u);
+    EXPECT_EQ(utf8Length(l[2]), 3u);
     EXPECT_EQ(l[0], "ççççç");
 }
 

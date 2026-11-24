@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <utility>
 #include <vector>
 
 namespace hb::captions {
@@ -26,6 +27,8 @@ struct SegmenterConfig {
     int partialIntervalMs = 1500;    // 0 = no partials
     int minPartialMs = 800;
     int trailingKeepMs = 200;        // silence kept at the end of a final utterance
+    int noiseWindowMs = 6000;        // if even the quietest frame of this window is above the floor, the floor rises to it
+                                     // (steady noise / sustained tone is "noise"; real speech has pauses)
 };
 
 struct SegmentEvent {
@@ -59,6 +62,8 @@ private:
     bool noiseInit_ = false;
 
     // idle state: recent frames (pre-roll + candidate run)
+    std::deque<std::pair<std::uint64_t, double>> minWin_;   // monotonic deque (frame index, dB) for the window minimum
+    std::uint64_t frameIdx_ = 0;
     std::deque<std::vector<float>> recent_;
     int voicedRun_ = 0;
 
