@@ -13,6 +13,7 @@
 
 #include <mutex>
 #include <string>
+#include <utility>
 
 #include "rtsp/tcp_stream.hpp"
 
@@ -34,7 +35,7 @@ std::string wsaMsg(const char* what, int code) { return std::string(what) + " fa
 class WinTcpStream final : public ITcpStream {
 public:
     WinTcpStream() { ensureWsa(); }
-    explicit WinTcpStream(SOCKET s) : s_(s), connected_(true) {
+    WinTcpStream(SOCKET s, std::string peer) : s_(s), connected_(true), peer_(std::move(peer)) {
         ensureWsa();
         u_long nb = 1;
         ioctlsocket(s_, FIONBIO, &nb);
@@ -136,11 +137,13 @@ public:
     }
 
     std::string lastError() const override { return err_; }
+    std::string peerAddress() const override { return peer_; }
 
 private:
     SOCKET s_ = INVALID_SOCKET;
     bool connected_ = false;
     std::string err_;
+    std::string peer_;
 };
 
 class WinListener final : public TcpListener {
@@ -151,9 +154,16 @@ public:
     std::unique_ptr<ITcpStream> accept(int timeoutMs) override {
         WSAPOLLFD p{s_, POLLRDNORM, 0};
         if (WSAPoll(&p, 1, timeoutMs) <= 0) return nullptr;
-        SOCKET c = ::accept(s_, nullptr, nullptr);
+        sockaddr_in pa{};
+        int pl = sizeof pa;
+        SOCKET c = ::accept(s_, reinterpret_cast<sockaddr*>(&pa), &pl);
         if (c == INVALID_SOCKET) return nullptr;
-        return std::make_unique<WinTcpStream>(c);
+        char ip[INET_ADDRSTRLEN] = {0};
+        std::string peer;
+        if (pl >= static_cast<int>(sizeof(sockaddr_in)) && pa.sin_family == AF_INET &&
+            InetNtopA(AF_INET, &pa.sin_addr, ip, sizeof ip))
+            peer = ip;
+        return std::make_unique<WinTcpStream>(c, std::move(peer));
     }
 
 private:
@@ -164,15 +174,18 @@ private:
 
 std::unique_ptr<ITcpStream> makeSocketTcpStream() { return std::make_unique<WinTcpStream>(); }
 
-std::unique_ptr<TcpListener> makeLoopbackListener(std::uint16_t port) {
+std::unique_ptr<TcpListener> makeLoopbackListener(std::uint16_t port) { return makeTcpListener("127.0.0.1", port); }
+
+std::unique_ptr<TcpListener> makeTcpListener(const std::string& ipv4, std::uint16_t port) {
     ensureWsa();
-    SOCKET s = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (s == INVALID_SOCKET) return nullptr;
     sockaddr_in a{};
     a.sin_family = AF_INET;
-    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (InetPtonA(AF_INET, ipv4.c_str(), &a.sin_addr) != 1) return nullptr;
     a.sin_port = htons(port);
-    if (::bind(s, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0 || ::listen(s, 8) != 0) {
+    SOCKET s = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (s == INVALID_SOCKET) return nullptr;
+    // No SO_REUSEADDR on Windows: there it lets another process hijack the port.
+    if (::bind(s, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0 || ::listen(s, 16) != 0) {
         closesocket(s);
         return nullptr;
     }

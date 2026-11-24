@@ -46,6 +46,21 @@ Engine::Engine(video::ProgramFormat format) {
         slots_.push_back(slot);
         sources_.push_back(slot);
     }
+    // ---- FEATURE: scenes ----
+    {
+        std::vector<std::shared_ptr<const video::Source>> inputs(sources_.begin(), sources_.end());
+        auto aspectOf = [this](int slot) -> double {
+            if (slot < 0 || slot >= kSourceCount) return 0;
+            const auto st = slots_[static_cast<std::size_t>(slot)]->info().status;
+            return (st.width > 0 && st.height > 0) ? static_cast<double>(st.width) / st.height : 0;
+        };
+        for (int i = 0; i < kSceneCount; ++i) {
+            auto sc = std::make_shared<scene::SceneSource>("CENA " + std::to_string(i + 1), inputs, aspectOf);
+            sceneSlots_.push_back(sc);
+            sources_.push_back(sc);
+        }
+    }
+    // ---- /FEATURE ----
     switcher_ = std::make_unique<switcher::Switcher>(sources_, &bus_);
     program_ = std::make_unique<video::ProgramOutput>(format, &bus_);
     program_->setRenderer([this](video::Frame& f, std::uint64_t i) { switcher_->renderProgram(f, i); });
@@ -148,7 +163,37 @@ bool Engine::renderUiFrame(const std::string& id, video::Frame& out) {
         sources_[static_cast<std::size_t>(i)]->render(out, uiIndex);
         return true;
     }
+    // ---- FEATURE: scenes ---- "c0".."c15": a scene slot's tile
+    if (id.size() >= 2 && id.size() <= 3 && id[0] == 'c') {
+        int i = 0;
+        for (std::size_t k = 1; k < id.size(); ++k) {
+            if (id[k] < '0' || id[k] > '9') return false;
+            i = i * 10 + (id[k] - '0');
+        }
+        if (i >= kSceneCount || !sceneSlots_[static_cast<std::size_t>(i)]->hasScene()) return false;
+        video::prepareFrame(out, preset.tileW, preset.tileH);
+        sceneSlots_[static_cast<std::size_t>(i)]->render(out, uiIndex);
+        return true;
+    }
+    // ---- /FEATURE ----
     return false;
 }
+
+// ---- FEATURE: scenes ----
+bool Engine::setScene(int slot, std::shared_ptr<const scene::Scene> sc) {
+    if (slot < 0 || slot >= kSceneCount) return false;
+    auto& src = *sceneSlots_[static_cast<std::size_t>(slot)];
+    const bool has = static_cast<bool>(sc);
+    src.setScene(std::move(sc));
+    if (has) src.prepare(program_->format().width, program_->format().height);  // keep the first Program frame cheap
+    logger_.info("scene", "CENA " + std::to_string(slot + 1) + (has ? " definida" : " limpa"));
+    return true;
+}
+
+std::shared_ptr<const scene::Scene> Engine::sceneAt(int slot) const {
+    if (slot < 0 || slot >= kSceneCount) return nullptr;
+    return sceneSlots_[static_cast<std::size_t>(slot)]->scene();
+}
+// ---- /FEATURE ----
 
 }  // namespace hb::app
