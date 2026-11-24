@@ -84,7 +84,10 @@ Result<HttpResponse> GDriveProvider::authed(HttpRequest req) {
 }
 
 Result<std::string> GDriveProvider::ensureFolder() {
-    if (!cfg_.folderId.empty()) return cfg_.folderId;
+    {
+        std::lock_guard lock(mu_);
+        if (!cfg_.folderId.empty()) return cfg_.folderId;
+    }
     HttpRequest find;
     find.method = "GET";
     const std::string q = "name = '" + qEscape(cfg_.folderName) + "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
@@ -95,8 +98,12 @@ Result<std::string> GDriveProvider::ensureFolder() {
     Json j;
     if (hb::core::json::parse(r.value().body, j) && j.isObj()) {
         if (const Json* files = j.get("files"); files && files->isArr() && !files->a.empty()) {
-            cfg_.folderId = jstr(files->a[0], "id");
-            if (!cfg_.folderId.empty()) return cfg_.folderId;
+            const std::string id = jstr(files->a[0], "id");
+            if (!id.empty()) {
+                std::lock_guard lock(mu_);
+                cfg_.folderId = id;
+                return id;
+            }
         }
     }
     HttpRequest mk;
@@ -110,8 +117,11 @@ Result<std::string> GDriveProvider::ensureFolder() {
     Json mj;
     if (!hb::core::json::parse(m.value().body, mj) || !mj.isObj() || jstr(mj, "id").empty())
         return makeError(ErrorKind::Transient, "Resposta inesperada ao criar a pasta no Google Drive");
-    cfg_.folderId = jstr(mj, "id");
-    return cfg_.folderId;
+    {
+        std::lock_guard lock(mu_);
+        cfg_.folderId = jstr(mj, "id");
+    }
+    return jstr(mj, "id");
 }
 
 Result<std::string> GDriveProvider::test() {

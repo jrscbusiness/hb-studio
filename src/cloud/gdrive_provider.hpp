@@ -3,6 +3,7 @@
 // "HB Studio" (created on demand; with drive.file the app only sees what it created). Request
 // building / response parsing only: tested with a fake transport. NOT validated against Google.
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "cloud/cloud_types.hpp"
@@ -30,7 +31,7 @@ public:
     bool verifiesWholeFileMd5() const override { return true; }
     void abort(const UploadSession& s, const FileInfo& f) noexcept override;
 
-    const std::string& folderId() const { return cfg_.folderId; }
+    std::string folderId() const { std::lock_guard lock(mu_); return cfg_.folderId; }
     // Drive file name for a remote name: the date/kind folders are flattened into the name
     // ("2026-11-24/program/a.mp4" -> "2026-11-24_program_a.mp4").
     static std::string driveName(const std::string& remoteName);
@@ -39,6 +40,7 @@ private:
     Result<HttpResponse> authed(HttpRequest req);  // adds the bearer token, refreshes once on 401
     Result<std::string> ensureFolder();
 
+    mutable std::mutex mu_;  // guards cfg_.folderId
     GDriveConfig cfg_;
     std::shared_ptr<ICloudHttp> http_;
     std::shared_ptr<GoogleTokenSource> tokens_;

@@ -12,6 +12,8 @@
 
 namespace hb::cloud {
 
+using KV = std::pair<std::string, std::string>;
+
 // How the upload engine reacts to a failure.
 enum class ErrorKind {
     Transient,    // network, 5xx, 429, timeouts: retry with exponential backoff

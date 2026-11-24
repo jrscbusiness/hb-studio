@@ -7,9 +7,9 @@
 #include <utility>
 #include <vector>
 
-namespace hb::cloud {
+#include "cloud/cloud_types.hpp"
 
-using KV = std::pair<std::string, std::string>;
+namespace hb::cloud {
 
 struct SigV4Input {
     std::string method;         // "GET", "PUT"...
