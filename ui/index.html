@@ -578,6 +578,22 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .tp-chk input{accent-color:var(--blue)}
 .tp-keys{font-size:10.5px;color:var(--muted);line-height:1.5}
 
+/* FEATURE: captions */
+#cap-card .capgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:10px}
+#cap-card label.f{display:flex;flex-direction:column;gap:5px;min-width:0}
+#cap-card select,#cap-card input[type=text],#cap-card input[type=password]{height:34px;width:100%;min-width:0;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);outline:none;user-select:text}
+#cap-card .capstat{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--ink-2)}
+#cap-card .capdot{width:9px;height:9px;border-radius:50%;background:var(--line-2);flex:none}
+#cap-card .capdot.loading{background:#E0A100}#cap-card .capdot.listening{background:#1FA45B}#cap-card .capdot.error{background:#D13B30}
+#cap-card .capmodel{align-items:center}
+#cap-card .capmodel .grow{min-width:0;flex:1}
+#cap-card .capbar{height:6px;border-radius:4px;background:var(--mist);border:1px solid var(--line-2);margin-top:6px;overflow:hidden}
+#cap-card .capbar i{display:block;height:100%;width:0;background:var(--blue)}
+#cap-card .checks{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px}
+#cap-box{margin-top:10px;height:112px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:8px 10px;font-size:13px;line-height:1.45;user-select:text}
+#cap-box div{margin-bottom:3px}
+#cap-box .cp{color:var(--muted);font-style:italic}
+/* /FEATURE: captions */
 /* FEATURE: overlays */
 .ovwrap{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;align-content:start;overflow:auto;padding:2px;height:100%}
 .ovlist{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 290px);overflow:auto;padding:2px}
@@ -1246,6 +1262,35 @@ button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var
         </div>
       </div>
       <!-- /FEATURE: cloudbackup -->
+      <!-- FEATURE: captions -->
+      <div class="card" id="cap-card"><h3><span class="cap">Legendas ao vivo</span></h3>
+        <div class="body">
+          <div class="row" style="padding-top:0"><span class="k">Legendas automáticas do áudio do Program</span><span class="v"><button class="btn sm" id="cap-toggle">LIGAR</button></span></div>
+          <div class="capstat"><span class="capdot" id="cap-dot"></span><span id="cap-status">Desligado</span><span style="margin-left:auto;font-family:var(--mono)" id="cap-lat" title="Tempo de reconhecimento + áudio acumulado na fila">— ms</span></div>
+          <div class="capgrid">
+            <label class="f"><span class="cap">Idioma falado</span><select id="cap-lang"></select></label>
+            <label class="f"><span class="cap">Motor</span><select id="cap-engine"><option value="whisper">Local (offline) — whisper.cpp</option><option value="cloud">Nuvem (opcional) — API compatível com OpenAI</option></select></label>
+          </div>
+          <div id="cap-local" style="margin-top:10px"><span class="cap" style="display:block;margin-bottom:6px">Modelo de voz</span><div id="cap-models"></div></div>
+          <div id="cap-cloud" style="display:none">
+            <div class="capgrid">
+              <label class="f"><span class="cap">Endereço base (https)</span><input type="text" id="cap-curl" maxlength="512" placeholder="https://api.openai.com/v1"></label>
+              <label class="f"><span class="cap">Modelo</span><input type="text" id="cap-cmodel" maxlength="100" placeholder="whisper-1"></label>
+            </div>
+            <label class="f" style="margin-top:10px"><span class="cap">Chave da API <span id="cap-keyhint" style="text-transform:none;letter-spacing:0"></span></span><input type="password" id="cap-ckey" maxlength="400" autocomplete="off" placeholder="cole a chave aqui"></label>
+            <p class="note" style="margin-top:8px"><b>Atenção:</b> este motor envia o áudio do Program para o servidor informado. Nem todo provedor oferece transcrição (o OpenRouter, por exemplo, não oferece).</p>
+          </div>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="cap-prof"><span class="box"></span>Filtrar palavrões</label>
+            <label class="chk"><input type="checkbox" id="cap-srt"><span class="box"></span>Salvar .srt da sessão junto às gravações</label>
+          </div>
+          <div id="cap-box" aria-live="polite"></div>
+          <div class="row" style="margin-top:8px;border-bottom:none"><span class="k">Transcrição ao vivo</span><span class="v"><button class="btn sm" id="cap-clear">LIMPAR</button></span></div>
+          <p class="note" id="cap-msg"></p>
+          <p class="note" style="margin-top:6px">As legendas aparecem no PROGRAM pelo elemento “Legendas” em GRÁFICOS. Mudanças de idioma, modelo e filtro valem na próxima vez que ligar. A precisão varia com sotaque, ruído e música; o motor local não envia nada pela internet.</p>
+        </div>
+      </div>
+      <!-- /FEATURE: captions -->
       <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
         <div class="body">
           <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
@@ -3543,6 +3588,76 @@ body.cur{cursor:default}
   $('#cb-retryall').onclick = () => send('cloudretry', 'all');
   $('#cb-clearfin').onclick = () => send('cloudclearfinished');
   // ---- /FEATURE: cloudbackup ----
+  // ---------- LEGENDAS AO VIVO ---------- FEATURE: captions
+  const capLangs = [['pt', 'Português'], ['en', 'English'], ['es', 'Español'], ['fr', 'Français'], ['de', 'Deutsch'], ['it', 'Italiano'], ['auto', 'Detectar automaticamente']];
+  let capSt = null, capModelSig = '', capBoxSig = '';
+  const capRows = {};
+  (function capInit() {
+    const sel = $('#cap-lang'); if (!sel) return;
+    sel.innerHTML = capLangs.map(l => `<option value="${l[0]}">${l[1]}</option>`).join('');
+    sel.addEventListener('change', () => send('cap', 'set', 'language', sel.value));
+    $('#cap-engine').addEventListener('change', e => send('cap', 'set', 'engine', e.target.value));
+    $('#cap-prof').addEventListener('change', e => send('cap', 'set', 'profanity', e.target.checked ? 1 : 0));
+    $('#cap-srt').addEventListener('change', e => send('cap', 'set', 'saveSrt', e.target.checked ? 1 : 0));
+    $('#cap-curl').addEventListener('change', e => send('cap', 'set', 'cloudUrl', e.target.value.trim()));
+    $('#cap-cmodel').addEventListener('change', e => send('cap', 'set', 'cloudModel', e.target.value.trim()));
+    $('#cap-ckey').addEventListener('change', e => { send('cap', 'set', 'cloudKey', e.target.value.trim()); e.target.value = ''; });
+    $('#cap-toggle').addEventListener('click', () => send('cap', capSt && capSt.on ? 'off' : 'on'));
+    $('#cap-clear').addEventListener('click', () => send('cap', 'clear'));
+  })();
+  function renderCap(d) {
+    if (!$('#cap-card')) return;
+    capSt = d;
+    const st = d.state || 'stopped';
+    const tg = $('#cap-toggle'); tg.textContent = d.on ? 'DESLIGAR' : 'LIGAR';
+    $('#cap-dot').className = 'capdot ' + (d.on ? st : '');
+    $('#cap-status').textContent = !d.on ? 'Desligado' : st === 'loading' ? 'Carregando modelo…' : st === 'listening' ? 'Ouvindo' : st === 'error' ? 'Erro: ' + (d.error || 'falha ao iniciar') : 'Iniciando…';
+    const lat = $('#cap-lat');
+    lat.textContent = d.on && st === 'listening' ? (d.latencyMs || 0) + ' ms' : '— ms';
+    lat.title = 'Tempo de reconhecimento + áudio acumulado na fila' + (d.droppedMs ? ' · ' + (d.droppedMs / 1000).toFixed(1).replace('.', ',') + ' s de áudio descartado (computador sem folga: use o modelo leve)' : '');
+    lat.style.color = d.on && (d.latencyMs || 0) > 4000 ? 'var(--warn-ink)' : '';
+    const c = d.cfg || {};
+    const setv = (id, v) => { const el = $(id); if (el && document.activeElement !== el && el.value !== v) el.value = v; };
+    setv('#cap-lang', c.language || 'pt'); setv('#cap-engine', c.engine || 'whisper');
+    setv('#cap-curl', c.cloudUrl || ''); setv('#cap-cmodel', c.cloudModel || '');
+    $('#cap-prof').checked = !!c.profanity; $('#cap-srt').checked = !!c.saveSrt;
+    $('#cap-keyhint').textContent = c.hasKey ? '(chave salva)' : '(nenhuma salva)';
+    const cloud = c.engine === 'cloud';
+    $('#cap-cloud').style.display = cloud ? '' : 'none';
+    $('#cap-local').style.display = cloud ? 'none' : '';
+    // model rows are created once and updated in place (the page is refreshed ~4x/s; never rebuild under a click)
+    const models = d.models || [];
+    const sig = models.map(m => m.id).join(',');
+    if (sig !== capModelSig) {
+      capModelSig = sig; const box = $('#cap-models'); box.innerHTML = '';
+      models.forEach(m => {
+        const row = document.createElement('div'); row.className = 'fmt capmodel'; row.setAttribute('role', 'radio'); row.tabIndex = 0;
+        row.innerHTML = '<span class="rd"></span><div class="grow"><b></b><em></em><div class="capbar" style="display:none"><i></i></div></div><button class="btn sm"></button>';
+        const pick = () => send('cap', 'set', 'model', m.id);
+        row.onclick = pick; row.onkeydown = e => { if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(); } };
+        row.querySelector('button').onclick = e => { e.stopPropagation(); send('cap', row.dataset.dl === '1' ? 'dlcancel' : 'dl|' + m.id); };
+        box.appendChild(row); capRows[m.id] = row;
+      });
+    }
+    models.forEach(m => {
+      const row = capRows[m.id]; if (!row) return;
+      const dl = d.dl || {}; const busy = dl.active && dl.id === m.id;
+      row.classList.toggle('on', c.model === m.id);
+      row.dataset.dl = busy ? '1' : '0';
+      row.querySelector('b').textContent = m.label;
+      row.querySelector('em').textContent = `${m.note} · ${m.sizeMb} MB em disco · ~${m.ramMb} MB de RAM` + (dl.error && dl.id === m.id && !busy ? ' · ERRO: ' + dl.error : '');
+      const bar = row.querySelector('.capbar'); bar.style.display = busy ? '' : 'none'; bar.firstChild.style.width = (dl.pct || 0) + '%';
+      const b = row.querySelector('button'); b.textContent = busy ? 'CANCELAR ' + (dl.pct || 0) + '%' : m.installed ? 'INSTALADO' : 'BAIXAR';
+      b.disabled = !busy && (m.installed || !!dl.active);
+    });
+    const msg = $('#cap-msg'); msg.textContent = d.msg || (d.srtFile && !d.on ? 'Legendas salvas em: ' + d.srtFile : ''); msg.classList.toggle('err', !!d.msg);
+    const bsig = JSON.stringify([d.lines, d.partial]);
+    if (bsig !== capBoxSig) {
+      capBoxSig = bsig; const bx = $('#cap-box');
+      bx.innerHTML = (d.lines || []).map(l => `<div>${esc(l)}</div>`).join('') + (d.partial ? `<div class="cp">${esc(d.partial.replace(/\n/g, ' '))}</div>` : '');
+      bx.scrollTop = bx.scrollHeight;
+    }
+  }
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); if (mkAsked) send('mktlist'); } else if (d.t === 'plugin_review') { showReview(d); mktAfterReview(d); } else if (typeof d.t === 'string' && d.t.startsWith('mkt')) mktMsg(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
@@ -3554,6 +3669,7 @@ body.cur{cursor:default}
     else if (d.t === 'previewq') renderPreviewQ(d.id);
     else if (typeof d.t === 'string' && d.t.startsWith('chat_')) chatMsg(d);   // FEATURE: chat
     else if (d.t === 'overlay_state') ovState(d);   // FEATURE: overlays
+    else if (d.t === 'cap') renderCap(d);   // FEATURE: captions
     else if (typeof d.t === 'string' && d.t.startsWith('ai_')) aiMsg(d);   // FEATURE: ai
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'cloud_state') cbRender(d);   // FEATURE: cloudbackup
