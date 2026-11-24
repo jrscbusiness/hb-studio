@@ -27,6 +27,10 @@
 #include "app/ptz_settings.hpp"
 #include "app/source_assignments.hpp"
 #include "app/stream_destinations.hpp"
+// ---- FEATURE: ai ----
+#include "ai/ai_commands.hpp"
+#include "ai/secret_store.hpp"
+// ---- /FEATURE ----
 #include "app/windows/dshow_capture.hpp"
 #include "app/windows/stream_sender.hpp"
 #include "app/windows/task_queue.hpp"
@@ -497,6 +501,26 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         toastText = t;
         ++toastId;
     };
+    // ---- FEATURE: ai ----
+    // AI providers (CONFIG > Inteligência Artificial). Declared after `host` so worker threads are joined
+    // (AiService destructor) before the window goes away. Keys: DPAPI-encrypted file, never sent to the UI.
+    std::unique_ptr<hb::ai::ISecretStore> aiSecrets = hb::ai::makeDefaultSecretStore();
+    hb::ai::ProviderStore aiStore(aiSecrets.get());
+    std::string aiPath;
+    {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
+            aiPath = win::narrow(std::wstring(p) + L"\\HBStudio\\ai.json");
+            CoTaskMemFree(p);
+        }
+        if (!aiPath.empty()) aiStore.load(aiPath);
+    }
+    hb::ai::AiService aiService(aiStore, hb::ai::AiClient(hb::ai::AiClientDeps{hb::ai::makeDefaultAiHttp(), {}, {}}));
+    // ---- /FEATURE ----
+    // ---- FEATURE: ai ----
+    hb::ai::AiCommands aiCommands(aiService, aiStore, aiPath, [&](const std::string& key, std::string json) { host.postQueued(key, std::move(json)); },
+                                  [&](const std::string& t) { toast(t); });
+    // ---- /FEATURE ----
     auto ptzChanged = [&] {
         if (!ptzPath.empty() && !ptzSettings.save(ptzPath)) engine.logger().warning("ptz", "não foi possível salvar a configuração");
         ptzSent = 0;  // force the feeder to resend
@@ -522,6 +546,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         const std::string& c = a[0];
         const int cam = idx(1);
         const std::string camLabel = "CAM " + std::to_string(cam + 1) + ": ";
+        // ---- FEATURE: ai ----
+        if (c0.rfind("ai", 0) == 0 && aiCommands.handle(msg)) return;
+        // ---- /FEATURE ----
         if (c == "ready") {
             ptzSent = 0;
             media.forceResend();

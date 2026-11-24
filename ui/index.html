@@ -451,6 +451,18 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .recbtn.on{background:#B3261E;border-color:#B3261E;color:#fff}
 .recbtn.on i{background:#fff;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.25}}
+/* FEATURE: ai */
+.ai-f{display:flex;flex-direction:column;gap:5px;margin-top:8px;min-width:0}
+.ai-f input,.ai-f select{height:34px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);user-select:text;width:100%;min-width:0;box-sizing:border-box;outline:none}
+.ai-f input:focus,.ai-f select:focus{border-color:var(--blue)}
+.ai-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.ai-acts .btn{flex:0 1 auto}
+.ai-free{display:none;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--mist);color:var(--blue);border:1px solid var(--line-2);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.ai-free.on{display:inline-block}
+.ai-res{margin-top:8px;min-height:18px}
+.ai-res.ok{color:var(--blue)}
+.ai-sub{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+/* /FEATURE */
 </style>
 </head>
 <body>
@@ -731,6 +743,41 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       <div class="card"><h3><span class="cap">Qualidade do Preview</span></h3>
         <div class="body"><div id="previewq-list"></div>
         <p class="note" style="margin-top:10px">Controla o tamanho dos monitores PROGRAM/PREVIEW e das miniaturas das câmeras na tela — não afeta a resolução real da transmissão/gravação. Baixe para computadores mais fracos ou com muitas câmeras; a mudança vale na hora, sem precisar reiniciar.</p></div></div>
+      <!-- FEATURE: ai -->
+      <div class="card" id="ai-card"><h3><span class="cap">Inteligência Artificial</span></h3>
+        <div class="body">
+          <p class="note">Opcional. Cole a chave de API da IA que você quiser usar — há opções <b>grátis</b> pelo OpenRouter (modelos “:free”) e pelo 9router (programa local). A chave fica criptografada neste computador e nunca é mostrada de volta. Nada é enviado à IA enquanto você não usar uma ferramenta de IA.</p>
+          <label class="ai-f"><span class="cap">Provedores salvos</span><select id="ai-sel"></select></label>
+          <label class="ai-f"><span class="cap">Tipo</span><select id="ai-kind">
+            <option value="openrouter">OpenRouter (tem modelos grátis)</option>
+            <option value="9router">9router (local, sem custo)</option>
+            <option value="custom">Personalizado (OpenAI, Groq, Ollama, LM Studio…)</option></select></label>
+          <label class="ai-f"><span class="cap">Endereço base da API</span><input type="text" id="ai-url" maxlength="256" spellcheck="false" autocomplete="off"></label>
+          <label class="ai-f"><span class="cap">Chave de API (somente escrita)</span><input type="password" id="ai-key" maxlength="512" spellcheck="false" autocomplete="new-password"></label>
+          <label class="ai-f"><span class="cap">Modelo <span class="ai-free" id="ai-free">grátis</span></span><input type="text" id="ai-model" maxlength="200" spellcheck="false" autocomplete="off" list="ai-models-dl" placeholder="ex.: meta-llama/llama-3.3-70b-instruct:free"></label>
+          <datalist id="ai-models-dl"></datalist>
+          <label class="ai-f" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="ai-onlyfree" style="width:auto;height:auto"><span class="note">Mostrar só modelos grátis na lista</span></label>
+          <div class="ai-acts">
+            <button class="btn sm" id="ai-models-btn">BUSCAR MODELOS</button>
+            <button class="btn sm" id="ai-test-btn">TESTAR CONEXÃO</button>
+            <button class="btn sm primary" id="ai-save-btn" style="flex:0 1 auto">SALVAR</button>
+            <button class="btn sm" id="ai-act-btn">ATIVAR</button>
+            <button class="btn sm" id="ai-del-btn">REMOVER</button>
+          </div>
+          <p class="note ai-res" id="ai-res" aria-live="polite"></p>
+          <p class="note" id="ai-active-note"></p>
+          <div class="ai-sub">
+            <span class="cap">Assistente (opcional): sugerir título e descrição da live</span>
+            <label class="ai-f"><input type="text" id="ai-topic" maxlength="1000" placeholder="Assunto da transmissão, ex.: culto de domingo com a banda convidada"></label>
+            <div class="ai-acts"><button class="btn sm" id="ai-sug-btn">SUGERIR</button></div>
+            <label class="ai-f"><span class="cap">Título sugerido</span><input type="text" id="ai-sug-title" readonly></label>
+            <label class="ai-f"><span class="cap">Descrição sugerida</span><input type="text" id="ai-sug-desc" readonly></label>
+            <div class="ai-acts"><button class="btn sm" id="ai-copy-title">COPIAR TÍTULO</button><button class="btn sm" id="ai-copy-desc">COPIAR DESCRIÇÃO</button></div>
+            <p class="note ai-res" id="ai-sug-res" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+      <!-- /FEATURE -->
       <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
         <div class="body">
           <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
@@ -1688,17 +1735,77 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   for (const k of ['template', 'videoKbps', 'videoQuality', 'keyframeSec', 'audioKbps', 'audioRate', 'splitMin', 'splitMB', 'minFreeMB'])
     $('#rc-' + k).addEventListener('change', ev => send('rec', 'cfg', k, ev.target.value));
 
+  // ---- FEATURE: ai ----
+  // CONFIG > Inteligência Artificial. The key is write-only: the host only ever sends keySet/keyHint.
+  const AI_DEFAULT_URL = { openrouter: 'https://openrouter.ai/api/v1', '9router': 'http://localhost:20128/v1', custom: '' };
+  let aiSt = { list: [], active: '', configured: false }, aiModels = [], aiCur = '';
+  const aiRes = (id, text, ok) => { const e = $(id); e.textContent = text || ''; e.classList.toggle('ok', !!ok); };
+  const aiDraft = () => JSON.stringify({ id: aiCur, kind: $('#ai-kind').value, baseUrl: $('#ai-url').value.trim(), model: $('#ai-model').value.trim(), apiKey: $('#ai-key').value });
+  function aiFreeBadge() { const m = aiModels.find(x => x.id === $('#ai-model').value.trim()); $('#ai-free').classList.toggle('on', !!(m && m.free)); }
+  function aiFill(id) {
+    aiCur = id || '';
+    const p = aiSt.list.find(x => x.id === aiCur);
+    $('#ai-kind').value = p ? p.kind : 'openrouter';
+    $('#ai-url').value = p ? p.baseUrl : AI_DEFAULT_URL[$('#ai-kind').value];
+    $('#ai-model').value = p ? p.model : '';
+    $('#ai-key').value = '';
+    $('#ai-key').placeholder = p && p.keySet ? 'chave salva ' + p.keyHint + ' — deixe em branco para manter' : 'cole sua chave aqui';
+    $('#ai-act-btn').disabled = !p || p.id === aiSt.active; $('#ai-del-btn').disabled = !p;
+    $('#ai-sel').value = aiCur; aiFreeBadge();
+  }
+  function aiRenderModels() {
+    const only = $('#ai-onlyfree').checked, dl = $('#ai-models-dl'); dl.innerHTML = '';
+    aiModels.filter(m => !only || m.free).slice(0, 600).forEach(m => { const o = document.createElement('option'); o.value = m.id; o.label = (m.free ? '[GRÁTIS] ' : '') + (m.name || m.id); dl.appendChild(o); });
+  }
+  function aiRenderState(d) {
+    aiSt = d; const sel = $('#ai-sel'); sel.innerHTML = '';
+    const n = document.createElement('option'); n.value = ''; n.textContent = '+ Novo provedor'; sel.appendChild(n);
+    d.list.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name + ' · ' + p.kind + (p.id === d.active ? ' (ativo)' : ''); sel.appendChild(o); });
+    const want = d.savedId || (d.list.some(p => p.id === aiCur) ? aiCur : d.active);
+    aiFill(want || '');
+    const a = d.list.find(p => p.id === d.active);
+    $('#ai-active-note').textContent = a ? (d.configured ? 'Ativo: ' + a.name + ' / ' + a.model : 'Ativo: ' + a.name + ' — falta escolher o modelo' + (a.keySet ? '.' : ' e colar a chave.')) : 'Nenhum provedor ativo.';
+    if (d.keysLost) aiRes('#ai-res', 'Não foi possível ler a chave salva (outro usuário/perfil do Windows?). Cole a chave de novo.', false);
+    else if (d.canPersistKeys === false) aiRes('#ai-res', 'Este sistema não oferece armazenamento criptografado: a chave vale só até fechar o programa.', false);
+  }
+  $('#ai-sel').onchange = e => { aiModels = []; aiRenderModels(); aiFill(e.target.value); };
+  $('#ai-kind').onchange = () => { $('#ai-url').value = AI_DEFAULT_URL[$('#ai-kind').value]; };
+  $('#ai-model').addEventListener('input', aiFreeBadge);
+  $('#ai-onlyfree').onchange = aiRenderModels;
+  $('#ai-models-btn').onclick = () => { aiRes('#ai-res', 'Buscando modelos…'); send('aimodels', aiDraft()); };
+  $('#ai-test-btn').onclick = () => { aiRes('#ai-res', 'Testando…'); send('aitest', aiDraft()); };
+  $('#ai-save-btn').onclick = () => send('aisave', aiDraft());
+  $('#ai-act-btn').onclick = () => { if (aiCur) send('aiactivate', aiCur); };
+  $('#ai-del-btn').onclick = () => { if (aiCur && confirm('Remover este provedor e apagar a chave salva?')) send('airemove', aiCur); };
+  $('#ai-sug-btn').onclick = () => { aiRes('#ai-sug-res', 'Pensando…'); send('aisuggest', JSON.stringify({ topic: $('#ai-topic').value.trim() })); };
+  const aiCopy = id => { const v = $(id).value; if (!v) return; try { navigator.clipboard.writeText(v); toast('Copiado.'); } catch (e) { $(id).select(); } };
+  $('#ai-copy-title').onclick = () => aiCopy('#ai-sug-title'); $('#ai-copy-desc').onclick = () => aiCopy('#ai-sug-desc');
+  function aiMsg(d) {
+    if (d.t === 'ai_state') aiRenderState(d);
+    else if (d.t === 'ai_test') aiRes('#ai-res', (d.ok ? '✔ ' : '✖ ') + d.message + (d.ok ? ' (' + d.latencyMs + ' ms)' : ''), d.ok);
+    else if (d.t === 'ai_models') {
+      if (d.ok) { aiModels = d.models || []; aiRenderModels(); aiFreeBadge(); const f = aiModels.filter(m => m.free).length; aiRes('#ai-res', aiModels.length + ' modelos' + (f ? ' (' + f + ' grátis)' : '') + '. Comece a digitar no campo Modelo para escolher.', true); }
+      else aiRes('#ai-res', '✖ ' + d.error, false);
+    } else if (d.t === 'ai_suggest') {
+      if (d.ok) { $('#ai-sug-title').value = d.title; $('#ai-sug-desc').value = d.description; aiRes('#ai-sug-res', 'Pronto. Revise antes de usar.', true); }
+      else aiRes('#ai-sug-res', '✖ ' + d.error, false);
+    }
+  }
+  aiFill('');
+  // ---- /FEATURE ----
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
     else if (d.t === 'devformats') renderCamFormats(d);
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);
+    else if (typeof d.t === 'string' && d.t.startsWith('ai_')) aiMsg(d);   // FEATURE: ai
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
+  if (host) send('aiget');   // FEATURE: ai
   window.__hbMessage = onMsg;   // used by the design preview harness
 })();
 </script>
