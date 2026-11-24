@@ -44,7 +44,11 @@ if(HB_CAPTIONS_WHISPER)
   FetchContent_Declare(whisper_cpp
     GIT_REPOSITORY https://github.com/ggml-org/whisper.cpp.git
     GIT_TAG v1.7.6)   # a8d002cfd879315632a579e73f0148d06959de36
+  # Static libraries only: the installer ships a single HBStudio.exe (no side-by-side DLLs).
+  set(_hb_prev_shared "${BUILD_SHARED_LIBS}")
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(whisper_cpp)
+  set(BUILD_SHARED_LIBS "${_hb_prev_shared}" CACHE BOOL "" FORCE)
   add_library(hb_captions_whisper STATIC src/captions/whisper_recognizer.cpp)
   target_include_directories(hb_captions_whisper PUBLIC ${CMAKE_SOURCE_DIR}/src)
   target_link_libraries(hb_captions_whisper PUBLIC hb_captions whisper)
