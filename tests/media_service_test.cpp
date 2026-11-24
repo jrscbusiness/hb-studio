@@ -123,3 +123,67 @@ TEST(MediaService, HostileCommandsNeverCrash) {
         r.svc->handle(m);
     SUCCEED();
 }
+
+// ---- FEATURE: multitrack ----
+TEST(MediaServiceIso, AudioChannelSessionWritesFolderLayoutAndManifest) {
+    Rig r;
+    EXPECT_EQ(r.svc->handle("rec|cfg|profile|wav-16"), "");
+    EXPECT_EQ(r.svc->handle("rec|iso|ch|0|1"), "");
+    EXPECT_EQ(r.svc->handle("rec|iso|cfg|afmt|wav-16"), "");
+    EXPECT_EQ(r.svc->handle("rec|iso|cfg|tap|post"), "");
+    EXPECT_NE(r.svc->handle("rec|iso|cfg|afmt|nao-existe"), "");
+    EXPECT_NE(r.svc->handle("rec|iso|cfg|afmt|mp3"), "");
+    EXPECT_EQ(r.svc->handle("rec|start"), "Gravação iniciada.");
+    EXPECT_NE(r.svc->handle("rec|iso|ch|1|1"), "");                 // locked while recording
+    std::string iso;
+    for (std::uint64_t n = 0; n < 4; ++n) r.svc->tick(n, [&](const char* k, const std::string& j) { if (std::string(k) == "rec_iso") iso = j; });
+    EXPECT_NE(iso.find("\"active\":true"), std::string::npos) << iso;
+    EXPECT_NE(iso.find("\"id\":\"CH01\""), std::string::npos);
+    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+    r.svc->handle("rec|stop");
+    fs::path session;
+    for (auto& e : fs::directory_iterator(r.dir / "rec")) if (e.is_directory()) session = e.path();
+    ASSERT_FALSE(session.empty());
+    EXPECT_TRUE(fs::exists(session / "program.wav"));
+    EXPECT_TRUE(fs::exists(session / "session.json"));
+    EXPECT_TRUE(fs::exists(session / "audio"));
+    bool wav = false;
+    for (auto& e : fs::directory_iterator(session / "audio")) wav = wav || e.path().extension() == ".wav";
+    EXPECT_TRUE(wav);
+    EXPECT_EQ(r.svc->isoFolder(), session.string());
+}
+
+TEST(MediaServiceIso, NothingSelectedKeepsTheFlatLegacyLayout) {
+    Rig r;
+    EXPECT_EQ(r.svc->handle("rec|cfg|profile|wav-16"), "");
+    EXPECT_EQ(r.svc->handle("rec|cfg|template|flat"), "");
+    EXPECT_EQ(r.svc->handle("rec|start"), "Gravação iniciada.");
+    r.svc->handle("rec|stop");
+    EXPECT_TRUE(fs::exists(r.dir / "rec" / "flat.wav"));
+}
+
+TEST(MediaServiceIso, CameraWithoutLiveSourceRefusesToStart) {
+    Rig r;
+    EXPECT_EQ(r.svc->handle("rec|iso|cam|2|1"), "");
+    const std::string t = r.svc->handle("rec|start");
+    EXPECT_NE(t.find("Não foi possível gravar"), std::string::npos) << t;
+    EXPECT_FALSE(r.svc->recording());
+}
+
+TEST(MediaServiceIso, SelectionPersistsAndHostileInputIsHarmless) {
+    {
+        Rig r;
+        r.svc->handle("rec|iso|ch|3|1");
+        r.svc->handle("rec|iso|cam|5|1");
+        r.svc->handle("rec|iso|cfg|rotmin|7");
+        const fs::path keep = r.dir / "data" / "multitrack.json";
+        ASSERT_TRUE(fs::exists(keep));
+        for (const char* m : {"rec|iso", "rec|iso|cam", "rec|iso|cam|x|1", "rec|iso|cam|-1|1", "rec|iso|cam|999|1", "rec|iso|cfg|res|zzz",
+                              "rec|iso|cfg|rotmin|abc", "rec|iso|cfg|vkbps|-5", "rec|iso|bogus|1|2"})
+            EXPECT_NO_THROW(r.svc->handle(m));
+        const std::string j = r.svc->iso().stateJson(false, (r.dir / "rec").string(), 8000, 500ull << 20);
+        EXPECT_NE(j.find("\"rotmin\":7"), std::string::npos);
+        EXPECT_NE(j.find("\"t\":\"rec_iso\""), std::string::npos);
+    }
+}
+// ---- /FEATURE ----
