@@ -43,6 +43,11 @@
 #include "ndi/ndi.hpp"
 #include "video/frame_ops.hpp"
 #include "plugins/service.hpp"
+// ---- FEATURE: remote ----
+#include <functional>
+#include "remote/service.hpp"
+#include "video/frame_ops.hpp"
+// ---- /FEATURE ----
 #include "vst3/vst3.hpp"
 
 using namespace hb;
@@ -536,6 +541,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         return a;
     };
 
+    // ---- FEATURE: remote ----
+    // Phone/tablet remote control (src/remote). Remote sessions reach THIS SAME handler (onMessage)
+    // after the server's strict command allowlist rebuilt the text, so no logic is duplicated.
+    // OFF until the operator enables it in CONFIG; commands arrive on the server's executor thread
+    // (the allowlisted commands only touch thread-safe parts: switcher, media, senders).
+    std::function<void(const std::string&)> remoteDispatch;
+    hb::remote::RemoteService remoteSvc(
+        [&](const std::string& cmd) { if (remoteDispatch) remoteDispatch(cmd); },
+        [&](const std::string& line) { engine.logger().info("remote", line); });
+    // ---- /FEATURE ----
+
     auto onMessage = [&](const std::string& msg) {
         const std::string c0 = msg.substr(0, msg.find('|'));
         const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
@@ -638,6 +654,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 editor->closeEditor();
             }
         }
+        // ---- FEATURE: remote ----
+        else if (c == "remote") {   // desktop UI only: remote|on / off / newpin / revoke / kick|id
+            const std::string t = remoteSvc.handleUi(msg);
+            if (!t.empty()) toast(t);
+            host.postQueued("remote", remoteSvc.statusJson());
+        }
+        // ---- /FEATURE ----
         else if (c == "preview") engine.switcher().setPreview(idx(1));
         else if (c == "program") engine.switcher().setProgram(idx(1));
         else if (c == "cut") engine.switcher().cut();
@@ -891,6 +914,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // ptzstop / ptzzoom / ptzfocus: silent no-ops until a provider exists.
     };
 
+    // ---- FEATURE: remote ----
+    remoteDispatch = [&](const std::string& cmd) { onMessage(cmd); };
+    // ---- /FEATURE ----
+
     win::trace("before host.create");
     win::WebViewHost::Options opt;
     opt.userDataDir = dataDir;
@@ -936,6 +963,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             video::Frame frame;
             video::Frame previewFull;  // full-resolution (not the small UI monitor size) for prevWin
             std::vector<std::uint8_t> bytes;
+            video::Frame remoteThumb;                 // FEATURE: remote
+            std::vector<std::uint8_t> remoteBytes;    // FEATURE: remote
             std::uint64_t tick = 0;
             auto next = std::chrono::steady_clock::now();
             while (running) {
@@ -965,6 +994,60 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                                        progLatest->stride, pf.fps.num, pf.fps.den);
                     }
                 }
+                // ---- FEATURE: remote ----
+                // Remote devices: compact state ~7.5 Hz (only if someone is connected; the server also
+                // drops it when unchanged) and opt-in low-res thumbnails ~2 fps. Everything here only
+                // stores the latest value in the server's mailbox - it never touches a socket.
+                if (tick % 2 == 0 && remoteSvc.wantsState()) {
+                    hb::remote::RemoteState rs;
+                    const auto sw = engine.switcher().state();
+                    rs.pvw = sw.pvw; rs.pgm = sw.pgm; rs.transitioning = sw.transitioning; rs.progress = sw.progress;
+                    rs.recording = media.recording();
+                    for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+                        const auto info = engine.slotInfo(i);
+                        const auto assigned = assignments.get(i);
+                        const bool enabled = assigned.empty() || assigned.enabled;
+                        hb::remote::RemoteSource src;
+                        src.name = "FONTE " + std::to_string(i + 1);
+                        src.status = "test";
+                        if (info.live) {
+                            using S = video::SourceStatus::State;
+                            src.status = info.status.state == S::Online ? "online" : info.status.state == S::Connecting ? "connecting"
+                                       : info.status.state == S::NoSignal ? "nosignal" : "error";
+                            if (!info.label.empty()) src.name = info.label;
+                        } else if (!assigned.empty() && !enabled) {
+                            src.status = "off";
+                            if (!assigned.name.empty()) src.name = assigned.name;
+                        }
+                        rs.sources.push_back(std::move(src));
+                    }
+                    const auto as = media.audio().snapshot();
+                    for (const auto& st : as.strips)
+                        rs.strips.push_back({st.name, st.faderDb, st.mute, st.solo, std::max(st.peakDb[0], st.peakDb[1])});
+                    rs.masterPeakDb = std::max(as.master.levels.peakDb[0], as.master.levels.peakDb[1]);
+                    // Destinations: name/platform/run state only - never the server URL or the key.
+                    for (const auto& d : destinations.list()) {
+                        hb::remote::RemoteDest rd{d.id, d.name, d.platform, false, false};
+                        std::lock_guard lock(sendersMutex);
+                        auto it = senders.find(d.id);
+                        if (it != senders.end()) {
+                            const auto st = it->second->status();
+                            rd.running = st.running;
+                            rd.publishing = st.publishing;
+                        }
+                        rs.dests.push_back(std::move(rd));
+                    }
+                    remoteSvc.pushState(rs);
+                }
+                if (tick % 8 == 0 && remoteSvc.wantsThumbs()) {
+                    for (int kind = 0; kind < 2; ++kind) {
+                        if (!engine.renderUiFrame(kind ? "pgm" : "pvw", frame)) continue;
+                        video::downscaleBox(frame, remoteThumb, 240, 135);
+                        if (jpeg.encode(remoteThumb, 55, remoteBytes)) remoteSvc.pushThumb(kind, remoteBytes);
+                    }
+                }
+                if (tick % 8 == 0) host.postQueued("remote", remoteSvc.statusJson());
+                // ---- /FEATURE ----
                 // Input tiles: half of them per tick (~7.5 fps each) to save CPU.
                 for (int i = static_cast<int>(tick % 2); i < app::Engine::kSourceCount; i += 2)
                     sendFrame(("s" + std::to_string(i)).c_str(), 70);
@@ -1025,6 +1108,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     win::trace("message loop ended");
     running = false;
+    remoteSvc.disable();   // FEATURE: remote - closes the server threads before the engine goes away
     {
         std::lock_guard lock(devMutex);
         for (auto& kv : devices) kv.second->stop();   // close capture graphs before the engine goes away

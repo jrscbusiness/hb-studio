@@ -127,6 +127,7 @@ if(WIN32)
     target_compile_definitions(hb_studio PRIVATE UNICODE _UNICODE NOMINMAX HB_VERSION="${HB_VERSION_DISPLAY}")
     target_link_libraries(hb_studio PRIVATE hb_core hb_plugins hb_media hb_ndi hb_vcam_sender hb_streaming hb_streaming_win mfplat mf mfuuid comdlg32 ${HB_WIN_LIBS}
       hb_ai)   # FEATURE: ai
+    target_link_libraries(hb_studio PRIVATE hb_remote)   # FEATURE: remote (defined in cmake/modules/remote.cmake)
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")
