@@ -231,6 +231,16 @@ TEST(CloudDrive, ConnectionTestReportsAccountAndFreeSpace) {
 TEST(CloudUtil, EndpointParsing) {
     EXPECT_TRUE(parseEndpoint("https://s3.amazonaws.com/").valid);
     EXPECT_EQ(parseEndpoint("http://localhost:9000").port, 9000);
+    // cleartext only toward the local network
+    EXPECT_TRUE(parseEndpoint("http://192.168.1.20:9000").valid);
+    EXPECT_TRUE(parseEndpoint("http://10.0.0.5").valid);
+    EXPECT_TRUE(parseEndpoint("http://172.16.3.4").valid);
+    EXPECT_TRUE(parseEndpoint("http://nas").valid);
+    EXPECT_TRUE(parseEndpoint("http://minio.local:9000").valid);
+    EXPECT_FALSE(parseEndpoint("http://s3.example.com").valid);
+    EXPECT_FALSE(parseEndpoint("http://8.8.8.8").valid);
+    EXPECT_FALSE(parseEndpoint("http://172.32.0.1").valid);
+    EXPECT_FALSE(parseEndpoint("http://192.169.1.1").valid);
     EXPECT_EQ(parseEndpoint("play.min.io").scheme, "https");
     EXPECT_FALSE(parseEndpoint("https://u:p@host").valid);
     EXPECT_FALSE(parseEndpoint("https://host/path").valid);

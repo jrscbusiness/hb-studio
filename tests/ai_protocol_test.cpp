@@ -18,6 +18,9 @@ TEST(AiProtocol, BaseUrlAcceptsHttpsAndLoopbackHttp) {
 TEST(AiProtocol, BaseUrlRejectsBadInput) {
     std::string out, err;
     EXPECT_FALSE(normalizeBaseUrl("http://example.com/v1", out, err));  // cleartext to a remote host
+    EXPECT_FALSE(normalizeBaseUrl("http://127.evil.com/v1", out, err));  // looks like loopback, is not
+    EXPECT_FALSE(normalizeBaseUrl("http://127.0.0.1.evil.com/v1", out, err));
+    EXPECT_TRUE(normalizeBaseUrl("http://127.1.2.3:8080/v1", out, err));
     EXPECT_NE(err.find("localhost"), std::string::npos);
     EXPECT_FALSE(normalizeBaseUrl("ftp://x/v1", out, err));
     EXPECT_FALSE(normalizeBaseUrl("https://user:pw@host/v1", out, err));

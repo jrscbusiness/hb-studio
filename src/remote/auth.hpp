@@ -23,8 +23,8 @@ struct AuthConfig {
     int maxFailuresPerPin = 5;
     std::chrono::seconds lockoutBase{30};
     std::chrono::seconds lockoutMax{15 * 60};
-    std::chrono::minutes sessionAbsolute{12 * 60};  // hard lifetime of a token
-    std::chrono::minutes sessionIdle{4 * 60};       // lifetime without any message from the device
+    std::chrono::minutes sessionAbsolute{8 * 60};   // hard lifetime of a token (plain HTTP on the LAN: keep the window short)
+    std::chrono::minutes sessionIdle{60};           // lifetime without any message from the device
     std::size_t maxSessions = 16;
     bool rotatePinOnPair = true;                    // a PIN is single-use: each pairing shows a new one
 };

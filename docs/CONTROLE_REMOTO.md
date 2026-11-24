@@ -36,7 +36,7 @@ confiança (a do estúdio/igreja), nunca em Wi-Fi público. Mitigações:
   bloqueiam o pareamento por 30 s, 60 s, 120 s… (teto de 15 min) — mesmo o PIN certo é recusado
   durante o bloqueio. 3 tentativas por conexão.
 - **Chave por aparelho:** 32 bytes aleatórios; o servidor guarda só o SHA-256; comparações em tempo
-  constante. **Sessões curtas:** expiram em 4 h sem uso e em 12 h no máximo (precisa parear de novo).
+  constante. **Sessões curtas:** expiram em 1 h sem uso e em 8 h no máximo (precisa parear de novo).
   As chaves ficam só na memória: reiniciar o HB Studio desconecta todos.
 - **Origem:** o upgrade WebSocket exige `Origin` igual ao `Host` (bloqueia sites maliciosos abertos no
   navegador do operador) e o `Host` precisa ser um IP ou `localhost` (bloqueia DNS rebinding).

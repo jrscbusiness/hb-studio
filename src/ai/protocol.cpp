@@ -178,7 +178,28 @@ bool normalizeBaseUrl(const std::string& in, std::string& out, std::string& err)
         if (!(std::isalnum(c) || c == '.' || c == '-' || c == '_' || c == ':')) { err = "Endereço inválido: nome de servidor com caracteres não permitidos."; return false; }
     if (scheme == "http") {
         const std::string h = lower(host);
-        const bool loopback = h == "localhost" || h == "::1" || h == "127.0.0.1" || h.rfind("127.", 0) == 0;
+        // Strict: "127.evil.com" must NOT pass as loopback (that would send the API key in clear to a remote host).
+        bool dottedLoopback = false;
+        {
+            int octets = 0, value = 0, digits = 0, first = -1;
+            bool ok = !h.empty();
+            for (std::size_t i = 0; i <= h.size() && ok; ++i) {
+                if (i == h.size() || h[i] == '.') {
+                    if (digits == 0 || value > 255) { ok = false; break; }
+                    if (octets == 0) first = value;
+                    ++octets;
+                    value = 0;
+                    digits = 0;
+                } else if (h[i] >= '0' && h[i] <= '9') {
+                    value = value * 10 + (h[i] - '0');
+                    if (++digits > 3) ok = false;
+                } else {
+                    ok = false;
+                }
+            }
+            dottedLoopback = ok && octets == 4 && first == 127;
+        }
+        const bool loopback = h == "localhost" || h == "::1" || dottedLoopback;
         if (!loopback) {
             err = "HTTP sem criptografia só é permitido para localhost (9router, Ollama...). Use https:// para servidores remotos.";
             return false;

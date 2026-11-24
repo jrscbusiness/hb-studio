@@ -1042,12 +1042,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             ofn.nMaxFile = static_cast<DWORD>(sizeof(file) / sizeof(file[0]));
             ofn.lpstrFilter = L"Templates do HB Studio (*.json)\0*.json\0Todos os arquivos\0*.*\0";
             ofn.lpstrDefExt = L"json";
-            if (c == "sceneimport" && a.size() < 2) {
+            // Import/export ALWAYS go through the native file dialog: any path argument that arrived in the
+            // message (e.g. from a compromised page) is ignored, so a script cannot read or overwrite
+            // arbitrary files with scene-service permissions.
+            if (c == "sceneimport") {
                 ofn.lpstrTitle = L"Importar template";
                 ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
                 if (!GetOpenFileNameW(&ofn)) return;
                 m = "sceneimport|" + win::narrow(file);
-            } else if (c == "sceneexport" && a.size() == 2) {
+            } else if (c == "sceneexport") {
+                if (a.size() < 2) return;
                 ofn.lpstrTitle = L"Exportar template";
                 ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
                 const std::wstring def = win::widen(a[1]) + L".json";
