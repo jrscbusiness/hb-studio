@@ -674,6 +674,50 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   }
   await tab('prod');
 
+  // ---- FEATURE: ai ----
+  await tab('cfg'); await clearSent();
+  ok((await page.locator('#ai-card').count()) === 1, 'IA: card "Inteligência Artificial" existe em CONFIG');
+  ok((await page.locator('#ai-url').inputValue()) === 'https://openrouter.ai/api/v1', 'IA: endereço padrão do OpenRouter preenchido');
+  await page.selectOption('#ai-kind', '9router');
+  ok((await page.locator('#ai-url').inputValue()) === 'http://localhost:20128/v1', 'IA: 9router usa http://localhost:20128/v1');
+  await page.selectOption('#ai-kind', 'openrouter');
+  await page.fill('#ai-key', 'sk-or-v1-SEGREDO1234');
+  await page.fill('#ai-model', 'meta/x:free');
+  await page.click('#ai-save-btn');
+  const aiSave = (await sent()).find(m => m.startsWith('aisave|'));
+  ok(!!aiSave && aiSave.includes('"apiKey":"sk-or-v1-SEGREDO1234"') && aiSave.includes('meta/x:free'), 'IA: SALVAR envia aisave|json com a chave digitada');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_state', active: 'p1', configured: true, canPersistKeys: true, keysLost: false, savedId: 'p1',
+    list: [{ id: 'p1', name: 'OpenRouter', kind: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta/x:free', keySet: true, keyHint: '••••1234' }] }));
+  ok((await page.locator('#ai-key').inputValue()) === '', 'IA: campo da chave fica vazio após salvar (a chave nunca volta)');
+  ok((await page.locator('#ai-key').getAttribute('placeholder')).includes('••••1234'), 'IA: placeholder mostra só a dica mascarada');
+  ok((await page.locator('#ai-active-note').textContent()).includes('Ativo: OpenRouter'), 'IA: nota mostra provedor ativo');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_models', ok: true, id: 'p1', error: '', models: [
+    { id: 'meta/x:free', name: 'X', free: true, ctx: 1000 }, { id: 'pago/y', name: 'Y', free: false, ctx: 1000 }] }));
+  ok((await page.locator('#ai-models-dl option').count()) === 2, 'IA: lista de modelos carregada');
+  await page.check('#ai-onlyfree');
+  ok((await page.locator('#ai-models-dl option').count()) === 1, 'IA: filtro "só grátis" funciona');
+  ok((await page.locator('#ai-free.on').count()) === 1, 'IA: selo "grátis" aparece para modelo grátis');
+  await page.fill('#ai-model', 'pago/y');
+  await page.evaluate(() => document.querySelector('#ai-model').dispatchEvent(new Event('input')));
+  ok((await page.locator('#ai-free.on').count()) === 0, 'IA: selo some para modelo pago');
+  await clearSent();
+  await page.click('#ai-test-btn');
+  ok((await sent()).some(m => m.startsWith('aitest|{"id":"p1"')), 'IA: TESTAR CONEXÃO envia aitest com o id salvo');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_test', ok: false, latencyMs: 12, kind: 'invalid_key', message: 'Chave de API inválida.' }));
+  ok((await page.locator('#ai-res').textContent()).includes('Chave de API inválida'), 'IA: erro do teste é mostrado');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_test', ok: true, latencyMs: 321, kind: 'none', message: 'Conexão OK' }));
+  ok((await page.locator('#ai-res').textContent()).includes('321 ms'), 'IA: sucesso mostra latência');
+  await page.fill('#ai-topic', 'culto de domingo');
+  await page.click('#ai-sug-btn');
+  ok((await sent()).includes('aisuggest|{"topic":"culto de domingo"}'), 'IA: SUGERIR envia aisuggest');
+  await page.evaluate(() => window.__hbMessage({ t: 'ai_suggest', ok: true, title: 'Culto ao vivo', description: 'Venha.', error: '' }));
+  ok((await page.locator('#ai-sug-title').inputValue()) === 'Culto ao vivo', 'IA: título sugerido preenchido');
+  await clearSent();
+  await page.click('#ai-del-btn');
+  ok((await sent()).includes('airemove|p1'), 'IA: REMOVER envia airemove|id');
+  await tab('prod');
+  // ---- /FEATURE ----
+
   ok(errors.length === 0, 'no JavaScript errors' + (errors.length ? ': ' + errors[0] : ''));
   await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed`);
