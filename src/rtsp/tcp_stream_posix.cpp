@@ -13,6 +13,8 @@
 
 #include <cerrno>
 #include <cstring>
+#include <string>
+#include <utility>
 
 #include "rtsp/tcp_stream.hpp"
 
@@ -33,7 +35,7 @@ bool setNonBlocking(int fd) {
 class PosixTcpStream final : public ITcpStream {
 public:
     PosixTcpStream() = default;
-    explicit PosixTcpStream(int fd) : fd_(fd), connected_(true) {
+    PosixTcpStream(int fd, std::string peer) : fd_(fd), connected_(true), peer_(std::move(peer)) {
         setNonBlocking(fd_);
         prepare();
     }
@@ -137,6 +139,7 @@ public:
     }
 
     std::string lastError() const override { return err_; }
+    std::string peerAddress() const override { return peer_; }
 
 private:
     void prepare() {
@@ -150,6 +153,7 @@ private:
     int fd_ = -1;
     bool connected_ = false;
     std::string err_;
+    std::string peer_;
 };
 
 class PosixListener final : public TcpListener {
@@ -160,9 +164,14 @@ public:
     std::unique_ptr<ITcpStream> accept(int timeoutMs) override {
         pollfd p{fd_, POLLIN, 0};
         if (::poll(&p, 1, timeoutMs) <= 0) return nullptr;
-        int c = ::accept(fd_, nullptr, nullptr);
+        sockaddr_in pa{};
+        socklen_t pl = sizeof pa;
+        int c = ::accept(fd_, reinterpret_cast<sockaddr*>(&pa), &pl);
         if (c < 0) return nullptr;
-        return std::make_unique<PosixTcpStream>(c);
+        char ip[INET_ADDRSTRLEN] = {0};
+        std::string peer;
+        if (pl >= sizeof(sockaddr_in) && pa.sin_family == AF_INET && inet_ntop(AF_INET, &pa.sin_addr, ip, sizeof ip)) peer = ip;
+        return std::make_unique<PosixTcpStream>(c, std::move(peer));
     }
 
 private:
@@ -173,16 +182,18 @@ private:
 
 std::unique_ptr<ITcpStream> makeSocketTcpStream() { return std::make_unique<PosixTcpStream>(); }
 
-std::unique_ptr<TcpListener> makeLoopbackListener(std::uint16_t port) {
+std::unique_ptr<TcpListener> makeLoopbackListener(std::uint16_t port) { return makeTcpListener("127.0.0.1", port); }
+
+std::unique_ptr<TcpListener> makeTcpListener(const std::string& ipv4, std::uint16_t port) {
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    if (inet_pton(AF_INET, ipv4.c_str(), &a.sin_addr) != 1) return nullptr;
+    a.sin_port = htons(port);
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return nullptr;
     int one = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-    sockaddr_in a{};
-    a.sin_family = AF_INET;
-    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    a.sin_port = htons(port);
-    if (::bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0 || ::listen(fd, 8) != 0) {
+    if (::bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0 || ::listen(fd, 16) != 0) {
         ::close(fd);
         return nullptr;
     }

@@ -128,6 +128,31 @@ main{padding:18px 22px;min-height:0;position:relative}
 .tile.pvw{border-color:var(--blue-2);box-shadow:0 0 0 3px rgba(79,141,255,.22)}
 .tile.pgm{border-color:var(--blue);box-shadow:var(--glow)}
 .tile .tally{position:absolute;right:6px;top:6px;font-size:8.5px;letter-spacing:.14em;font-weight:700;padding:2px 6px;border-radius:4px;display:none}
+/* FEATURE: scenes */
+.tiles.scenes .tile:not(.scene),.tiles:not(.scenes) .tile.scene{display:none}
+.tile.scene.sc-empty{opacity:.5;border-style:dashed}
+.tile.scene.sc-empty .lb b{color:#BFD6FF}
+.bankbtn.scn.on{background:linear-gradient(180deg,#B06BFF,#7A3CE0);border-color:#7A3CE0}
+.bankbtn.scn:hover{border-color:#B06BFF}
+.sc-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.sc-tabs button{height:30px;padding:0 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:12px;font-weight:600}
+.sc-tabs button.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.sc-card{border:1px solid var(--line-2);border-radius:12px;padding:8px;cursor:pointer;background:var(--surface-2,var(--surface));display:flex;flex-direction:column;gap:6px;text-align:left}
+.sc-card:hover,.sc-card:focus-visible{border-color:var(--blue);outline:none}
+.sc-card canvas,.sc-row canvas{width:100%;aspect-ratio:16/9;border-radius:8px;display:block;background:#000}
+.sc-card b{font-size:13px;color:var(--ink)}.sc-card em{font-style:normal;font-size:11px;color:var(--muted);line-height:1.35}
+.sc-card .mini{display:flex;gap:4px}.sc-card .mini canvas{flex:1;min-width:0}
+.sc-map{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.sc-row{display:flex;gap:10px;align-items:center;padding:6px 0}
+.sc-row canvas{width:96px;flex:none}
+.sc-edit{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+#sc-cv{width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;touch-action:none;display:block}
+.sc-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.sc-layers{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.sc-layers button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font-size:11.5px;color:var(--ink-2)}
+.sc-layers button.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+/* /FEATURE */
 .tile.pgm .tally{display:block;background:var(--blue);color:var(--on-accent)}
 .tile.pvw:not(.pgm) .tally{display:block;background:var(--surface);color:var(--blue)}
 
@@ -289,6 +314,18 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .sheet input[type=text],.sheet input:not([type]),.sheet input[type=number],.sheet input[type=password],.sheet select{height:38px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);outline:none;user-select:text;width:100%}
 .sheet input:focus,.sheet select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,107,255,.15)}
 .sheet input[type=range]{accent-color:var(--blue);height:38px}
+/* FEATURE: chroma */
+.chr{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.chr h3{margin:0 0 8px;font-size:11px;letter-spacing:.08em;color:var(--ink-2)}
+.chr .grid2{gap:6px 16px}
+.chr input[type=range]{height:24px}
+.chr input[type=color]{height:30px;width:100%;padding:0;border:1px solid var(--line-2);border-radius:10px;background:var(--surface)}
+.chr .row{display:flex;gap:10px;align-items:center}
+.chr canvas{width:160px;height:90px;border:1px solid var(--line-2);border-radius:8px;background:repeating-conic-gradient(var(--mist) 0 25%,var(--surface) 0 50%) 0 0/16px 16px;flex:none}
+.chr .bar{height:6px;border-radius:4px;background:var(--mist);overflow:hidden;margin:6px 0}
+.chr .bar i{display:block;height:100%;width:0;background:var(--blue)}
+.chr .note{margin:4px 0}
+/* /FEATURE: chroma */
 .checks{display:flex;gap:18px;align-items:flex-end;padding-bottom:8px}
 .chk{flex-direction:row!important;align-items:center;gap:8px!important;cursor:pointer;font-weight:500!important}
 @media (max-width:1280px){
@@ -451,6 +488,86 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .recbtn.on{background:#B3261E;border-color:#B3261E;color:#fff}
 .recbtn.on i{background:#fff;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.25}}
+/* FEATURE: ai */
+.ai-f{display:flex;flex-direction:column;gap:5px;margin-top:8px;min-width:0}
+.ai-f input,.ai-f select{height:34px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);user-select:text;width:100%;min-width:0;box-sizing:border-box;outline:none}
+.ai-f input:focus,.ai-f select:focus{border-color:var(--blue)}
+.ai-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.ai-acts .btn{flex:0 1 auto}
+.ai-free{display:none;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--mist);color:var(--blue);border:1px solid var(--line-2);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.ai-free.on{display:inline-block}
+.ai-res{margin-top:8px;min-height:18px}
+.ai-res.ok{color:var(--blue)}
+.ai-sub{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+/* /FEATURE */
+/* FEATURE: teleprompter */
+#v-tp{grid-template-columns:minmax(210px,260px) minmax(0,1fr) minmax(250px,290px);gap:14px;min-height:0;padding:2px}
+#v-tp .card{display:flex;flex-direction:column;min-height:0;min-width:0}
+#v-tp .card .body{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;overflow:auto}
+.tp-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tp-row .btn{flex:1;min-width:0}
+.tp-list{border:1px solid var(--line-2);border-radius:10px;background:var(--surface);max-height:116px;overflow:auto;flex:none}
+.tp-list button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:6px 10px;font-size:12px;border-bottom:1px dashed var(--line)}
+.tp-list button:last-child{border-bottom:0}
+.tp-list button:hover{background:var(--mist)}
+.tp-list button.on{background:var(--blue);color:var(--on-accent)}
+.tp-list button em{font-style:normal;font-family:var(--mono);font-size:10.5px;opacity:.75;flex:none}
+.tp-list button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#v-tp input[type=text],#v-tp input[type=number]{height:32px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);min-width:0;width:100%}
+#v-tp textarea{flex:1;min-height:90px;resize:none;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);color:var(--ink);padding:10px;font:inherit;font-size:13px;line-height:1.5;user-select:text;cursor:text}
+#v-tp textarea:focus,#v-tp input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,107,255,.15)}
+.tp-view{position:relative;flex:1;min-height:150px;border-radius:12px;overflow:hidden;background:#000;border:1px solid var(--line-2)}
+.tpv-stage{position:absolute;inset:0;overflow:hidden}
+.tpv-txt{position:absolute;left:0;right:0;top:0;will-change:transform;font-family:var(--sans);font-weight:600}
+.tpv-txt p{margin:0 0 .7em;white-space:pre-wrap;overflow-wrap:anywhere}
+.tpv-txt p.p{cursor:pointer}
+.tpv-txt p.p:hover{background:rgba(127,127,127,.22)}
+.tpv-txt .c{height:0;position:relative;margin:0}
+.tpv-txt .c span{position:absolute;right:0;top:-.1em;transform:translateY(-100%);font-family:var(--sans);font-size:.3em;font-weight:700;color:#111;background:#F5C65A;padding:.1em .6em;border-radius:.4em;white-space:nowrap;max-width:70%;overflow:hidden;text-overflow:ellipsis}
+.tpv-mark{position:absolute;left:0;right:0;height:0;border-top:2px solid rgba(255,64,64,.85);pointer-events:none}
+.tpv-mark::before,.tpv-mark::after{content:"";position:absolute;top:-8px;border:7px solid transparent}
+.tpv-mark::before{left:0;border-left-color:rgba(255,64,64,.95)}
+.tpv-mark::after{right:0;border-right-color:rgba(255,64,64,.95)}
+.tpv-cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font:700 min(40vh,160px)/1 var(--mono);color:#fff;background:rgba(0,0,0,.55);pointer-events:none}
+.tp-prog{height:12px;border-radius:6px;background:var(--mist);border:1px solid var(--line-2);cursor:pointer;overflow:hidden;flex:none}
+.tp-prog i{display:block;height:100%;width:100%;transform-origin:0 50%;transform:scaleX(0);background:linear-gradient(90deg,var(--blue-2),var(--blue))}
+.tp-info{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--ink-2);flex:none}
+.tp-trans{display:flex;gap:8px;flex:none}
+.tp-trans .btn{height:42px}
+.tp-set{display:grid;grid-template-columns:78px minmax(0,1fr) 44px;gap:6px 8px;align-items:center;font-size:11.5px;color:var(--ink-2)}
+.tp-set .cap{font-size:9.5px}
+.tp-set input[type=range]{width:100%;height:24px;accent-color:var(--blue)}
+.tp-set output{font-family:var(--mono);font-size:11px;text-align:right}
+.tp-set input[type=color]{width:100%;height:26px;border:1px solid var(--line-2);border-radius:7px;padding:0;background:var(--surface)}
+.tp-chk{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2)}
+.tp-chk label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.tp-chk input{accent-color:var(--blue)}
+.tp-keys{font-size:10.5px;color:var(--muted);line-height:1.5}
+
+/* FEATURE: overlays */
+.ovwrap{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;align-content:start;overflow:auto;padding:2px;height:100%}
+.ovlist{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 290px);overflow:auto;padding:2px}
+.ovrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--surface)}
+.ovrow.on{border-color:var(--blue);box-shadow:inset 3px 0 0 var(--blue)}
+.ovrow .nm{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovrow .nm em{font-style:normal;font-weight:500;color:var(--muted);font-size:11px;margin-left:8px;letter-spacing:.08em}
+.ovrow .live{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--blue);margin-left:8px}
+.ovrow .acts{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.ovrow .acts button{height:28px;min-width:28px;padding:0 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:11.5px;font-weight:600}
+.ovrow .acts button:hover{background:var(--mist)}
+.ovrow .acts button.air{background:var(--mist);color:var(--ink);letter-spacing:.1em}
+.ovrow .acts button.air.on{background:#d93025;border-color:#d93025;color:#fff}
+.ovrow .ctl{grid-column:1/-1;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.ovrow .ctl button{height:26px;padding:0 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:11.5px;font-weight:600}
+.ovrow .ctl button:hover{background:var(--mist)}
+.ovthumb{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:16/9}
+.ovthumb canvas{width:100%;height:100%;display:block}
+.ovtypes{display:flex;gap:8px;margin-top:12px}
+.ovtypes select{flex:1}
+.ovpre{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ovpre button{height:26px;padding:0 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:11.5px;font-weight:600}
+@media (max-width:1100px){.ovwrap{grid-template-columns:1fr}}
+/* /FEATURE */
 </style>
 </head>
 <body>
@@ -462,8 +579,10 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     </div>
     <nav id="tabs">
       <button data-v="xmit">TRANSMISSÃO</button>
+      <button data-v="gfx">GRÁFICOS</button><!-- FEATURE: overlays -->
       <button class="on" data-v="prod">PRODUÇÃO</button>
       <button data-v="cam">CÂMERAS</button>
+      <button data-v="tp">TELEPROMPTER</button><!-- FEATURE: teleprompter -->
       <button data-v="aud">ÁUDIO</button>
       <button data-v="rec">GRAVAÇÃO</button>
       <button data-v="plg">PLUGINS</button>
@@ -498,6 +617,39 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         </div>
       </div>
     </section>
+
+    <!-- FEATURE: overlays -->
+    <section class="view" id="v-gfx">
+      <div class="ovwrap">
+        <div class="card">
+          <h3><span class="cap">Gráficos sobre o Program</span><span class="cap mono" id="ov-count">0</span></h3>
+          <div class="body">
+            <div class="ovlist" id="ov-list"></div>
+            <p class="note" id="ov-empty">Nenhum gráfico ainda. Escolha um tipo abaixo e adicione: cronômetro, placar, QR Code, nome (lower third), legendas ao vivo ou chat destacado.</p>
+            <div class="ovtypes">
+              <select id="ov-type" aria-label="Tipo de gráfico">
+                <option value="timer">Cronômetro / contagem regressiva</option>
+                <option value="scoreboard">Placar</option>
+                <option value="qr">QR Code (doação / link)</option>
+                <option value="lowerthird">Nome / função (lower third)</option>
+                <option value="captions">Legendas ao vivo</option>
+                <option value="chatpin">Chat destacado</option>
+              </select>
+              <button class="btn primary sm" id="ov-add" style="flex:none">+ ADICIONAR</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Prévia do Program (com gráficos)</span></h3>
+          <div class="body">
+            <div class="ovthumb"><canvas id="cv-gfx" width="640" height="360"></canvas></div>
+            <label class="chk" style="margin-top:12px"><input type="checkbox" id="ov-prev"><span class="box"></span>Mostrar também no Preview em tela cheia (janela de saída)</label>
+            <p class="note" style="margin-top:8px">Os gráficos entram na saída Program: câmera virtual, gravação, NDI e transmissão. “NO AR” liga e desliga com animação.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- /FEATURE -->
 
     <!-- ===================== PRODUÇÃO ===================== -->
     <section class="view on" id="v-prod">
@@ -536,11 +688,15 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         </div>
 
         <div class="card inputs">
-          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">16 / 16</span></h3>
+          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">16 / 16</span><!-- FEATURE: scenes --><button class="btn sm" id="sc-open" title="Templates prontos: culto, aula, podcast, evento">TEMPLATES</button><!-- /FEATURE --></h3>
           <div class="inputsrow">
             <div class="bankbar">
               <button class="bankbtn on" data-bank="0" title="Fileira 1 (CAM 1–8) — teclado e botões de PROGRAM/PREVIEW"></button>
               <button class="bankbtn" data-bank="1" title="Fileira 2 (CAM 9–16) — teclado e botões de PROGRAM/PREVIEW"></button>
+              <!-- FEATURE: scenes -->
+              <button class="bankbtn scn" data-bank="2" title="CENAS 1–8 — layouts com várias câmeras (teclado e botões de PROGRAM/PREVIEW)"></button>
+              <button class="bankbtn scn" data-bank="3" title="CENAS 9–16"></button>
+              <!-- /FEATURE -->
             </div>
             <div class="tiles" id="tiles"></div>
           </div>
@@ -620,6 +776,66 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
         </div>
       </div>
     </section>
+
+    <!-- FEATURE: teleprompter -->
+    <section class="view" id="v-tp">
+      <div class="card">
+        <h3><span class="cap">Roteiros</span></h3>
+        <div class="body">
+          <div class="tp-list" id="tp-list"></div>
+          <div class="tp-row">
+            <button class="btn sm" id="tp-new">NOVO</button>
+            <button class="btn sm" id="tp-import" title="Importar um arquivo .txt">IMPORTAR .TXT</button>
+            <button class="btn sm" id="tp-del">EXCLUIR</button>
+          </div>
+          <div class="tp-row"><input type="text" id="tp-name" maxlength="80" placeholder="Nome do roteiro" aria-label="Nome do roteiro"><button class="btn sm" id="tp-rename" style="flex:none">RENOMEAR</button></div>
+          <input type="file" id="tp-file" accept=".txt,text/plain" hidden>
+          <textarea id="tp-text" spellcheck="false" placeholder="Digite ou cole o roteiro aqui. Uma linha em branco separa parágrafos. Linhas que começam com # são anotações só para o operador."></textarea>
+          <div class="tp-keys" id="tp-edstat">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="cap">Visão do apresentador</span><span class="cap mono" id="tp-state">PARADO</span></h3>
+        <div class="body">
+          <div class="tp-view" id="tp-view"><div class="tpv-stage" id="tp-stage"><div class="tpv-txt" id="tp-txt"></div></div><div class="tpv-mark" id="tp-mark"></div><div class="tpv-cd" id="tp-cd"></div></div>
+          <div class="tp-prog" id="tp-prog" title="Clique para saltar"><i id="tp-progbar"></i></div>
+          <div class="tp-info"><span id="tp-pct">0%</span><span id="tp-remain">restam —</span><span id="tp-total">total —</span></div>
+          <div class="tp-trans">
+            <button class="btn sm" id="tp-restart" title="Voltar ao início (Home)">⏮</button>
+            <button class="btn primary" id="tp-play" title="Play / pause (Espaço)">PLAY</button>
+          </div>
+          <div class="tp-row">
+            <button class="btn sm" id="tp-pop">ABRIR APRESENTADOR</button>
+            <button class="btn sm" id="tp-popfs" title="Tela cheia na janela do apresentador (F11 ou duplo clique nela)">TELA CHEIA</button>
+            <button class="btn sm" id="tp-popx">FECHAR</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="cap">Ajustes</span></h3>
+        <div class="body">
+          <div class="seg" id="tp-mode"><button data-m="wpm" class="on">PALAVRAS/MIN</button><button data-m="pxs">PX/S</button></div>
+          <div class="tp-set">
+            <span class="cap" id="tp-speedlbl">Velocidade</span><input type="range" id="tp-speed" min="20" max="400" step="1" value="150" aria-label="Velocidade"><output id="tp-speedv">150</output>
+            <span class="cap">Fonte</span><input type="range" id="tp-font" min="20" max="220" step="2" value="64"><output id="tp-fontv">64</output>
+            <span class="cap">Entrelinha</span><input type="range" id="tp-lh" min="1" max="2.5" step="0.05" value="1.4"><output id="tp-lhv">1.4</output>
+            <span class="cap">Margens</span><input type="range" id="tp-margin" min="0" max="30" step="1" value="8"><output id="tp-marginv">8%</output>
+            <span class="cap">Linha leitura</span><input type="range" id="tp-markpos" min="10" max="80" step="1" value="35"><output id="tp-markposv">35%</output>
+            <span class="cap">Contagem</span><input type="range" id="tp-cdsec" min="0" max="30" step="1" value="3"><output id="tp-cdsecv">3s</output>
+            <span class="cap">Cor do texto</span><input type="color" id="tp-fg" value="#ffffff"><span></span>
+            <span class="cap">Cor do fundo</span><input type="color" id="tp-bg" value="#000000"><span></span>
+          </div>
+          <div class="tp-chk">
+            <label><input type="checkbox" id="tp-mirror"> Espelhar (H)</label>
+            <label><input type="checkbox" id="tp-flip"> Inverter (V)</label>
+            <label><input type="checkbox" id="tp-marker" checked> Linha de leitura</label>
+          </div>
+          <div class="tp-keys">Nesta aba: <kbd>Espaço</kbd> play/pause · <kbd>↑</kbd>/<kbd>↓</kbd> velocidade · <kbd>Home</kbd> início. Espaço aqui NÃO faz CUT. Clique num parágrafo da visão para saltar até ele.</div>
+        </div>
+      </div>
+    </section>
+    <!-- /FEATURE -->
+
 
     <!-- ===================== ÁUDIO ===================== -->
     <section class="view" id="v-aud">
@@ -731,6 +947,54 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       <div class="card"><h3><span class="cap">Qualidade do Preview</span></h3>
         <div class="body"><div id="previewq-list"></div>
         <p class="note" style="margin-top:10px">Controla o tamanho dos monitores PROGRAM/PREVIEW e das miniaturas das câmeras na tela — não afeta a resolução real da transmissão/gravação. Baixe para computadores mais fracos ou com muitas câmeras; a mudança vale na hora, sem precisar reiniciar.</p></div></div>
+      <!-- FEATURE: ai -->
+      <div class="card" id="ai-card"><h3><span class="cap">Inteligência Artificial</span></h3>
+        <div class="body">
+          <p class="note">Opcional. Cole a chave de API da IA que você quiser usar — há opções <b>grátis</b> pelo OpenRouter (modelos “:free”) e pelo 9router (programa local). A chave fica criptografada neste computador e nunca é mostrada de volta. Nada é enviado à IA enquanto você não usar uma ferramenta de IA.</p>
+          <label class="ai-f"><span class="cap">Provedores salvos</span><select id="ai-sel"></select></label>
+          <label class="ai-f"><span class="cap">Tipo</span><select id="ai-kind">
+            <option value="openrouter">OpenRouter (tem modelos grátis)</option>
+            <option value="9router">9router (local, sem custo)</option>
+            <option value="custom">Personalizado (OpenAI, Groq, Ollama, LM Studio…)</option></select></label>
+          <label class="ai-f"><span class="cap">Endereço base da API</span><input type="text" id="ai-url" maxlength="256" spellcheck="false" autocomplete="off"></label>
+          <label class="ai-f"><span class="cap">Chave de API (somente escrita)</span><input type="password" id="ai-key" maxlength="512" spellcheck="false" autocomplete="new-password"></label>
+          <label class="ai-f"><span class="cap">Modelo <span class="ai-free" id="ai-free">grátis</span></span><input type="text" id="ai-model" maxlength="200" spellcheck="false" autocomplete="off" list="ai-models-dl" placeholder="ex.: meta-llama/llama-3.3-70b-instruct:free"></label>
+          <datalist id="ai-models-dl"></datalist>
+          <label class="ai-f" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="ai-onlyfree" style="width:auto;height:auto"><span class="note">Mostrar só modelos grátis na lista</span></label>
+          <div class="ai-acts">
+            <button class="btn sm" id="ai-models-btn">BUSCAR MODELOS</button>
+            <button class="btn sm" id="ai-test-btn">TESTAR CONEXÃO</button>
+            <button class="btn sm primary" id="ai-save-btn" style="flex:0 1 auto">SALVAR</button>
+            <button class="btn sm" id="ai-act-btn">ATIVAR</button>
+            <button class="btn sm" id="ai-del-btn">REMOVER</button>
+          </div>
+          <p class="note ai-res" id="ai-res" aria-live="polite"></p>
+          <p class="note" id="ai-active-note"></p>
+          <div class="ai-sub">
+            <span class="cap">Assistente (opcional): sugerir título e descrição da live</span>
+            <label class="ai-f"><input type="text" id="ai-topic" maxlength="1000" placeholder="Assunto da transmissão, ex.: culto de domingo com a banda convidada"></label>
+            <div class="ai-acts"><button class="btn sm" id="ai-sug-btn">SUGERIR</button></div>
+            <label class="ai-f"><span class="cap">Título sugerido</span><input type="text" id="ai-sug-title" readonly></label>
+            <label class="ai-f"><span class="cap">Descrição sugerida</span><input type="text" id="ai-sug-desc" readonly></label>
+            <div class="ai-acts"><button class="btn sm" id="ai-copy-title">COPIAR TÍTULO</button><button class="btn sm" id="ai-copy-desc">COPIAR DESCRIÇÃO</button></div>
+            <p class="note ai-res" id="ai-sug-res" aria-live="polite"></p>
+          </div>
+      <!-- FEATURE: remote -->
+      <div class="card" id="remote-card"><h3><span class="cap">Controle remoto</span></h3>
+        <div class="body">
+          <p class="note" style="margin-bottom:10px">Opere a mesa pelo navegador de um celular ou tablet na <b>mesma rede Wi-Fi</b> (segunda tela). Desligado por padrão e sempre desligado ao abrir o programa.</p>
+          <div class="row"><span class="k">Controle por celular/tablet</span><span class="v"><button class="btn sm" id="rm-toggle">LIGAR</button></span></div>
+          <div id="rm-info" style="display:none">
+            <div class="row"><span class="k">Endereço (digite no navegador)</span><span class="v" id="rm-urls"></span></div>
+            <div class="row"><span class="k">PIN de pareamento</span><span class="v"><b id="rm-pin" style="font-size:20px;letter-spacing:.2em">——</b> <button class="btn sm" id="rm-newpin">NOVO PIN</button></span></div>
+            <div id="rm-devs" style="margin-top:8px"></div>
+            <div class="row" style="border-top:none"><span class="k"></span><span class="v"><button class="btn sm" id="rm-revoke">DESCONECTAR TODOS</button></span></div>
+          </div>
+          <p class="note err" id="rm-err"></p>
+          <p class="note" style="margin-top:8px">Atenção: a conexão é HTTP puro, <b>sem criptografia (TLS)</b> — use só em rede de confiança. Cada aparelho recebe uma chave própria que expira; o PIN vale para um único pareamento. Redes de convidados/“isolamento de clientes” bloqueiam o acesso. Na primeira vez o Windows pede para liberar o firewall: permita em <b>redes privadas</b>.</p>
+        </div>
+      </div>
+      <!-- /FEATURE -->
       <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
         <div class="body">
           <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
@@ -779,10 +1043,41 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   <label>Nome do preset<input id="nm-input" maxlength="24" placeholder="Ex.: Altar, Púlpito, Louvor" spellcheck="false"></label>
   <div class="sh-foot"><button class="btn sm" id="nm-clear">LIMPAR</button><span style="flex:1"></span><button class="btn sm" id="nm-cancel">CANCELAR</button><button class="btn primary sm" id="nm-ok" style="flex:none">OK</button></div>
 </div></div>
-<div id="modal5" class="modal"><div class="sheet small">
+<div id="modal5" class="modal"><div class="sheet" style="width:640px">
   <div class="sh-head"><div><span class="cap">Configurações da câmera</span><h2 id="camcfg-title">CAM 1</h2></div><button class="icon" id="camcfg-x">✕</button></div>
   <label>Resolução e taxa de quadros<select id="camcfg-res"><option value="">Automática (padrão da câmera)</option></select></label>
   <p class="note" id="camcfg-note">Buscando formatos suportados…</p>
+  <!-- FEATURE: chroma -->
+  <div class="chr" id="chr">
+    <h3>FUNDO</h3>
+    <div class="grid2">
+      <label>Remoção de fundo<select id="chr-mode">
+        <option value="off">Desligado</option><option value="green">Chroma verde</option>
+        <option value="blue">Chroma azul</option><option value="ai" id="chr-ai-opt">IA (sem tela verde)</option></select></label>
+      <label>Substituir por<select id="chr-repl">
+        <option value="color">Cor sólida</option><option value="blur">Desfoque do próprio fundo</option>
+        <option value="image">Imagem</option><option value="transparent">Transparente (para cenas)</option></select></label>
+      <label id="chr-tol-l">Tolerância<input type="range" id="chr-tol" min="0" max="100"></label>
+      <label id="chr-soft-l">Suavidade da borda<input type="range" id="chr-soft" min="0" max="100"></label>
+      <label id="chr-spill-l">Reflexo verde/azul na pele<input type="range" id="chr-spill" min="0" max="100"></label>
+      <label id="chr-q-l">Qualidade da IA<select id="chr-q"><option value="low">Baixa (leve)</option><option value="med">Média</option><option value="high">Alta (pesada)</option></select></label>
+      <label id="chr-color-l">Cor do fundo<input type="color" id="chr-color" value="#101010"></label>
+      <label id="chr-blur-l">Intensidade do desfoque<input type="range" id="chr-blur" min="0" max="100"></label>
+      <label id="chr-img-l">Imagem de fundo<span class="row"><button class="btn sm" id="chr-img" type="button">ESCOLHER…</button><em id="chr-imgname">nenhuma</em></span></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <canvas id="chr-prev" width="160" height="90"></canvas>
+      <div style="flex:1;min-width:0">
+        <p class="note" id="chr-hint">Prévia ao vivo do resultado (xadrez = transparente). Se recortar a pessoa, aumente a tolerância; se sobrar fundo, diminua.</p>
+        <p class="note" id="chr-model"></p>
+        <div class="bar" id="chr-bar" style="display:none"><i id="chr-bari"></i></div>
+        <div class="row"><button class="btn sm" id="chr-dl" type="button" style="display:none">BAIXAR MODELO</button>
+          <button class="btn sm" id="chr-cancel" type="button" style="display:none">CANCELAR DOWNLOAD</button></div>
+        <p class="note err" id="chr-warn" style="display:none"></p>
+      </div>
+    </div>
+  </div>
+  <!-- /FEATURE: chroma -->
   <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="camcfg-cancel">CANCELAR</button><button class="btn primary sm" id="camcfg-save" style="flex:none">SALVAR</button></div>
 </div></div>
 <div id="modal3" class="modal"><div class="sheet small" style="width:520px">
@@ -832,12 +1127,166 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   <p class="note" id="xm-note" style="margin-top:10px"></p>
   <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="xm-cancel">CANCELAR</button><button class="btn primary sm" id="xm-save" style="flex:none">SALVAR</button></div>
 </div></div>
+<!-- FEATURE: overlays -->
+<div id="modal6" class="modal"><div class="sheet" style="width:600px">
+  <div class="sh-head"><div><span class="cap" id="ovm-type">Gráfico</span><h2 id="ovm-title">Editar gráfico</h2></div><button class="icon" id="ovm-x">✕</button></div>
+  <div class="grid2" id="ovm-fields"></div>
+  <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="ovm-cancel">CANCELAR</button><button class="btn primary sm" id="ovm-save" style="flex:none">SALVAR</button></div>
+</div></div>
+<!-- /FEATURE -->
 <div id="tilemenu" class="ctxmenu">
   <button id="tm-activate">Ativar</button>
   <button id="tm-deactivate">Desligar</button>
   <hr>
   <button id="tm-cfg">Configurações…</button>
 </div>
+<!-- FEATURE: scenes -->
+<div id="scenemenu" class="ctxmenu">
+  <button id="scm-edit">Editar cena…</button>
+  <button id="scm-del">Excluir cena</button>
+</div>
+<div id="sc-pick" class="modal"><div class="sheet" style="width:860px">
+  <div class="sh-head"><div><span class="cap">Templates prontos</span><h2 id="scp-title">Escolha um template</h2></div><button class="icon" id="scp-x">✕</button></div>
+  <div id="scp-list">
+    <div class="sc-tabs" id="scp-tabs"></div>
+    <div class="sc-grid" id="scp-grid"></div>
+    <div class="sh-foot"><button class="btn sm" id="scp-import">IMPORTAR TEMPLATE…</button><span style="flex:1"></span></div>
+  </div>
+  <div id="scp-map" style="display:none">
+    <p class="note" id="scp-desc"></p>
+    <div class="sc-map">
+      <div><span class="cap">Cenas a criar</span><div id="scp-scenes"></div></div>
+      <div><span class="cap">Mapear papéis → entradas</span><div id="scp-roles" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+        <p class="note" id="scp-note" style="margin-top:10px"></p></div>
+    </div>
+    <div class="sh-foot"><button class="btn sm" id="scp-back">VOLTAR</button><button class="btn sm" id="scp-export">EXPORTAR…</button><button class="btn sm" id="scp-del" style="display:none">EXCLUIR TEMPLATE</button><span style="flex:1"></span><button class="btn primary sm" id="scp-apply" style="flex:none">CRIAR CENAS</button></div>
+  </div>
+</div></div>
+<div id="sc-edit" class="modal"><div class="sheet" style="width:900px">
+  <div class="sh-head"><div><span class="cap">Editar cena</span><h2>Arraste as camadas para mover; puxe o canto para redimensionar</h2></div><button class="icon" id="sce-close">✕</button></div>
+  <div class="sc-edit">
+    <div><canvas id="sc-cv" width="640" height="360"></canvas>
+      <label style="margin-top:10px">Nome da cena<input id="sce-name" maxlength="60"></label></div>
+    <div>
+      <div class="sc-layers" id="sce-layers"></div>
+      <div class="sc-fields" id="sce-fields">
+        <label class="span2">Fonte<select id="sce-slot"></select></label>
+        <label>X (%)<input id="sce-x" type="number" min="-100" max="200" step="1"></label>
+        <label>Y (%)<input id="sce-y" type="number" min="-100" max="200" step="1"></label>
+        <label>Largura (%)<input id="sce-w" type="number" min="1" max="300" step="1"></label>
+        <label>Altura (%)<input id="sce-h" type="number" min="1" max="300" step="1"></label>
+        <label>Ajuste<select id="sce-fit"><option value="fill">Preencher (corta)</option><option value="fit">Caber (barras)</option><option value="crop">Recorte com zoom</option></select></label>
+        <label>Opacidade (%)<input id="sce-op" type="number" min="0" max="100" step="5"></label>
+        <label>Cantos (%)<input id="sce-rad" type="number" min="0" max="50" step="1"></label>
+        <label>Borda (%)<input id="sce-bor" type="number" min="0" max="10" step="0.1"></label>
+        <label>Sombra<select id="sce-sh"><option value="0">Sem sombra</option><option value="1">Com sombra</option></select></label>
+        <label>Ordem (z)<input id="sce-z" type="number" min="-100" max="100" step="1"></label>
+      </div>
+      <div class="sc-layers" style="margin-top:10px"><button id="sce-add">+ camada</button><button id="sce-rm">remover camada</button></div>
+      <div class="grid2" style="margin-top:6px">
+        <label>Fundo<select id="sce-bgt"><option value="solid">Cor sólida</option><option value="gradient">Degradê</option></select></label>
+        <label>Cores<span style="display:flex;gap:6px"><input type="color" id="sce-bg1" style="height:38px;padding:2px"><input type="color" id="sce-bg2" style="height:38px;padding:2px"></span></label>
+      </div>
+    </div>
+  </div>
+  <div class="sh-foot"><button class="btn sm" id="sce-del">EXCLUIR CENA</button><input id="sce-tname" type="text" maxlength="60" placeholder="Nome do template" style="width:180px;height:34px"><button class="btn sm" id="sce-tpl">SALVAR COMO MEU TEMPLATE</button><span style="flex:1"></span><button class="btn sm" id="sce-cancel">CANCELAR</button><button class="btn primary sm" id="sce-save" style="flex:none">SALVAR</button></div>
+</div></div>
+<!-- /FEATURE -->
+<!-- FEATURE: teleprompter - presenter window page. Inert here (template); the Windows host extracts
+     it (src/teleprompter/presenter_page.cpp) and loads it into a second WebView2. It must never
+     contain the literal closing-template tag. Rendering is transform-only (no layout per frame). -->
+<template id="tpPresenterPage"><!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Teleprompter</title>
+<style>
+:root{--fg:#fff;--bg:#000;--fs:64px;--lh:1.4;--mg:8%}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);cursor:none;user-select:none}
+body.cur{cursor:default}
+#stage{position:absolute;inset:0;overflow:hidden}
+#txt{position:absolute;left:var(--mg);right:var(--mg);top:0;will-change:transform;font:600 var(--fs)/var(--lh) "Segoe UI","Segoe UI Variable Display",Arial,sans-serif}
+#txt p{margin:0 0 .7em;white-space:pre-wrap;overflow-wrap:anywhere}
+#mk{position:absolute;left:0;right:0;height:0;border-top:3px solid rgba(255,64,64,.85)}
+#mk::before,#mk::after{content:"";position:absolute;top:-12px;border:11px solid transparent}
+#mk::before{left:0;border-left-color:rgba(255,64,64,.95)}
+#mk::after{right:0;border-right-color:rgba(255,64,64,.95)}
+#bar{position:absolute;left:0;bottom:0;height:5px;width:100%;background:rgba(80,160,255,.9);transform-origin:0 50%;transform:scaleX(0)}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font:700 40vh/1 "Cascadia Mono",Consolas,monospace;color:#fff;background:rgba(0,0,0,.6)}
+#wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 24px "Segoe UI",Arial,sans-serif;opacity:.6}
+</style></head>
+<body>
+<div id="stage"><div id="txt"></div></div>
+<div id="mk"></div><div id="bar"></div><div id="cd"></div><div id="wait">Aguardando o HB Studio…</div>
+<script>
+(() => {
+  const host = window.chrome && window.chrome.webview;
+  const send = m => { if (host) host.postMessage(m); };
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage'), txt = $('#txt'), cdEl = $('#cd'), bar = $('#bar'), mk = $('#mk');
+  let st = null, recv = 0, H = 1, V = 1, mark = 0.35, raf = 0, rt = 0, fs = false, hasText = false;
+  const pos = () => !st ? 0 : st.state === 'playing' ? Math.min(1, st.pos + st.rate * (performance.now() - recv) / 1000) : st.pos;
+  function frame() {
+    cancelAnimationFrame(raf);
+    const p = pos();
+    txt.style.transform = 'translate3d(0,' + (mark * V - p * H).toFixed(2) + 'px,0)';
+    bar.style.transform = 'scaleX(' + p.toFixed(5) + ')';
+    if (st && st.state === 'countdown') {
+      const left = Math.max(0, st.cd - (performance.now() - recv) / 1000);
+      cdEl.style.display = 'flex'; cdEl.textContent = String(Math.max(1, Math.ceil(left)));
+    } else cdEl.style.display = 'none';
+    if (st && (st.state === 'playing' || st.state === 'countdown')) raf = requestAnimationFrame(frame);
+  }
+  function report() {   // layout size for the px/s <-> wpm model; debounced, never per frame
+    clearTimeout(rt);
+    rt = setTimeout(() => send('tp|layout|p|' + Math.round(H) + '|' + Math.round(V)), 150);
+  }
+  function measure() { H = Math.max(1, txt.offsetHeight); V = Math.max(1, innerHeight); report(); frame(); }
+  function applyStyle(s) {
+    const r = document.documentElement.style;
+    r.setProperty('--fg', s.fg); r.setProperty('--bg', s.bg); r.setProperty('--fs', s.font + 'px');
+    r.setProperty('--lh', s.lh); r.setProperty('--mg', s.margin + '%');
+    stage.style.transform = 'scale(' + (s.mirror ? -1 : 1) + ',' + (s.flip ? -1 : 1) + ')';
+    mark = s.markerpos / 100;
+    mk.style.display = s.marker ? 'block' : 'none';
+    mk.style.top = ((s.flip ? 1 - mark : mark) * 100) + '%';   // the stage is flipped, the marker must follow
+    measure();
+  }
+  function build(d) {
+    txt.textContent = '';
+    hasText = false;
+    for (const b of d.blocks || []) {
+      if (b.k !== 'p') continue;   // cues/comments are for the operator only
+      const p = document.createElement('p'); p.textContent = b.t; txt.appendChild(p); hasText = true;
+    }
+    $('#wait').style.display = hasText ? 'none' : 'flex';
+    measure();
+  }
+  function onMsg(m) {
+    let d; try { d = typeof m === 'string' ? JSON.parse(m) : m; } catch (e) { return; }
+    if (!d || typeof d.t !== 'string') return;
+    if (d.t === 'tp') { st = d; recv = performance.now(); frame(); }
+    else if (d.t === 'tpscript') build(d);
+    else if (d.t === 'tpstyle') applyStyle(d);
+  }
+  if (host) host.addEventListener('message', e => onMsg(e.data));
+  window.__tpPresenterMessage = onMsg;   // test hook
+  addEventListener('resize', measure);
+  const toggleFs = () => { fs = !fs; send('tp|presenter|fullscreen'); };
+  addEventListener('dblclick', toggleFs);
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); send('tp|toggle'); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); send('tp|nudge|10'); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); send('tp|nudge|-10'); }
+    else if (e.key === 'Home') { e.preventDefault(); send('tp|restart'); }
+    else if (e.key === 'F11') { e.preventDefault(); toggleFs(); }
+    else if (e.key === 'Escape' && fs) { fs = false; send('tp|presenter|fullscreen'); }
+  });
+  let ct = 0;
+  addEventListener('mousemove', () => { document.body.classList.add('cur'); clearTimeout(ct); ct = setTimeout(() => document.body.classList.remove('cur'), 2000); });
+  send('tp|hello');
+})();
+</script>
+</body></html>
+</template>
+<!-- /FEATURE -->
 <div id="toast"></div>
 
 <script>
@@ -868,7 +1317,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     canv['s' + i] = t.querySelector('canvas').getContext('2d');
   }
   let bank = 0;
-  try { const b = +localStorage.getItem('hb.bank'); if (b === 0 || b === 1) bank = b; } catch (e) {}
+  try { const b = +localStorage.getItem('hb.bank'); if (b >= 0 && b <= 3) bank = b;   /* FEATURE: scenes: banks 2-3 = CENAS */ } catch (e) {}
   const bankBase = () => bank * BANK_SIZE;
   function renderBusKeys() {
     for (const [bus, cmd] of [[busP, 'program'], [busV, 'preview']]) {
@@ -876,12 +1325,13 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       for (let j = 0; j < BANK_SIZE; j++) {
         const i = bankBase() + j;
         const k = document.createElement('button');
-        k.className = 'key'; k.dataset.i = i; k.textContent = i + 1;
+        k.className = 'key'; k.dataset.i = i; k.textContent = i >= N ? 'C' + (i - N + 1) : i + 1;
         k.addEventListener('click', () => send(cmd, i));
         bus.appendChild(k);
       }
     }
     $$('.tile').forEach(t => t.classList.toggle('offbank', +t.dataset.i < bankBase() || +t.dataset.i >= bankBase() + BANK_SIZE));
+    applyBankView();   // FEATURE: scenes
   }
   renderBusKeys();
   $$('.bankbtn').forEach(b => b.addEventListener('click', () => {
@@ -1098,6 +1548,7 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     $('#camcfg-res').innerHTML = '<option value="">Automática (padrão da câmera)</option>';
     $('#camcfg-note').textContent = 'Buscando formatos suportados…';
     $('#modal5').classList.add('on');
+    syncChroma(true);   // FEATURE: chroma
     if (camcfgId) send('devformats', camcfgId);
   }
   function renderCamFormats(d) {
@@ -1123,6 +1574,74 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     send('devformat', camcfgSlot, parts[0], parts[1], parts[2], parts[3]);
     closeModals();
   });
+
+  // ---- FEATURE: chroma ---- Fundo (background removal) section of the camera-settings dialog
+  let chrSt = null;
+  const chr = id => $('#chr-' + id);
+  const chrSlot = () => camcfgSlot;
+  const chrCur = () => (chrSt && chrSt.slots && chrSt.slots[camcfgSlot]) || null;
+  let chrSentAt = {};
+  const chrSend = (key, val, throttle) => {
+    if (camcfgSlot < 0) return;
+    const now = Date.now();
+    if (throttle && now - (chrSentAt[key] || 0) < 120) { clearTimeout(chrSend['t' + key]); chrSend['t' + key] = setTimeout(() => chrSend(key, val, false), 130); return; }
+    chrSentAt[key] = now;
+    send('chroma', camcfgSlot, key, val);
+  };
+  const fmtMb = n => (n / 1048576).toFixed(2).replace('.', ',');
+  function syncChroma(force) {
+    const d = chrCur();
+    if (!d || !$('#modal5').classList.contains('on')) return;
+    const active = document.activeElement;
+    const setVal = (el, v) => { if (force || active !== el) el.value = v; };
+    setVal(chr('mode'), d.mode); setVal(chr('repl'), d.repl); setVal(chr('tol'), d.tol); setVal(chr('soft'), d.soft);
+    setVal(chr('spill'), d.spill); setVal(chr('q'), d.q); setVal(chr('color'), d.color); setVal(chr('blur'), d.blur);
+    chr('ai-opt').disabled = !chrSt.runtime;
+    chr('ai-opt').textContent = chrSt.runtime ? 'IA (sem tela verde)' : 'IA (indisponível neste build)';
+    const m = d.mode, classic = m === 'green' || m === 'blue';
+    const vis = (id, on) => { chr(id).style.display = on ? '' : 'none'; };
+    vis('tol-l', m !== 'off'); vis('soft-l', m !== 'off'); vis('spill-l', classic); vis('q-l', m === 'ai');
+    vis('color-l', m !== 'off' && d.repl === 'color'); vis('blur-l', m !== 'off' && d.repl === 'blur');
+    vis('img-l', m !== 'off' && d.repl === 'image');
+    chr('repl').disabled = m === 'off';
+    chr('imgname').textContent = d.img || 'nenhuma';
+    chr('tol-l').firstChild.textContent = m === 'ai' ? 'Sensibilidade (limiar da máscara)' : 'Tolerância';
+    // model box
+    const md = chrSt.model || {};
+    const bar = chr('bar'), dl = chr('dl'), cn = chr('cancel');
+    let txt = '', showBar = false;
+    if (!chrSt.runtime) txt = 'Este build não inclui o ONNX Runtime: só o chroma verde/azul está disponível.';
+    else if (md.state === 'ready') txt = 'Modelo de IA instalado (' + md.license + ').' + (chrSt.ai && chrSt.ai.state === 'loading' ? ' Carregando…' : '');
+    else if (md.state === 'downloading') { txt = 'Baixando o modelo de IA… ' + Math.round(100 * md.received / Math.max(1, md.total)) + '%'; showBar = true; }
+    else if (md.state === 'error') txt = md.msg;
+    else if (md.state === 'unavailable') txt = md.msg;
+    else txt = 'A IA precisa de um modelo (' + fmtMb(md.mb * 1048576) + ' MB, ' + md.license + ') que é baixado uma vez e verificado por SHA-256.';
+    chr('model').textContent = txt;
+    bar.style.display = showBar ? '' : 'none';
+    chr('bari').style.width = showBar ? Math.round(100 * md.received / Math.max(1, md.total)) + '%' : '0';
+    dl.style.display = chrSt.runtime && (md.state === 'none' || md.state === 'error') ? '' : 'none';
+    dl.textContent = md.state === 'error' ? 'TENTAR DE NOVO' : 'BAIXAR MODELO';
+    cn.style.display = md.state === 'downloading' ? '' : 'none';
+    // warnings
+    const w = chr('warn'); let wt = '';
+    if (d.imgErr) wt = d.imgErr;
+    else if (m === 'ai' && chrSt.ai && chrSt.ai.state === 'error') wt = chrSt.ai.msg;
+    else if (d.aiFailed) wt = d.aiMsg;
+    else if (d.slowAi) wt = 'Seu computador está lento para IA (' + Math.round(d.inferMs) + ' ms por análise): reduza a qualidade.';
+    else if (d.slowApply) wt = 'O efeito está pesado neste computador (' + d.applyMs.toFixed(0) + ' ms por quadro): reduza a qualidade ou use o chroma verde/azul.';
+    else if (m === 'ai' && md.state !== 'ready') wt = 'Baixe o modelo para ativar a IA; até lá a câmera aparece sem alteração.';
+    w.textContent = wt; w.style.display = wt ? '' : 'none';
+  }
+  window.__chrPrev = (id, im) => {
+    if (id !== 's' + camcfgSlot || !$('#modal5').classList.contains('on')) return;
+    const c = chr('prev'); c.getContext('2d').clearRect(0, 0, c.width, c.height); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+  };
+  for (const [id, key, thr] of [['mode', 'mode'], ['repl', 'repl'], ['q', 'q'], ['tol', 'tol', 1], ['soft', 'soft', 1], ['spill', 'spill', 1], ['blur', 'blur', 1], ['color', 'color', 1]])
+    chr(id).addEventListener(thr ? 'input' : 'change', ev => chrSend(key, ev.target.value, !!thr));
+  chr('img').addEventListener('click', () => send('chromaimg', camcfgSlot));
+  chr('dl').addEventListener('click', () => send('chromamodel', 'download'));
+  chr('cancel').addEventListener('click', () => send('chromamodel', 'cancel'));
+  // ---- /FEATURE: chroma ----
 
   // ---------- PRODUÇÃO: right-click menu on an input tile ----------
   let tmSlot = -1;
@@ -1258,6 +1777,30 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
                         : 'Instale o NDI Runtime (ndi.video/tools) para a saída NDI funcionar de verdade.')
       : 'Desligada. Ao ligar, o PROGRAM passa a ser visível como uma fonte NDI na rede local.';
   }
+
+  /* FEATURE: remote */
+  let remoteOn = false;
+  function renderRemote(d) {
+    remoteOn = !!d.enabled;
+    const b = $('#rm-toggle'); b.textContent = remoteOn ? 'DESLIGAR' : 'LIGAR'; b.classList.toggle('primary', remoteOn);
+    $('#rm-info').style.display = remoteOn ? '' : 'none';
+    $('#rm-err').textContent = d.err || '';
+    if (!remoteOn) return;
+    $('#rm-urls').textContent = (d.urls || []).join('  ');
+    $('#rm-pin').textContent = d.lockedMs > 0 ? 'bloqueado ' + Math.ceil(d.lockedMs / 1000) + ' s' : (d.pin || '——');
+    const box = $('#rm-devs'); box.textContent = '';
+    (d.devices || []).forEach(x => {
+      const r = document.createElement('div'); r.className = 'row';
+      const k = document.createElement('span'); k.className = 'k'; k.textContent = x.name + ' · ' + x.ip + (x.thumbs ? ' · miniaturas' : '');
+      const v = document.createElement('span'); v.className = 'v'; v.textContent = (x.online ? 'conectado ' : 'offline ');
+      const kb = document.createElement('button'); kb.className = 'btn sm'; kb.textContent = 'EXPULSAR'; kb.onclick = () => send('remote', 'kick', x.id);
+      v.appendChild(kb); r.appendChild(k); r.appendChild(v); box.appendChild(r);
+    });
+  }
+  $('#rm-toggle').addEventListener('click', () => send('remote', remoteOn ? 'off' : 'on'));
+  $('#rm-newpin').addEventListener('click', () => send('remote', 'newpin'));
+  $('#rm-revoke').addEventListener('click', () => send('remote', 'revoke'));
+  /* /FEATURE */
 
   // ---------- CONFIG: Formatos de saída comuns ----------
   const outFmtPresets = [
@@ -1417,7 +1960,8 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   function drawFrame(id, b64) {
     const ctx = canv[id]; if (!ctx) return;
     const im = imgs[id] || (imgs[id] = new Image());
-    im.onload = () => ctx.drawImage(im, 0, 0, ctx.canvas.width, ctx.canvas.height);
+    im.onload = () => { ctx.drawImage(im, 0, 0, ctx.canvas.width, ctx.canvas.height); if (window.__chrPrev) window.__chrPrev(id, im);   /* FEATURE: chroma: live preview hook */
+      if (id === 'pgm') ovGfxCtx.drawImage(im, 0, 0, ovGfxCtx.canvas.width, ovGfxCtx.canvas.height); /* FEATURE: overlays */ };
     im.src = 'data:image/jpeg;base64,' + b64;
   }
 
@@ -1431,13 +1975,14 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
       slots = s.slots;
       $$('.tile').forEach(t => {
         const x = s.slots[+t.dataset.i], b = t.querySelector('b'), em = t.querySelector('em');
+        if (!x) return;   // FEATURE: scenes: scene tiles are drawn by renderSceneTiles()
         b.textContent = x.k === 'dev' ? x.name : 'CAM ' + (+t.dataset.i + 1);
         em.textContent = stTxt[x.st]; em.style.display = '';
         em.className = x.k === 'dev' && x.st !== 'online' && x.st !== 'off' ? 'bad' : '';
         t.classList.toggle('off', x.en === false);
       });
-      const hud = i => s.slots[i].k === 'dev' && s.slots[i].w ? s.slots[i].w + '×' + s.slots[i].h : '1920×1080';
-      const nm = i => s.slots[i].k === 'dev' ? s.slots[i].name : 'CAM ' + (i + 1);
+      const hud = i => i >= N ? 'CENA' : s.slots[i].k === 'dev' && s.slots[i].w ? s.slots[i].w + '×' + s.slots[i].h : '1920×1080';
+      const nm = i => i >= N ? sceneLabel(i) : s.slots[i].k === 'dev' ? s.slots[i].name : 'CAM ' + (i + 1);
       $('#pgm-name').textContent = nm(s.pgm); $('#pvw-name').textContent = nm(s.pvw);
       $('#pvw-hud').textContent = 'PRÓXIMA · ' + hud(s.pvw);
       $('#pgm-res').textContent = hud(s.pgm) + ' → ' + (s.pw || 1920) + '×' + (s.ph || 1080) + ' · ' + s.target + ' fps';
@@ -1447,10 +1992,11 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
     }
     if (s.ver) $('#ver').textContent = s.ver;
     lastPvw = s.pvw;
-    if ($('#ptz-follow').checked && ptzCam !== s.pvw) { ptzCam = s.pvw; renderPtz(); }
+    if ($('#ptz-follow').checked && ptzCam !== s.pvw && s.pvw < N) { ptzCam = s.pvw; renderPtz(); }
     $$('.tile').forEach(t => { const i = +t.dataset.i; t.classList.toggle('pgm', i === s.pgm); t.classList.toggle('pvw', i === s.pvw); t.querySelector('.tally').textContent = i === s.pgm ? 'PGM' : 'PVW'; });
     $$('#bus-pgm .key').forEach(k => k.classList.toggle('pgm', +k.dataset.i === s.pgm));
     $$('#bus-pvw .key').forEach(k => k.classList.toggle('pvw', +k.dataset.i === s.pvw));
+    if (s.pgm >= N || s.pvw >= N) { $('#pgm-name').textContent = sceneLabel(s.pgm); $('#pvw-name').textContent = sceneLabel(s.pvw); }   // FEATURE: scenes
     if (!s.slots) { $('#pgm-name').textContent = 'CAM ' + (s.pgm + 1); $('#pvw-name').textContent = 'CAM ' + (s.pvw + 1); }
     if (!tbarDown) $('#tbar').value = Math.round((s.transition ? s.progress : 0) * 1000);
     $('#b-cut').disabled = $('#b-dis').disabled = !!s.transition;
@@ -1688,17 +2234,650 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
   for (const k of ['template', 'videoKbps', 'videoQuality', 'keyframeSec', 'audioKbps', 'audioRate', 'splitMin', 'splitMB', 'minFreeMB'])
     $('#rc-' + k).addEventListener('change', ev => send('rec', 'cfg', k, ev.target.value));
 
+  // ---- FEATURE: ai ----
+  // CONFIG > Inteligência Artificial. The key is write-only: the host only ever sends keySet/keyHint.
+  const AI_DEFAULT_URL = { openrouter: 'https://openrouter.ai/api/v1', '9router': 'http://localhost:20128/v1', custom: '' };
+  let aiSt = { list: [], active: '', configured: false }, aiModels = [], aiCur = '';
+  const aiRes = (id, text, ok) => { const e = $(id); e.textContent = text || ''; e.classList.toggle('ok', !!ok); };
+  const aiDraft = () => JSON.stringify({ id: aiCur, kind: $('#ai-kind').value, baseUrl: $('#ai-url').value.trim(), model: $('#ai-model').value.trim(), apiKey: $('#ai-key').value });
+  function aiFreeBadge() { const m = aiModels.find(x => x.id === $('#ai-model').value.trim()); $('#ai-free').classList.toggle('on', !!(m && m.free)); }
+  function aiFill(id) {
+    aiCur = id || '';
+    const p = aiSt.list.find(x => x.id === aiCur);
+    $('#ai-kind').value = p ? p.kind : 'openrouter';
+    $('#ai-url').value = p ? p.baseUrl : AI_DEFAULT_URL[$('#ai-kind').value];
+    $('#ai-model').value = p ? p.model : '';
+    $('#ai-key').value = '';
+    $('#ai-key').placeholder = p && p.keySet ? 'chave salva ' + p.keyHint + ' — deixe em branco para manter' : 'cole sua chave aqui';
+    $('#ai-act-btn').disabled = !p || p.id === aiSt.active; $('#ai-del-btn').disabled = !p;
+    $('#ai-sel').value = aiCur; aiFreeBadge();
+  }
+  function aiRenderModels() {
+    const only = $('#ai-onlyfree').checked, dl = $('#ai-models-dl'); dl.innerHTML = '';
+    aiModels.filter(m => !only || m.free).slice(0, 600).forEach(m => { const o = document.createElement('option'); o.value = m.id; o.label = (m.free ? '[GRÁTIS] ' : '') + (m.name || m.id); dl.appendChild(o); });
+  }
+  function aiRenderState(d) {
+    aiSt = d; const sel = $('#ai-sel'); sel.innerHTML = '';
+    const n = document.createElement('option'); n.value = ''; n.textContent = '+ Novo provedor'; sel.appendChild(n);
+    d.list.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name + ' · ' + p.kind + (p.id === d.active ? ' (ativo)' : ''); sel.appendChild(o); });
+    const want = d.savedId || (d.list.some(p => p.id === aiCur) ? aiCur : d.active);
+    aiFill(want || '');
+    const a = d.list.find(p => p.id === d.active);
+    $('#ai-active-note').textContent = a ? (d.configured ? 'Ativo: ' + a.name + ' / ' + a.model : 'Ativo: ' + a.name + ' — falta escolher o modelo' + (a.keySet ? '.' : ' e colar a chave.')) : 'Nenhum provedor ativo.';
+    if (d.keysLost) aiRes('#ai-res', 'Não foi possível ler a chave salva (outro usuário/perfil do Windows?). Cole a chave de novo.', false);
+    else if (d.canPersistKeys === false) aiRes('#ai-res', 'Este sistema não oferece armazenamento criptografado: a chave vale só até fechar o programa.', false);
+  }
+  $('#ai-sel').onchange = e => { aiModels = []; aiRenderModels(); aiFill(e.target.value); };
+  $('#ai-kind').onchange = () => { $('#ai-url').value = AI_DEFAULT_URL[$('#ai-kind').value]; };
+  $('#ai-model').addEventListener('input', aiFreeBadge);
+  $('#ai-onlyfree').onchange = aiRenderModels;
+  $('#ai-models-btn').onclick = () => { aiRes('#ai-res', 'Buscando modelos…'); send('aimodels', aiDraft()); };
+  $('#ai-test-btn').onclick = () => { aiRes('#ai-res', 'Testando…'); send('aitest', aiDraft()); };
+  $('#ai-save-btn').onclick = () => send('aisave', aiDraft());
+  $('#ai-act-btn').onclick = () => { if (aiCur) send('aiactivate', aiCur); };
+  $('#ai-del-btn').onclick = () => { if (aiCur && confirm('Remover este provedor e apagar a chave salva?')) send('airemove', aiCur); };
+  $('#ai-sug-btn').onclick = () => { aiRes('#ai-sug-res', 'Pensando…'); send('aisuggest', JSON.stringify({ topic: $('#ai-topic').value.trim() })); };
+  const aiCopy = id => { const v = $(id).value; if (!v) return; try { navigator.clipboard.writeText(v); toast('Copiado.'); } catch (e) { $(id).select(); } };
+  $('#ai-copy-title').onclick = () => aiCopy('#ai-sug-title'); $('#ai-copy-desc').onclick = () => aiCopy('#ai-sug-desc');
+  function aiMsg(d) {
+    if (d.t === 'ai_state') aiRenderState(d);
+    else if (d.t === 'ai_test') aiRes('#ai-res', (d.ok ? '✔ ' : '✖ ') + d.message + (d.ok ? ' (' + d.latencyMs + ' ms)' : ''), d.ok);
+    else if (d.t === 'ai_models') {
+      if (d.ok) { aiModels = d.models || []; aiRenderModels(); aiFreeBadge(); const f = aiModels.filter(m => m.free).length; aiRes('#ai-res', aiModels.length + ' modelos' + (f ? ' (' + f + ' grátis)' : '') + '. Comece a digitar no campo Modelo para escolher.', true); }
+      else aiRes('#ai-res', '✖ ' + d.error, false);
+    } else if (d.t === 'ai_suggest') {
+      if (d.ok) { $('#ai-sug-title').value = d.title; $('#ai-sug-desc').value = d.description; aiRes('#ai-sug-res', 'Pronto. Revise antes de usar.', true); }
+      else aiRes('#ai-sug-res', '✖ ' + d.error, false);
+    }
+  }
+  aiFill('');
+  // ---- /FEATURE ----
+  // ---------- FEATURE: scenes (templates prontos + CENAS bank) ----------
+  let scenesSt = {scenes: [], templates: [], max: 16};
+  const SC_N = 16;
+  const sceneBySlot = k => (scenesSt.scenes.find(e => e.slot === k) || {}).scene;
+  function sceneLabel(i) { const sc = sceneBySlot(i - N); return sc ? sc.name : 'CENA ' + (i - N + 1); }
+  function applyBankView() { tiles.classList.toggle('scenes', bank >= 2); }
+  for (let k = 0; k < SC_N; k++) {
+    const t = document.createElement('div');
+    t.className = 'tile scene sc-empty'; t.dataset.i = N + k;
+    t.innerHTML = `<canvas width="192" height="108"></canvas><div class="lb"><b>CENA ${k + 1}</b><em>VAZIA</em></div><div class="tally"></div>`;
+    t.addEventListener('click', () => { if (sceneBySlot(k)) send('preview', N + k); else openPicker(); });
+    t.addEventListener('dblclick', () => { if (sceneBySlot(k)) send('program', N + k); });
+    t.addEventListener('contextmenu', e => { e.preventDefault(); if (sceneBySlot(k)) openSceneMenu(e, k); });
+    tiles.appendChild(t);
+    canv['c' + k] = t.querySelector('canvas').getContext('2d');
+  }
+  applyBankView();
+  function renderSceneTiles() {
+    for (let k = 0; k < SC_N; k++) {
+      const t = document.querySelector(`.tile.scene[data-i="${N + k}"]`), sc = sceneBySlot(k);
+      t.classList.toggle('sc-empty', !sc);
+      t.querySelector('b').textContent = sc ? sc.name : 'CENA ' + (k + 1);
+      t.querySelector('em').textContent = sc ? 'CENA' : 'VAZIA';
+      if (!sc) { const c = canv['c' + k].canvas; canv['c' + k].clearRect(0, 0, c.width, c.height); }
+    }
+    if (lastState) render(lastState);
+  }
+
+  // Thumbnail / editor drawing: placeholder colours per role, no cameras needed.
+  const phColor = role => { let h = 2166136261; for (const ch of (role || 'x')) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return `hsl(${h % 360} 38% 42%)`; };
+  const layersByZ = sc => (sc.layers || []).map((l, i) => ({l, i})).sort((a, b) => ((a.l.z || 0) - (b.l.z || 0)) || (a.i - b.i));
+  function rrPath(ctx, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function layerBox(l, W, H) {
+    const r = l.rect || [0, 0, 1, 1];
+    let x = r[0] * W, y = r[1] * H, w = r[2] * W, h = r[3] * H;
+    if (l.fit === 'fit') {   // 16:9 content letterboxed inside the box
+      const cw = Math.min(w, h * 16 / 9), ch = cw * 9 / 16;
+      x += (w - cw) / 2; y += (h - ch) / 2; w = cw; h = ch;
+    }
+    return {x, y, w, h};
+  }
+  function drawScene(cv, sc, sel) {
+    const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const bg = sc.background || {};
+    if (bg.type === 'gradient') {
+      const a = (bg.angle === undefined ? 90 : bg.angle) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      const len = Math.abs(W * c) + Math.abs(H * s);
+      const g = ctx.createLinearGradient(W / 2 - c * len / 2, H / 2 - s * len / 2, W / 2 + c * len / 2, H / 2 + s * len / 2);
+      g.addColorStop(0, bg.from || '#000'); g.addColorStop(1, bg.to || '#000'); ctx.fillStyle = g;
+    } else ctx.fillStyle = bg.color || '#0b1220';
+    ctx.fillRect(0, 0, W, H);
+    for (const {l, i} of layersByZ(sc)) {
+      const b = layerBox(l, W, H);
+      ctx.save();
+      ctx.globalAlpha = l.opacity === undefined ? 1 : l.opacity;
+      const rad = (l.radius || 0) * Math.min(b.w, b.h);
+      if (l.shadow) { ctx.shadowColor = 'rgba(0,0,0,' + (l.shadow.opacity || .5) + ')'; ctx.shadowBlur = (l.shadow.blur || .02) * H; ctx.shadowOffsetX = (l.shadow.dx || 0) * H; ctx.shadowOffsetY = (l.shadow.dy || 0) * H; }
+      rrPath(ctx, b.x, b.y, b.w, b.h, rad); ctx.fillStyle = (l.slot >= 0 && slots[l.slot] && slots[l.slot].k === 'dev') ? '#2d6a4f' : phColor(l.role || 'slot' + l.slot); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      if (l.border && l.border.width) { ctx.lineWidth = Math.max(1, l.border.width * H); ctx.strokeStyle = l.border.color || '#fff'; rrPath(ctx, b.x, b.y, b.w, b.h, rad); ctx.stroke(); }
+      if (W >= 120) {
+        ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.font = '600 ' + Math.max(9, Math.round(H * 0.055)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText((l.role || (l.slot >= 0 ? 'CAM ' + (l.slot + 1) : 'camada')).slice(0, 22), b.x + b.w / 2, b.y + b.h / 2, b.w - 6);
+      }
+      ctx.restore();
+      if (sel === i) {
+        ctx.save(); ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
+        ctx.fillStyle = '#ffd24a'; ctx.fillRect(l.rect[0] * W + l.rect[2] * W - 9, l.rect[1] * H + l.rect[3] * H - 9, 9, 9); ctx.restore();
+      }
+    }
+    for (const o of (sc.overlays || [])) {   // overlay presets are plain data: just hint them in the preview
+      ctx.save(); ctx.textBaseline = 'middle';
+      if (o.type === 'lowerthird') { ctx.fillStyle = 'rgba(31,107,255,.85)'; ctx.fillRect(W * .04, H * .78, W * .42, H * .13); if (W >= 120) { ctx.fillStyle = '#fff'; ctx.font = '600 ' + Math.round(H * .05) + 'px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(String(o.text || ''), W * .06, H * .845, W * .38); } }
+      else if (W >= 120) { ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '700 ' + Math.round(H * .09) + 'px sans-serif'; ctx.fillText(String(o.text || ''), W / 2, H * .47, W * .9); if (o.subtitle) { ctx.font = '500 ' + Math.round(H * .05) + 'px sans-serif'; ctx.fillText(String(o.subtitle), W / 2, H * .6, W * .9); } }
+      ctx.restore();
+    }
+  }
+  const mkThumb = (sc, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; drawScene(c, sc); return c; };
+
+  // ----- picker: template list -> map roles -> apply -----
+  const CATS = [['todos', 'Todos'], ['culto', 'Culto'], ['aula', 'Aula'], ['podcast', 'Podcast'], ['evento', 'Evento'], ['meus', 'Meus']];
+  let pickCat = 'todos', pickT = null;
+  function openPicker() { pickT = null; $('#scp-list').style.display = ''; $('#scp-map').style.display = 'none'; $('#scp-title').textContent = 'Escolha um template'; $('#sc-pick').classList.add('on'); renderPicker(); }
+  function renderPicker() {
+    if (pickT) return;
+    const tabs = $('#scp-tabs'); tabs.innerHTML = '';
+    CATS.forEach(([id, label]) => { const b = document.createElement('button'); b.textContent = label; b.dataset.cat = id; b.className = id === pickCat ? 'on' : ''; b.onclick = () => { pickCat = id; renderPicker(); }; tabs.appendChild(b); });
+    const grid = $('#scp-grid'); grid.innerHTML = '';
+    const list = scenesSt.templates.filter(t => pickCat === 'todos' || (pickCat === 'meus' ? !t.builtin : t.category === pickCat));
+    if (!list.length) grid.innerHTML = '<p class="note">Nenhum template aqui ainda. Use “Importar template…” ou salve uma cena como “meu template”.</p>';
+    list.forEach(t => {
+      const card = document.createElement('button'); card.className = 'sc-card'; card.dataset.id = t.id;
+      const mini = document.createElement('div'); mini.className = 'mini';
+      t.scenes.slice(0, 3).forEach(sc => mini.appendChild(mkThumb(sc, 160, 90)));
+      card.appendChild(mini);
+      card.insertAdjacentHTML('beforeend', `<b>${esc(t.name)}</b><em>${t.scenes.length} cena(s)${t.roles.length ? ' · papéis: ' + esc(t.roles.join(', ')) : ' · sem câmeras'}</em>`);
+      card.onclick = () => pickTemplate(t);
+      grid.appendChild(card);
+    });
+  }
+  function defaultRoleMap(roles) {
+    const all = slots.length ? slots.map((x, i) => i) : Array.from({length: N}, (_, i) => i);
+    const live = all.filter(i => slots[i] && slots[i].k === 'dev' && slots[i].en !== false);
+    const pool = [...live, ...all.filter(i => !live.includes(i))];
+    const out = {}; roles.forEach((r, k) => { out[r] = k < pool.length ? pool[k] : -1; }); return out;
+  }
+  function pickTemplate(t) {
+    pickT = t;
+    $('#scp-list').style.display = 'none'; $('#scp-map').style.display = ''; $('#scp-title').textContent = t.name;
+    $('#scp-desc').textContent = t.description || '';
+    const sb = $('#scp-scenes'); sb.innerHTML = '';
+    t.scenes.forEach(sc => {
+      const row = document.createElement('label'); row.className = 'sc-row chk'; row.style.flexDirection = 'row';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.dataset.scene = sc.id;
+      row.appendChild(cb); row.appendChild(mkThumb(sc, 192, 108)); row.insertAdjacentHTML('beforeend', `<span>${esc(sc.name)}</span>`);
+      sb.appendChild(row);
+    });
+    const rb = $('#scp-roles'); rb.innerHTML = '';
+    const map = defaultRoleMap(t.roles);
+    if (!t.roles.length) rb.innerHTML = '<p class="note">Este template não usa câmeras: é só fundo e gráficos.</p>';
+    t.roles.forEach(r => {
+      const lab = document.createElement('label'); lab.textContent = r;
+      const sel = document.createElement('select'); sel.dataset.role = r;
+      sel.innerHTML = '<option value="-1">— nenhuma (painel vazio) —</option>' + Array.from({length: N}, (_, i) => {
+        const x = slots[i], nm = x && x.k === 'dev' ? x.name : 'TESTE';
+        return `<option value="${i}">CAM ${i + 1} — ${esc(nm)}</option>`;
+      }).join('');
+      sel.value = String(map[r]); lab.appendChild(sel); rb.appendChild(lab);
+    });
+    const live = slots.filter(x => x.k === 'dev').length;
+    $('#scp-note').textContent = t.roles.length && live < t.roles.length ? 'Há menos câmeras conectadas (' + live + ') do que papéis (' + t.roles.length + '). Entradas “TESTE” mostram o padrão de teste; troque quando conectar as câmeras.' : '';
+    $('#scp-del').style.display = t.builtin ? 'none' : '';
+  }
+  $('#scp-back').onclick = openPicker;
+  $('#scp-apply').onclick = () => {
+    if (!pickT) return;
+    const ids = $$('#scp-scenes input[type=checkbox]').filter(c => c.checked).map(c => c.dataset.scene);
+    if (!ids.length) { toast('Marque ao menos uma cena.'); return; }
+    const map = {}; $$('#scp-roles select').forEach(s => { map[s.dataset.role] = +s.value; });
+    send('sceneapply', pickT.id, JSON.stringify(map), ids.join(','));
+    closeModals();
+    const b = document.querySelector('.bankbtn[data-bank="2"]'); if (b) b.click();   // show the CENAS bank
+  };
+  $('#scp-export').onclick = () => { if (pickT) send('sceneexport', pickT.id); };
+  $('#scp-import').onclick = () => send('sceneimport');
+  $('#scp-del').onclick = () => { if (pickT && !pickT.builtin) { send('templatedelete', pickT.id); openPicker(); } };
+  $('#scp-x').onclick = closeModals;
+  $('#sc-open').onclick = openPicker;
+
+  // ----- scene context menu -----
+  let scmSlot = -1, scmArm = 0;
+  const sceneMenu = $('#scenemenu');
+  function openSceneMenu(e, k) {
+    scmSlot = k; $('#scm-del').textContent = 'Excluir cena'; scmArm = 0;
+    sceneMenu.classList.add('on');
+    sceneMenu.style.left = Math.min(e.clientX, innerWidth - sceneMenu.offsetWidth - 8) + 'px';
+    sceneMenu.style.top = Math.min(e.clientY, innerHeight - sceneMenu.offsetHeight - 8) + 'px';
+  }
+  $('#scm-edit').onclick = () => { sceneMenu.classList.remove('on'); openEditor(scmSlot); };
+  $('#scm-del').onclick = () => {
+    const sc = sceneBySlot(scmSlot); if (!sc) return;
+    if (!scmArm) { scmArm = 1; $('#scm-del').textContent = 'Clique de novo para excluir'; return; }
+    send('scenedelete', sc.id); sceneMenu.classList.remove('on');
+  };
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#scenemenu')) sceneMenu.classList.remove('on'); });
+
+  // ----- editor: drag/resize layers on a preview canvas + numeric fields -----
+  let ed = null, edSel = 0, edDrag = null, edDelArm = 0;
+  const edCv = $('#sc-cv');
+  const edLayer = () => ed && ed.layers[edSel];
+  function openEditor(k) {
+    const sc = sceneBySlot(k); if (!sc) return;
+    ed = JSON.parse(JSON.stringify(sc)); edSel = 0; edDelArm = 0; $('#sce-del').textContent = 'EXCLUIR CENA';
+    $('#sce-name').value = ed.name; $('#sce-tname').value = '';
+    $('#sce-slot').innerHTML = '<option value="-1">— nenhuma (painel vazio) —</option>' + Array.from({length: N}, (_, i) => { const x = slots[i]; return `<option value="${i}">CAM ${i + 1} — ${esc(x && x.k === 'dev' ? x.name : 'TESTE')}</option>`; }).join('');
+    const bg = ed.background || (ed.background = {type: 'solid', color: '#0b1220'});
+    $('#sce-bgt').value = bg.type === 'gradient' ? 'gradient' : 'solid';
+    $('#sce-bg1').value = (bg.type === 'gradient' ? bg.from : bg.color) || '#0b1220'; $('#sce-bg2').value = bg.to || '#1c2f55';
+    $('#sc-edit').classList.add('on'); edRefresh(true);
+  }
+  function edRefresh(fields) {
+    if (!ed) return;
+    const lb = $('#sce-layers'); lb.innerHTML = '';
+    ed.layers.forEach((l, i) => { const b = document.createElement('button'); b.textContent = l.role || ('Camada ' + (i + 1)); b.className = i === edSel ? 'on' : ''; b.onclick = () => { edSel = i; edRefresh(true); }; lb.appendChild(b); });
+    if (fields) edFields();
+    drawScene(edCv, ed, edSel);
+  }
+  function edFields() {
+    const l = edLayer(), dis = !l;
+    $$('#sce-fields input,#sce-fields select,#sce-rm').forEach(e => { e.disabled = dis; });
+    if (!l) return;
+    const r = l.rect || (l.rect = [0, 0, 1, 1]), p = v => Math.round(v * 1000) / 10;
+    $('#sce-slot').value = String(l.slot === undefined ? -1 : l.slot);
+    $('#sce-x').value = p(r[0]); $('#sce-y').value = p(r[1]); $('#sce-w').value = p(r[2]); $('#sce-h').value = p(r[3]);
+    $('#sce-fit').value = l.fit || 'fill'; $('#sce-op').value = Math.round((l.opacity === undefined ? 1 : l.opacity) * 100);
+    $('#sce-rad').value = Math.round((l.radius || 0) * 100); $('#sce-bor').value = p(l.border ? l.border.width : 0);
+    $('#sce-sh').value = l.shadow ? '1' : '0'; $('#sce-z').value = l.z || 0;
+  }
+  const num = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
+  function edRead() {
+    const l = edLayer(); if (!l) return;
+    l.slot = +$('#sce-slot').value;
+    l.rect = [num('#sce-x', 0) / 100, num('#sce-y', 0) / 100, Math.max(.01, num('#sce-w', 100) / 100), Math.max(.01, num('#sce-h', 100) / 100)];
+    l.fit = $('#sce-fit').value; l.opacity = Math.min(1, Math.max(0, num('#sce-op', 100) / 100));
+    l.radius = Math.min(.5, Math.max(0, num('#sce-rad', 0) / 100));
+    const bw = Math.min(.1, Math.max(0, num('#sce-bor', 0) / 100)); l.border = bw ? {width: bw, color: (l.border && l.border.color) || '#ffffff'} : undefined; if (!bw) delete l.border;
+    if ($('#sce-sh').value === '1') l.shadow = l.shadow || {blur: .02, dx: .004, dy: .008, opacity: .55}; else delete l.shadow;
+    l.z = Math.round(num('#sce-z', 0));
+    drawScene(edCv, ed, edSel);
+  }
+  $$('#sce-fields input,#sce-fields select').forEach(e => e.addEventListener('input', edRead));
+  $('#sce-bgt').onchange = $('#sce-bg1').oninput = $('#sce-bg2').oninput = () => {
+    if (!ed) return;
+    ed.background = $('#sce-bgt').value === 'gradient' ? {type: 'gradient', from: $('#sce-bg1').value, to: $('#sce-bg2').value, angle: (ed.background && ed.background.angle) || 90} : {type: 'solid', color: $('#sce-bg1').value};
+    drawScene(edCv, ed, edSel);
+  };
+  $('#sce-add').onclick = () => { if (!ed || ed.layers.length >= 16) return; ed.layers.push({role: '', slot: -1, rect: [.25, .25, .5, .5], fit: 'fill', z: ed.layers.length}); edSel = ed.layers.length - 1; edRefresh(true); };
+  $('#sce-rm').onclick = () => { if (!ed || !edLayer()) return; ed.layers.splice(edSel, 1); edSel = Math.max(0, edSel - 1); edRefresh(true); };
+  const edPos = e => { const r = edCv.getBoundingClientRect(); return {x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height}; };
+  edCv.addEventListener('pointerdown', e => {
+    if (!ed) return;
+    const p = edPos(e), order = layersByZ(ed).reverse();
+    const hit = order.find(({l}) => { const r = l.rect; return p.x >= r[0] && p.x <= r[0] + r[2] && p.y >= r[1] && p.y <= r[1] + r[3]; });
+    if (!hit) return;
+    edSel = hit.i; const r = hit.l.rect;
+    const corner = Math.abs(p.x - (r[0] + r[2])) < 0.03 && Math.abs(p.y - (r[1] + r[3])) < 0.05;
+    edDrag = {mode: corner ? 'resize' : 'move', p0: p, r0: r.slice()};
+    edCv.setPointerCapture(e.pointerId); edRefresh(true);
+  });
+  edCv.addEventListener('pointermove', e => {
+    if (!edDrag || !ed) return;
+    const p = edPos(e), dx = p.x - edDrag.p0.x, dy = p.y - edDrag.p0.y, r0 = edDrag.r0, l = edLayer();
+    if (edDrag.mode === 'move') l.rect = [Math.min(1.5, Math.max(-.5, r0[0] + dx)), Math.min(1.5, Math.max(-.5, r0[1] + dy)), r0[2], r0[3]];
+    else l.rect = [r0[0], r0[1], Math.min(3, Math.max(.03, r0[2] + dx)), Math.min(3, Math.max(.03, r0[3] + dy))];
+    edFields(); drawScene(edCv, ed, edSel);
+  });
+  const edEnd = () => { edDrag = null; };
+  edCv.addEventListener('pointerup', edEnd); edCv.addEventListener('pointercancel', edEnd);
+  $('#sce-save').onclick = () => { if (!ed) return; ed.name = $('#sce-name').value.trim() || ed.name; send('scenesave', JSON.stringify(ed)); closeModals(); };
+  $('#sce-tpl').onclick = () => {
+    if (!ed) return;
+    ed.name = $('#sce-name').value.trim() || ed.name;
+    send('scenesave', JSON.stringify(ed));
+    send('scenetemplate', ed.id, $('#sce-tname').value.trim() || ed.name);
+    closeModals();
+  };
+  $('#sce-del').onclick = () => {
+    if (!ed) return;
+    if (!edDelArm) { edDelArm = 1; $('#sce-del').textContent = 'CONFIRMAR EXCLUSÃO'; return; }
+    send('scenedelete', ed.id); closeModals();
+  };
+  $('#sce-cancel').onclick = $('#sce-close').onclick = closeModals;
+
+  function onScenesState(d) {
+    scenesSt = {scenes: d.scenes || [], templates: d.templates || [], max: d.max || 16};
+    if (pickT) { const t = scenesSt.templates.find(x => x.id === pickT.id); if (!t) openPicker(); }
+    renderSceneTiles();
+    if ($('#sc-pick').classList.contains('on')) renderPicker();
+  }
+  // ---------- /FEATURE: scenes ----------
+
+  // ---------- FEATURE: teleprompter ----------
+  // The host is authoritative for position (src/teleprompter/controller.*). It sends {t:'tp', state,
+  // pos, rate, ...} on every change plus a ~2 Hz re-sync; this page (and the presenter window)
+  // extrapolate pos + rate*dt between messages, so both stay in step and nothing here keeps its own clock.
+  const tp = {st: null, recv: 0, script: null, style: null, list: null, H: 1, V: 1, mark: .35, raf: 0, dragging: false, saveT: 0, dirty: false, loadedId: ''};
+  const tpEl = {txt: $('#tp-txt'), view: $('#tp-view'), mark: $('#tp-mark'), cd: $('#tp-cd'), area: $('#tp-text')};
+  const tpFmt = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const tpPos = () => !tp.st ? 0 : tp.st.state === 'playing' ? Math.min(1, tp.st.pos + tp.st.rate * (performance.now() - tp.recv) / 1000) : tp.st.pos;
+  const tpActive = () => !!document.querySelector('#v-tp.on');
+  function tpFrame() {
+    cancelAnimationFrame(tp.raf);
+    const p = tpPos();
+    tpEl.txt.style.transform = 'translate3d(0,' + (tp.mark * tp.V - p * tp.H).toFixed(2) + 'px,0)';
+    $('#tp-progbar').style.transform = 'scaleX(' + p.toFixed(5) + ')';
+    const st = tp.st || {};
+    $('#tp-pct').textContent = Math.round(p * 100) + '%';
+    const rate = st.rate || 0;
+    const remain = st.state === 'playing' && rate > 0 ? (1 - p) / rate : st.remain;
+    $('#tp-remain').textContent = 'restam ' + (st.remain || remain ? tpFmt(remain) : '—');
+    $('#tp-total').textContent = 'total ' + (st.total ? tpFmt(st.total) : '—');
+    if (st.state === 'countdown') {
+      const left = Math.max(0, st.cd - (performance.now() - tp.recv) / 1000);
+      tpEl.cd.style.display = 'flex'; tpEl.cd.textContent = String(Math.max(1, Math.ceil(left)));
+    } else tpEl.cd.style.display = 'none';
+    if (tpActive() && (st.state === 'playing' || st.state === 'countdown')) tp.raf = requestAnimationFrame(tpFrame);
+  }
+  function tpMeasure() {   // only on script/style/resize, never per frame
+    const w = tpEl.view.clientWidth || 1;
+    tp.V = Math.max(1, tpEl.view.clientHeight);
+    const s = tp.style;
+    if (s) tpEl.txt.style.fontSize = (s.font * Math.max(.18, w / 1280)).toFixed(1) + 'px';
+    tp.H = Math.max(1, tpEl.txt.offsetHeight);
+    tpFrame();
+    clearTimeout(tp.layoutT);
+    // The presenter window reports the real layout when it is open; the host ignores this one then.
+    tp.layoutT = setTimeout(() => send('tp', 'layout', 'o', Math.round(tp.H), Math.round(tp.V)), 200);
+  }
+  function tpApplyStyle() {
+    const s = tp.style; if (!s) return;
+    const v = tpEl.view.style;
+    v.background = s.bg; v.color = s.fg;
+    tpEl.txt.style.lineHeight = s.lh; tpEl.txt.style.left = tpEl.txt.style.right = s.margin + '%';
+    tp.mark = s.markerpos / 100;
+    tpEl.mark.style.display = s.marker ? 'block' : 'none'; tpEl.mark.style.top = (tp.mark * 100) + '%';
+    const set = (id, val, out) => { const e = $('#' + id); if (!tp.dragging || document.activeElement !== e) e.value = val; if (out) $('#' + id + 'v').textContent = out; };
+    set('tp-font', s.font, s.font); set('tp-lh', s.lh, (+s.lh).toFixed(2).replace(/0$/, '')); set('tp-margin', s.margin, s.margin + '%');
+    set('tp-markpos', s.markerpos, s.markerpos + '%'); set('tp-cdsec', s.cdSec, s.cdSec + 's');
+    $('#tp-fg').value = s.fg; $('#tp-bg').value = s.bg;
+    $('#tp-mirror').checked = !!s.mirror; $('#tp-flip').checked = !!s.flip; $('#tp-marker').checked = !!s.marker;
+    tpMeasure();
+  }
+  function tpBuild() {
+    const d = tp.script; if (!d) return;
+    tpEl.txt.textContent = '';
+    for (const b of d.blocks || []) {
+      const p = document.createElement('p');
+      if (b.k === 'c') { p.className = 'c'; const sp = document.createElement('span'); sp.textContent = b.t || '·'; p.appendChild(sp); }
+      else { p.className = 'p'; p.textContent = b.t; p.dataset.at = b.at; p.addEventListener('click', () => send('tp', 'seek', (p.offsetTop / tp.H).toFixed(5))); }
+      tpEl.txt.appendChild(p);
+    }
+    tpMeasure();
+  }
+  function tpRenderState() {
+    const st = tp.st; if (!st) return;
+    const names = {stopped: 'PARADO', countdown: 'CONTAGEM', playing: 'NO AR', paused: 'PAUSADO', finished: 'FIM'};
+    $('#tp-state').textContent = names[st.state] || st.state;
+    const moving = st.state === 'playing' || st.state === 'countdown';
+    $('#tp-play').textContent = moving ? 'PAUSE' : 'PLAY';
+    $$('#tp-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === st.mode));
+    const sp = $('#tp-speed'), isW = st.mode === 'wpm';
+    sp.min = isW ? 20 : 10; sp.max = isW ? 400 : 800;
+    if (!tp.dragging) sp.value = isW ? st.wpm : st.pxs;
+    $('#tp-speedv').textContent = Math.round(isW ? st.wpm : st.pxs);
+    $('#tp-speedlbl').textContent = isW ? 'Palavras/min' : 'Pixels/s';
+    $('#tp-pop').disabled = !!st.presenter; $('#tp-popfs').disabled = !st.presenter; $('#tp-popx').disabled = !st.presenter;
+    tpFrame();
+  }
+  function tpRenderList() {
+    const d = tp.list; if (!d) return;
+    const box = $('#tp-list'); box.textContent = '';
+    for (const s of d.scripts || []) {
+      const b = document.createElement('button');
+      b.className = s.id === d.current ? 'on' : '';
+      const n = document.createElement('span'); n.textContent = s.name;
+      const w = document.createElement('em'); w.textContent = s.words + ' pal.';
+      b.append(n, w);
+      b.addEventListener('click', () => { tpFlushSave(); send('tp', 'select', s.id); });
+      box.appendChild(b);
+    }
+  }
+  function tpOnScript(d) {
+    tp.script = d;
+    const a = tpEl.area;
+    if (d.id !== tp.loadedId || (document.activeElement !== a && a.value !== d.text)) { a.value = d.text; tp.loadedId = d.id; }
+    if (document.activeElement !== $('#tp-name')) $('#tp-name').value = d.name || '';
+    $('#tp-edstat').textContent = d.words + ' palavras · ' + d.paragraphs + ' parágrafos';
+    tpBuild();
+  }
+  function tpOnMsg(m) {
+    let d; try { d = typeof m === 'string' ? JSON.parse(m) : m; } catch (e) { return; }
+    if (!d || typeof d.t !== 'string' || d.t.slice(0, 2) !== 'tp') return;
+    if (d.t === 'tp') { tp.st = d; tp.recv = performance.now(); tpRenderState(); }
+    else if (d.t === 'tplist') { tp.list = d; tpRenderList(); }
+    else if (d.t === 'tpscript') tpOnScript(d);
+    else if (d.t === 'tpstyle') { tp.style = d; tpApplyStyle(); }
+  }
+  window.__tpMessage = tpOnMsg;   // test hook (the browser harness has no host event channel)
+  if (host) host.addEventListener('message', e => tpOnMsg(e.data));
+  // editor: debounced autosave, flushed before switching script
+  function tpFlushSave() {
+    clearTimeout(tp.saveT);
+    if (tp.dirty && tp.loadedId) { tp.dirty = false; send('tp', 'save', tp.loadedId, tpEl.area.value); }
+  }
+  tpEl.area.addEventListener('input', () => { tp.dirty = true; clearTimeout(tp.saveT); tp.saveT = setTimeout(tpFlushSave, 500); });
+  tpEl.area.addEventListener('blur', tpFlushSave);
+  $('#tp-new').onclick = () => { tpFlushSave(); send('tp', 'new', 'Novo roteiro'); };
+  $('#tp-del').onclick = () => { if (tp.loadedId && confirm('Excluir o roteiro "' + (tp.script ? tp.script.name : '') + '"?')) send('tp', 'delete', tp.loadedId); };
+  const tpRename = () => { const n = $('#tp-name').value.trim(); if (n && tp.loadedId) send('tp', 'rename', tp.loadedId, n); };
+  $('#tp-rename').onclick = tpRename;
+  $('#tp-name').addEventListener('keydown', e => { if (e.key === 'Enter') tpRename(); });
+  $('#tp-import').onclick = () => $('#tp-file').click();
+  // Old Brazilian .txt files are often Windows-1252 or UTF-16 (Notepad "Unicode"): detect, never trust blindly.
+  async function tpDecode(file) {
+    const u = new Uint8Array(await file.arrayBuffer());
+    if (u.length >= 2 && u[0] === 0xFF && u[1] === 0xFE) return new TextDecoder('utf-16le').decode(u.subarray(2));
+    if (u.length >= 2 && u[0] === 0xFE && u[1] === 0xFF) return new TextDecoder('utf-16be').decode(u.subarray(2));
+    try { return new TextDecoder('utf-8', {fatal: true}).decode(u); } catch (e) { return new TextDecoder('windows-1252').decode(u); }
+  }
+  $('#tp-file').addEventListener('change', async ev => {
+    const f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+    if (!f) return;
+    if (f.size > 1024 * 1024) { $('#tp-edstat').textContent = 'Arquivo grande demais (máximo 1 MB).'; return; }
+    try { tpFlushSave(); send('tp', 'import', f.name.replace(/\.[^.]*$/, ''), await tpDecode(f)); }
+    catch (e) { $('#tp-edstat').textContent = 'Não foi possível ler o arquivo.'; }
+  });
+  // transport
+  $('#tp-play').onclick = () => send('tp', 'toggle');
+  $('#tp-restart').onclick = () => send('tp', 'restart');
+  $('#tp-prog').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); send('tp', 'seek', Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)).toFixed(4)); });
+  $('#tp-pop').onclick = () => send('tp', 'presenter', 'open');
+  $('#tp-popfs').onclick = () => send('tp', 'presenter', 'fullscreen');
+  $('#tp-popx').onclick = () => send('tp', 'presenter', 'close');
+  $$('#tp-mode button').forEach(b => b.onclick = () => send('tp', 'mode', b.dataset.m));
+  // settings: sliders send on input; while dragging, incoming state must not fight the thumb
+  addEventListener('pointerup', () => { tp.dragging = false; });
+  for (const [id, cmd] of [['tp-speed', 'speed'], ['tp-font', 'font'], ['tp-lh', 'lh'], ['tp-margin', 'margin'], ['tp-markpos', 'markerpos'], ['tp-cdsec', 'cd']]) {
+    const el = $('#' + id);
+    el.addEventListener('pointerdown', () => { tp.dragging = true; });
+    el.addEventListener('input', () => {
+      if (cmd === 'speed') send('tp', 'speed', el.value);
+      else if (cmd === 'cd') send('tp', 'countdown', el.value);
+      else send('tp', 'style', cmd, el.value);
+    });
+  }
+  for (const [id, key] of [['tp-fg', 'fg'], ['tp-bg', 'bg']]) $('#' + id).addEventListener('input', e => send('tp', 'style', key, e.target.value.toUpperCase()));
+  for (const [id, key] of [['tp-mirror', 'mirror'], ['tp-flip', 'flip'], ['tp-marker', 'marker']]) $('#' + id).addEventListener('change', e => send('tp', 'style', key, e.target.checked ? '1' : '0'));
+  addEventListener('resize', () => { if (tpActive()) tpMeasure(); });
+  $$('#tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.v === 'tp') setTimeout(tpMeasure, 0); }));
+  // Keyboard, scoped to this tab (capture phase + stopImmediatePropagation so Space does NOT reach the
+  // switcher's global "cut" handler). Ignored while typing in a text field/select/textarea.
+  addEventListener('keydown', e => {
+    if (!tpActive() || e.ctrlKey || e.metaKey || e.altKey) return;
+    const a = document.activeElement || {};
+    const typing = a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && /^(text|number|password|search|)$/.test(a.type || ''));
+    if (typing || document.querySelector('.modal.on')) return;
+    let cmd = null;
+    if (e.code === 'Space') cmd = ['toggle'];
+    else if (e.key === 'ArrowUp') cmd = ['nudge', 10];
+    else if (e.key === 'ArrowDown') cmd = ['nudge', -10];
+    else if (e.key === 'Home') cmd = ['restart'];
+    if (!cmd) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!e.repeat || cmd[0] === 'nudge') send('tp', ...cmd);
+  }, true);
+  if (host) send('tp', 'hello');
+  // ---------- /FEATURE: teleprompter ----------
+  // ---------- GRÁFICOS (overlays) ---------- FEATURE: overlays
+  const OV_TYPES = {timer: 'CRONÔMETRO', scoreboard: 'PLACAR', qr: 'QR CODE', lowerthird: 'LOWER THIRD', captions: 'LEGENDAS', chatpin: 'CHAT'};
+  const OV_POS = [['Topo à esquerda', 0.03, 0.05, 0, 0], ['Topo ao centro', 0.5, 0.05, 0.5, 0], ['Topo à direita', 0.97, 0.05, 1, 0],
+    ['Centro à esquerda', 0.03, 0.5, 0, 0.5], ['Centro', 0.5, 0.5, 0.5, 0.5], ['Centro à direita', 0.97, 0.5, 1, 0.5],
+    ['Base à esquerda', 0.03, 0.95, 0, 1], ['Base ao centro', 0.5, 0.95, 0.5, 1], ['Base à direita', 0.97, 0.95, 1, 1]];
+  const OV_ANIMS = [['none', 'Nenhuma'], ['fade', 'Surgir (fade)'], ['slide-left', 'Deslizar da esquerda'], ['slide-right', 'Deslizar da direita'], ['slide-up', 'Deslizar de baixo'], ['slide-down', 'Deslizar de cima']];
+  // k = config key; kind: text|num|pct (stored 0..1)|color|check|select; t = types that show it (omitted: all)
+  const OV_FIELDS = [
+    {k: 'name', l: 'Nome na lista', kind: 'text', wide: 1},
+    {k: 'label', l: 'Rótulo (texto pequeno acima)', kind: 'text', t: ['timer', 'scoreboard'], wide: 1},
+    {k: 'mode', l: 'Contagem', kind: 'select', o: [['down', 'Regressiva'], ['up', 'Progressiva']], t: ['timer', 'scoreboard']},
+    {k: 'durationSec', l: 'Duração (segundos)', kind: 'num', min: 0, max: 359999, t: ['timer', 'scoreboard'], presets: [60, 300, 600, 900, 1800, 3600]},
+    {k: 'format', l: 'Formato', kind: 'select', o: [['auto', 'Automático'], ['mm:ss', 'mm:ss'], ['hh:mm:ss', 'hh:mm:ss']], t: ['timer', 'scoreboard']},
+    {k: 'blinkAtZero', l: 'Piscar ao chegar a zero', kind: 'check', t: ['timer']},
+    {k: 'teamA', l: 'Time A', kind: 'text', t: ['scoreboard']}, {k: 'teamB', l: 'Time B', kind: 'text', t: ['scoreboard']},
+    {k: 'colorA', l: 'Cor do time A', kind: 'color', t: ['scoreboard']}, {k: 'colorB', l: 'Cor do time B', kind: 'color', t: ['scoreboard']},
+    {k: 'scoreA', l: 'Pontos A', kind: 'num', min: 0, max: 999, t: ['scoreboard']}, {k: 'scoreB', l: 'Pontos B', kind: 'num', min: 0, max: 999, t: ['scoreboard']},
+    {k: 'period', l: 'Período (ex.: 1º tempo)', kind: 'text', t: ['scoreboard']},
+    {k: 'showClock', l: 'Mostrar relógio no placar', kind: 'check', t: ['scoreboard']},
+    {k: 'qrText', l: 'Conteúdo do QR (link ou código PIX)', kind: 'text', t: ['qr'], wide: 1},
+    {k: 'qrCaption', l: 'Texto sob o QR', kind: 'text', t: ['qr'], wide: 1},
+    {k: 'qrEcc', l: 'Correção de erro', kind: 'select', o: [['L', 'L (7%)'], ['M', 'M (15%)'], ['Q', 'Q (25%)'], ['H', 'H (30%)']], t: ['qr']},
+    {k: 'qrSize', l: 'Tamanho do QR (% da altura)', kind: 'pct', min: 10, max: 80, t: ['qr']},
+    {k: 'title', l: 'Nome / título', kind: 'text', t: ['lowerthird'], wide: 1}, {k: 'subtitle', l: 'Função / subtítulo', kind: 'text', t: ['lowerthird'], wide: 1},
+    {k: 'holdSec', l: 'Tempo na tela (s; 0 = fixo)', kind: 'num', min: 0, max: 3600, t: ['captions', 'chatpin']},
+    {k: 'maxLines', l: 'Linhas no máximo', kind: 'num', min: 1, max: 6, t: ['captions', 'chatpin']},
+    {k: 'widthPct', l: 'Largura máxima (% da tela)', kind: 'pct', min: 10, max: 100, t: ['captions', 'chatpin']},
+    {k: '_pos', l: 'Posição', kind: 'select', o: OV_POS.map((p, i) => [String(i), p[0]]).concat([['c', 'Personalizada']])},
+    {k: 'size', l: 'Tamanho do texto (% da altura)', kind: 'pct', min: 1.2, max: 30, step: 0.1},
+    {k: 'font', l: 'Fonte', kind: 'text'}, {k: 'bold', l: 'Negrito', kind: 'check'},
+    {k: 'textColor', l: 'Cor do texto', kind: 'color'}, {k: 'bgColor', l: 'Cor do fundo', kind: 'color', t: ['timer', 'scoreboard', 'lowerthird', 'captions', 'chatpin']},
+    {k: 'accent', l: 'Cor de destaque', kind: 'color', t: ['timer', 'scoreboard', 'lowerthird', 'chatpin']},
+    {k: 'bgAlpha', l: 'Opacidade do fundo (%)', kind: 'pct', min: 0, max: 100, t: ['timer', 'scoreboard', 'lowerthird', 'captions', 'chatpin']},
+    {k: 'opacity', l: 'Opacidade geral (%)', kind: 'pct', min: 0, max: 100},
+    {k: 'animIn', l: 'Animação de entrada', kind: 'select', o: OV_ANIMS}, {k: 'animOut', l: 'Animação de saída', kind: 'select', o: OV_ANIMS},
+    {k: 'animMs', l: 'Duração da animação (ms)', kind: 'num', min: 0, max: 5000},
+  ];
+  let ovData = {elements: [], preview: false}, ovSig = '', ovEdit = null;
+  const ovHex = n => '#' + (n >>> 0).toString(16).padStart(6, '0').slice(-6);
+  const ovInt = h => parseInt(String(h).replace('#', ''), 16) || 0;
+  const ovGfxCtx = $('#cv-gfx').getContext('2d');
+  const ovLive = e => (e.type === 'timer' || (e.type === 'scoreboard' && e.showClock)) ? e.clock : '';
+  function ovPosIndex(e) { const i = OV_POS.findIndex(p => Math.abs(p[1] - e.x) < 0.001 && Math.abs(p[2] - e.y) < 0.001 && p[3] === e.pivotX && p[4] === e.pivotY); return i < 0 ? 'c' : String(i); }
+  function ovState(d) {
+    ovData = d;
+    const sig = JSON.stringify(d.elements.map(e => Object.assign({}, e, {clock: 0}))) + d.preview;
+    if (sig !== ovSig) { ovSig = sig; ovRenderList(); }
+    else d.elements.forEach(e => { const el = document.querySelector(`.ovrow[data-id="${e.id}"] .nm .live`); if (el) el.textContent = ovLive(e); });
+    const pv = $('#ov-prev'); if (pv && document.activeElement !== pv) pv.checked = !!d.preview;
+  }
+  function ovRenderList() {
+    const box = $('#ov-list'); box.innerHTML = '';
+    $('#ov-count').textContent = ovData.elements.length;
+    $('#ov-empty').style.display = ovData.elements.length ? 'none' : '';
+    ovData.elements.forEach((e, k) => {
+      const r = document.createElement('div'); r.className = 'ovrow' + (e.on ? ' on' : ''); r.dataset.id = e.id;
+      const warn = e.type === 'qr' && !e.qrOk ? ' ⚠' : '';
+      r.innerHTML = `<div class="nm">${esc(e.name || e.id)}<em>${OV_TYPES[e.type] || e.type}${warn}</em><span class="live">${esc(ovLive(e))}</span></div>
+        <div class="acts"><button data-a="up" title="Subir (para frente)"${k === ovData.elements.length - 1 ? ' disabled' : ''}>↑</button><button data-a="dn" title="Descer (para trás)"${k === 0 ? ' disabled' : ''}>↓</button>
+        <button data-a="edit">EDITAR</button><button data-a="del" title="Remover">✕</button><button data-a="air" class="air${e.on ? ' on' : ''}">${e.on ? 'NO AR' : 'FORA'}</button></div>`;
+      const ctl = document.createElement('div'); ctl.className = 'ctl';
+      const mk = (txt, cmd, title) => { const b = document.createElement('button'); b.textContent = txt; b.title = title || ''; b.onclick = () => send(...cmd); ctl.appendChild(b); };
+      if (e.type === 'timer' || (e.type === 'scoreboard' && e.showClock)) {
+        mk('▶ INICIAR', ['ovtimer', e.id, 'start']); mk('⏸ PAUSAR', ['ovtimer', e.id, 'pause']); mk('↺ ZERAR', ['ovtimer', e.id, 'reset']);
+        mk('+1 min', ['ovtimer', e.id, 'add', 60]); mk('−1 min', ['ovtimer', e.id, 'add', -60]);
+        [60, 300, 600, 900].forEach(s => mk(s / 60 + ' min', ['ovtimer', e.id, 'set', s], 'Definir ' + s / 60 + ' minutos'));
+      }
+      if (e.type === 'scoreboard') {
+        mk('A +1', ['ovscore', e.id, 'a', 1]); mk('A −1', ['ovscore', e.id, 'a', -1]); mk('B +1', ['ovscore', e.id, 'b', 1]); mk('B −1', ['ovscore', e.id, 'b', -1]);
+        mk('⇄ TROCAR', ['ovscore', e.id, 'swap']); mk('ZERAR PLACAR', ['ovscore', e.id, 'reset']);
+        const sc = document.createElement('span'); sc.className = 'live'; sc.textContent = `${e.teamA} ${e.scoreA} × ${e.scoreB} ${e.teamB}`; ctl.appendChild(sc);
+      }
+      if (ctl.childNodes.length) r.appendChild(ctl);
+      r.querySelector('[data-a=air]').onclick = () => send('ovshow', e.id, e.on ? 0 : 1);
+      r.querySelector('[data-a=edit]').onclick = () => ovOpen(e);
+      r.querySelector('[data-a=del]').onclick = () => { if (confirm('Remover "' + (e.name || e.id) + '"?')) send('ovdel', e.id); };
+      r.querySelector('[data-a=up]').onclick = () => send('ovmove', e.id, 'up');
+      r.querySelector('[data-a=dn]').onclick = () => send('ovmove', e.id, 'down');
+      box.appendChild(r);
+    });
+  }
+  function ovOpen(e) {
+    ovEdit = e;
+    $('#ovm-type').textContent = OV_TYPES[e.type] || e.type;
+    $('#ovm-title').textContent = e.name || 'Gráfico';
+    const box = $('#ovm-fields'); box.innerHTML = '';
+    OV_FIELDS.filter(f => !f.t || f.t.includes(e.type)).forEach(f => {
+      const lab = document.createElement('label'); if (f.wide) lab.style.gridColumn = '1/-1';
+      const v = f.k === '_pos' ? ovPosIndex(e) : e[f.k];
+      if (f.kind === 'check') {
+        lab.className = 'chk'; lab.style.gridColumn = '1/-1'; lab.innerHTML = `<input type="checkbox" data-k="${f.k}"${v ? ' checked' : ''}><span class="box"></span>${esc(f.l)}`;
+      } else if (f.kind === 'select') {
+        lab.innerHTML = `${esc(f.l)}<select data-k="${f.k}">${f.o.map(o => `<option value="${esc(o[0])}"${String(v) === String(o[0]) ? ' selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`;
+      } else if (f.kind === 'color') {
+        lab.innerHTML = `${esc(f.l)}<input type="color" data-k="${f.k}" value="${ovHex(v)}">`;
+      } else if (f.kind === 'num') {
+        lab.innerHTML = `${esc(f.l)}<input type="number" data-k="${f.k}" min="${f.min}" max="${f.max}" value="${v}">`;
+        if (f.presets) { const p = document.createElement('div'); p.className = 'ovpre'; f.presets.forEach(s => { const b = document.createElement('button'); b.type = 'button'; b.textContent = s >= 3600 ? s / 3600 + ' h' : s / 60 + ' min'; b.onclick = ev => { ev.preventDefault(); lab.querySelector('input').value = s; }; p.appendChild(b); }); lab.appendChild(p); }
+      } else if (f.kind === 'pct') {
+        lab.innerHTML = `${esc(f.l)}<input type="number" data-k="${f.k}" min="${f.min}" max="${f.max}" step="${f.step || 1}" value="${Math.round(v * 1000) / 10}">`;
+      } else {
+        lab.innerHTML = `${esc(f.l)}<input type="text" data-k="${f.k}" maxlength="600" spellcheck="false" value="${esc(v == null ? '' : v)}">`;
+      }
+      box.appendChild(lab);
+    });
+    $('#modal6').classList.add('on');
+  }
+  function ovSave() {
+    if (!ovEdit) return;
+    const o = Object.assign({}, ovEdit); delete o.clock; delete o.on; delete o.running; delete o.finished; delete o.qrOk;
+    OV_FIELDS.filter(f => !f.t || f.t.includes(ovEdit.type)).forEach(f => {
+      const el = document.querySelector(`#ovm-fields [data-k="${f.k}"]`); if (!el) return;
+      if (f.k === '_pos') { if (el.value !== 'c') { const p = OV_POS[+el.value]; o.x = p[1]; o.y = p[2]; o.pivotX = p[3]; o.pivotY = p[4]; } return; }
+      if (f.kind === 'check') o[f.k] = el.checked;
+      else if (f.kind === 'color') o[f.k] = ovInt(el.value);
+      else if (f.kind === 'num') o[f.k] = Math.round(+el.value || 0);
+      else if (f.kind === 'pct') o[f.k] = (+el.value || 0) / 100;
+      else o[f.k] = el.value;
+    });
+    send('ovsave', JSON.stringify(o));
+    $('#modal6').classList.remove('on'); ovEdit = null;
+  }
+  $('#ov-add').onclick = () => send('ovnew', $('#ov-type').value);
+  $('#ov-prev').onchange = ev => send('ovpreview', ev.target.checked ? 1 : 0);
+  $('#ovm-save').onclick = ovSave;
+  $('#ovm-cancel').onclick = $('#ovm-x').onclick = () => $('#modal6').classList.remove('on');
+  // ---------- /GRÁFICOS ----------
+
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); } else if (d.t === 'plugin_review') showReview(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
+    else if (d.t === 'scenes_state') onScenesState(d);   // FEATURE: scenes
     else if (d.t === 'devformats') renderCamFormats(d);
+    else if (d.t === 'chroma') { chrSt = d; syncChroma(false); }   // FEATURE: chroma
+    else if (d.t === 'remote') renderRemote(d);   /* FEATURE: remote */
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);
+    else if (d.t === 'overlay_state') ovState(d);   // FEATURE: overlays
+    else if (typeof d.t === 'string' && d.t.startsWith('ai_')) aiMsg(d);   // FEATURE: ai
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); }
   };
   if (host) { host.addEventListener('message', e => onMsg(e.data)); send('ready'); }
+  if (host) send('aiget');   // FEATURE: ai
   window.__hbMessage = onMsg;   // used by the design preview harness
 })();
 </script>
