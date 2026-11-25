@@ -526,6 +526,20 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   for (let i = 1; i < rows.length; i++) if (rows[i][0] < rows[i - 1][1] - 1) overlap = true;
   ok(rows.length === 6 && !overlap, 'CONFIG: output format presets are stacked without overlapping');
 
+  // CONFIG has many cards now: the tab itself must scroll, and the LAST card must be reachable.
+  const cfgScroll = await page.evaluate(() => {
+    const v = document.getElementById('v-cfg');
+    const cards = v.querySelectorAll(':scope > .card');
+    const last = cards[cards.length - 1];
+    v.scrollTop = v.scrollHeight;
+    const lr = last.getBoundingClientRect(), vr = v.getBoundingClientRect();
+    const res = { oy: getComputedStyle(v).overflowY, scrollable: v.scrollHeight > v.clientHeight, lastVisible: lr.bottom <= vr.bottom + 2 && lr.top < vr.bottom };
+    v.scrollTop = 0;
+    return res;
+  });
+  ok(cfgScroll.oy === 'auto' && cfgScroll.scrollable, 'CONFIG: the tab scrolls when its cards do not fit');
+  ok(cfgScroll.lastVisible, 'CONFIG: scrolling down reaches the last card');
+
   console.log('\n[5a2] CONFIG: Formatos de saída comuns (selecionáveis)');
   await page.evaluate(() => window.__hbMessage({ t: 'outfmt', w: 1920, h: 1080, fpsNum: 30, fpsDen: 1, activeW: 1920, activeH: 1080, activeFpsNum: 30, activeFpsDen: 1 }));
   ok((await page.locator('#outfmt-list .fmt.on').count()) === 1, 'the saved preset is marked selected');
