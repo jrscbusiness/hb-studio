@@ -7,6 +7,8 @@ próprio HB Studio).
 | Dependência | Uso | Licença | Notas |
 |---|---|---|---|
 | GoogleTest 1.14 | testes | BSD-3 | só em desenvolvimento |
+| Open Sans (subconjunto latin 400/600, via @fontsource/open-sans 5.0.28) | fonte do tema "OBS" da interface, embutida em `ui/index.html` | SIL OFL 1.1 | © 2020 The Open Sans Project Authors |
+| Paleta de cores "Yami" do OBS Studio | tema "OBS" da interface | só valores de cor reutilizados (nenhum código do OBS, que é GPL-2.0) | referência: `frontend/data/themes/Yami.obt` em obsproject/obs-studio; HB Studio não é afiliado ao OBS Project |
 | Qt 6 (futuro) | UI | LGPLv3 | linkagem dinâmica |
 | FFmpeg (futuro) | mídia | LGPL 2.1+ (build sem GPL/nonfree) | sem x264/x265 |
 | libsrt (futuro) | SRT | MPL 2.0 | |

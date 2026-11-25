@@ -747,6 +747,13 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   const bgAfterGray = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   ok(bgAfterGray !== bgBeforeGray, 'TEMA CINZA: a cor de fundo muda e é diferente do claro');
   ok(bgAfterGray !== bgAfter, 'TEMA CINZA: tem cor própria, diferente do escuro (não é um alias dele)');
+  const sentT2 = await page.evaluate(() => window.__sent.length);
+  await page.locator('#theme-seg button[data-th=obs]').click();
+  ok((await page.evaluate(n => window.__sent.slice(n), sentT2)).includes('uitheme|obs'), 'TEMA: escolher OBS avisa o host (uitheme|obs)');
+  ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'obs', 'TEMA OBS: atributo data-theme="obs" aplicado');
+  ok(await page.evaluate(() => getComputedStyle(document.body).backgroundColor) === 'rgb(29, 31, 38)', 'TEMA OBS: fundo é o grey7 #1D1F26 do tema Yami do OBS Studio');
+  ok((await page.evaluate(() => getComputedStyle(document.body).fontFamily)).startsWith('"Open Sans"'), 'TEMA OBS: usa a fonte Open Sans do OBS');
+  ok(await page.evaluate(() => document.fonts.check('13px "Open Sans"')), 'TEMA OBS: a fonte Open Sans está embutida e carregada (funciona offline)');
   await page.locator('#theme-seg button[data-th=system]').click();
   ok(await page.evaluate(() => document.documentElement.getAttribute('data-theme')) === null, 'TEMA: "Sistema" remove o atributo (volta a seguir o SO)');
 

@@ -349,7 +349,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // ---- native dark/light mode (built into the app; no plugin needed) ----
     const std::string themePath = mediaDir.empty() ? std::string() : mediaDir + "\\theme.txt";
     auto effectiveDark = [](const std::string& pref) {
-        if (pref == "dark" || pref == "gray") return true;  // "gray" is a dark-ish neutral palette too
+        if (pref == "dark" || pref == "gray" || pref == "obs") return true;  // "gray"/"obs" are dark palettes too
         if (pref == "light") return false;
         return win::systemPrefersDark();  // "system" (default)
     };
@@ -357,7 +357,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     if (!themePath.empty()) {
         std::ifstream f(themePath, std::ios::binary);
         std::string v;
-        if (f && std::getline(f, v) && (v == "dark" || v == "light" || v == "gray" || v == "system")) themePref = v;
+        if (f && std::getline(f, v) && (v == "dark" || v == "light" || v == "gray" || v == "obs" || v == "system")) themePref = v;
     }
 
     // ---- CONFIG > Qualidade do Preview: unlike outputFormat above, this applies live (no
@@ -887,7 +887,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             host.postQueued("cap", captions.pollJson(true));   // FEATURE: captions
             host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
-        else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "system")) {
+        else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "obs" || a[1] == "system")) {
             // Native dark/light mode: built into the app, no plugin needed. The web page applies
             // its own colours (CSS + localStorage, see ui/index.html); this just keeps the native
             // window chrome (title bar) in sync and remembers the choice for the next launch.
