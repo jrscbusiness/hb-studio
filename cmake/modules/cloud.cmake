@@ -14,7 +14,8 @@ set(HB_CLOUD_SRCS
   src/cloud/file_feed.cpp
   src/cloud/cloud_settings.cpp
   src/cloud/loopback_listener.cpp
-  src/cloud/cloud_service.cpp)
+  src/cloud/cloud_service.cpp
+  src/cloud/net_adapter.cpp)
 if(WIN32)
   list(APPEND HB_CLOUD_SRCS src/cloud/cloud_platform_win.cpp)
 else()
@@ -22,9 +23,9 @@ else()
 endif()
 add_library(hb_cloud STATIC ${HB_CLOUD_SRCS})
 target_include_directories(hb_cloud PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(hb_cloud PUBLIC hb_core)
+target_link_libraries(hb_cloud PUBLIC hb_core hb_net)
 if(WIN32)
-  target_link_libraries(hb_cloud PUBLIC winhttp crypt32 ws2_32)
+  target_link_libraries(hb_cloud PUBLIC ws2_32)
 endif()
 if(MSVC)
   target_compile_options(hb_cloud PRIVATE /W4 /permissive-)

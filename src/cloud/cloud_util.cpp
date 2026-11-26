@@ -1,5 +1,7 @@
 #include "cloud/cloud_util.hpp"
 
+#include "net/url.hpp"
+
 #include <cctype>
 #include <cstdlib>
 
@@ -123,29 +125,8 @@ Endpoint parseEndpoint(std::string_view text) {
     if (e.scheme == "http") {
         // Cleartext (recordings + SigV4 headers) only toward the local network: loopback, RFC1918,
         // a single-label name (typical LAN MinIO/NAS) or a .local/.lan name. Anything else needs https.
-        std::string h;
-        for (unsigned char c : s) h += static_cast<char>(std::tolower(c));
-        bool local = h == "localhost" || h.find('.') == std::string::npos ||
-                     (h.size() > 6 && h.compare(h.size() - 6, 6, ".local") == 0) ||
-                     (h.size() > 4 && h.compare(h.size() - 4, 4, ".lan") == 0);
-        int o[4] = {-1, -1, -1, -1};
-        int n = 0, v = 0, d = 0;
-        bool quad = true;
-        for (std::size_t i = 0; i <= h.size() && quad; ++i) {
-            if (i == h.size() || h[i] == '.') {
-                if (d == 0 || v > 255 || n > 3) { quad = false; break; }
-                o[n++] = v;
-                v = 0;
-                d = 0;
-            } else if (h[i] >= '0' && h[i] <= '9') {
-                v = v * 10 + (h[i] - '0');
-                if (++d > 3) quad = false;
-            } else {
-                quad = false;
-            }
-        }
-        if (quad && n == 4)
-            local = local || o[0] == 127 || o[0] == 10 || (o[0] == 192 && o[1] == 168) || (o[0] == 172 && o[1] >= 16 && o[1] <= 31);
+        // Strict host checks live in src/net ("127.evil.com" / "10.0.0.1.evil.com" are not local).
+        const bool local = hb::net::isLocalNetworkHost(s);
         if (!local) return e;
     }
     e.host = s;
