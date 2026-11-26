@@ -14,6 +14,9 @@
 
 #include "app/engine.hpp"
 #include "overlay/blend.hpp"
+#ifdef HB_BENCH_PERF
+#include "perf/ui_frame_gate.hpp"
+#endif
 #include "scene/compositor.hpp"
 #include "switcher/switcher.hpp"
 #include "video/frame_ops.hpp"
@@ -252,6 +255,16 @@ void benchUiPath() {
         for (int i = 0; i < 8; ++i) eng.renderUiFrame("s" + std::to_string(i), out);
     });
     eng.stop();
+#ifdef HB_BENCH_PERF
+    // Cost of deciding "this UI frame did not change" (hash of the downscaled frame) per preset.
+    for (const auto& p : app::Engine::previewQualityPresets()) {
+        video::Frame f;
+        video::prepareFrame(f, p.monitorW, p.monitorH);
+        for (auto& v : f.data) v = static_cast<std::uint8_t>(rnd());
+        run(std::string("UI unchanged-frame hash ") + std::to_string(p.monitorW) + "x" + std::to_string(p.monitorH),
+            [&] { volatile auto h = perf::hashFrame(f); (void)h; });
+    }
+#endif
 }
 
 }  // namespace

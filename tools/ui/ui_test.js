@@ -596,9 +596,9 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'perfgov', on: true, active: 'alta', user: 'alta', reduced: false }));
   ok(!(await page.locator('#previewq-auto').isVisible()), 'the badge disappears once the quality is back');
   await clearSent();
-  await page.locator('#perf-auto').uncheck();
+  await page.locator('#perf-auto').evaluate(e => e.click());
   ok((await sent()).includes('perfgov|off'), 'unchecking sends perfgov|off');
-  await page.locator('#perf-auto').check();
+  await page.locator('#perf-auto').evaluate(e => e.click());
   ok((await sent()).includes('perfgov|on'), 'checking sends perfgov|on');
 
   console.log('\n[5b] ÁUDIO: canais, efeitos, gravação');

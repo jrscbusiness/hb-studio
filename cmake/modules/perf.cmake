@@ -10,6 +10,11 @@ else()
   target_compile_options(hb_perf PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+if(HB_BUILD_BENCH)
+  target_link_libraries(hb_bench PRIVATE hb_perf)
+  target_compile_definitions(hb_bench PRIVATE HB_BENCH_PERF=1)
+endif()
+
 if(HB_BUILD_TESTS)
   file(GLOB HB_PERF_TESTS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/tests/perf_*.cpp)
   add_executable(hb_perf_tests ${HB_PERF_TESTS})
