@@ -16,8 +16,11 @@ struct TempDir {
     fs::path p;
     TempDir() {
         static int n = 0;
-        p = fs::temp_directory_path() / ("hb_audio_io_test_" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()) +
-                                         "_" + std::to_string(++n));
+        // The test name is part of the path: ctest runs each test in its own process, where n and the
+        // seed repeat, so parallel runs would otherwise share (and delete) one directory.
+        const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+        p = fs::temp_directory_path() / ("hb_audio_io_test_" + std::string(info ? info->name() : "x") + "_" +
+                                         std::to_string(::testing::UnitTest::GetInstance()->random_seed()) + "_" + std::to_string(++n));
         fs::create_directories(p);
     }
     ~TempDir() {

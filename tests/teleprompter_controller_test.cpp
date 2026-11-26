@@ -17,8 +17,11 @@ struct Fx {
     Controller c;
     static fs::path mk() {
         static int n = 0;
-        auto p = fs::temp_directory_path() / ("hb_tp_ctl_" + std::to_string(++n) + "_" +
-                                              std::to_string(::testing::UnitTest::GetInstance()->random_seed()));
+        // ctest runs each test in its own process (n and random_seed repeat), so the TEST NAME must be part
+        // of the directory or parallel runs delete each other's files.
+        const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+        auto p = fs::temp_directory_path() / ("hb_tp_ctl_" + std::string(info ? info->name() : "x") + "_" +
+                                              std::to_string(++n));
         fs::remove_all(p);
         return p;
     }
