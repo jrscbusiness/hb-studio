@@ -33,6 +33,11 @@ permissions:
 
 env:
   WEBVIEW2_SDK_VERSION: 1.0.3856.49
+  # ONNX Runtime (MIT) for the AI chroma key: official Microsoft Windows x64 CPU zip, bundled into the installer.
+  # ORT_ZIP_SHA256 pins the zip. While it is empty the fetch step still works but prints the computed hash as a
+  # warning (trust on first use): copy it here and into LICENSES.md to turn it into a hard check.
+  ORT_VERSION: 1.20.1
+  ORT_ZIP_SHA256: ""
 
 jobs:
   build:
@@ -101,6 +106,43 @@ jobs:
         run: |
           Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$env:WEBVIEW2_SDK_VERSION" -OutFile wv2.zip
           Expand-Archive wv2.zip third_party/webview2 -Force
+
+      - name: Restore ONNX Runtime cache (Windows)
+        id: cache_ort
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: third_party/onnxruntime
+          key: onnxruntime-${{ env.ORT_VERSION }}-${{ env.ORT_ZIP_SHA256 }}
+
+      - name: Fetch ONNX Runtime (Windows, optional)
+        # Never breaks the build when the download is unavailable (the app then builds without the AI chroma
+        # key, exactly as before); a hash MISMATCH against ORT_ZIP_SHA256 does fail the step.
+        if: runner.os == 'Windows' && steps.cache_ort.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ver = $env:ORT_VERSION
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v$ver/onnxruntime-win-x64-$ver.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "ort.zip"
+          $ok = $false
+          foreach ($i in 1..3) {
+            try { Invoke-WebRequest $url -OutFile $zip; $ok = $true; break } catch { Start-Sleep -Seconds (5 * $i) }
+          }
+          if (-not $ok) { Write-Warning "ONNX Runtime download failed; building without the AI chroma key."; exit 0 }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          Write-Host "onnxruntime-win-x64-$ver.zip sha256 = $hash"
+          if ([string]::IsNullOrEmpty($env:ORT_ZIP_SHA256)) {
+            Write-Warning "ORT_ZIP_SHA256 is not pinned yet. Computed sha256 = $hash (set it in ci.yml and LICENSES.md)."
+          } elseif ($hash -ne $env:ORT_ZIP_SHA256.ToLower()) {
+            throw "onnxruntime zip SHA-256 mismatch: expected $($env:ORT_ZIP_SHA256) got $hash"
+          }
+          $tmp = Join-Path $env:RUNNER_TEMP "ort_extract"
+          Expand-Archive $zip $tmp -Force
+          $root = Get-ChildItem $tmp -Directory | Select-Object -First 1
+          New-Item -ItemType Directory third_party -Force | Out-Null
+          if (Test-Path third_party/onnxruntime) { Remove-Item third_party/onnxruntime -Recurse -Force }
+          Move-Item $root.FullName third_party/onnxruntime
+          Get-ChildItem third_party/onnxruntime/lib | Select-Object Name, Length
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
@@ -226,6 +268,16 @@ jobs:
           Remove-Item $pfxPath -Force
           & $signtool verify /pa dist/HBStudio-Setup.exe
 
+      - name: Checksum for the self-update (HBStudio-Setup.exe.sha256, computed AFTER signing)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dist = (Resolve-Path dist).Path
+          $h = (Get-FileHash (Join-Path $dist "HBStudio-Setup.exe") -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText((Join-Path $dist "HBStudio-Setup.exe.sha256"), "$h  HBStudio-Setup.exe`n")
+          Get-Content (Join-Path $dist "HBStudio-Setup.exe.sha256")
+          Get-Item (Join-Path $dist "HBStudio-Setup.exe") | Select-Object Name, Length
+
       - name: Upload installer artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
@@ -233,6 +285,7 @@ jobs:
           name: HBStudio-Setup
           path: |
             dist/HBStudio-Setup.exe
+            dist/HBStudio-Setup.exe.sha256
             dist/*.hbplugin
 
       - name: Publish "latest" pre-release
@@ -242,6 +295,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag 2>$null
-          gh release create latest dist/HBStudio-Setup.exe dist/*.hbplugin --prerelease --target ${{ github.sha }} `
+          gh release create latest dist/HBStudio-Setup.exe dist/HBStudio-Setup.exe.sha256 dist/*.hbplugin --prerelease --target ${{ github.sha }} `
             --title "HB Studio - ultima versao" `
             --notes "Instalador automatico (commit ${{ github.sha }}). Baixe HBStudio-Setup.exe, de dois cliques e siga a janela. Os arquivos .hbplugin sao plugins de exemplo (Plugins > Instalar plugin)."

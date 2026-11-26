@@ -1,0 +1,5 @@
+/* FEATURE: updates */
+.upd-bar{height:6px;border-radius:4px;background:var(--mist);overflow:hidden;margin:4px 0 8px}
+.upd-bar i{display:block;height:100%;width:0;background:var(--blue)}
+.upd-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--blue);margin-left:6px;vertical-align:middle}
+.upd-dot[hidden]{display:none}

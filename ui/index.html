@@ -678,6 +678,11 @@ input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-
 .mk-cfg{display:flex;gap:8px;flex-wrap:wrap}
 .mk-cfg input{flex:1 1 220px}
 /* /FEATURE: marketplace */
+/* FEATURE: updates */
+.upd-bar{height:6px;border-radius:4px;background:var(--mist);overflow:hidden;margin:4px 0 8px}
+.upd-bar i{display:block;height:100%;width:0;background:var(--blue)}
+.upd-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--blue);margin-left:6px;vertical-align:middle}
+.upd-dot[hidden]{display:none}
 /* FEATURE: chat */
 .chatwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;height:100%;min-height:0;padding:2px}
 .chatwrap.compact{grid-template-columns:minmax(0,1fr)}
@@ -743,7 +748,7 @@ button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var
       <button data-v="aud">ÁUDIO</button>
       <button data-v="rec">GRAVAÇÃO</button>
       <button data-v="plg">PLUGINS</button>
-      <button data-v="cfg">CONFIG</button>
+      <button data-v="cfg">CONFIG<span class="upd-dot" id="upd-dot" hidden title="Há uma versão nova (CONFIG > Atualizações)"></span></button>
     </nav>
     <div class="chips">
       <button class="recbtn" id="rec-btn" title="Gravar a saída Program"><i></i><span>REC</span></button>
@@ -1278,6 +1283,33 @@ button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var
         </div>
       </div>
       <!-- /FEATURE: cloudbackup -->
+      <!-- FEATURE: updates -->
+      <div class="card" id="upd-card"><h3><span class="cap">Atualizações</span></h3>
+        <div class="body">
+          <div class="row"><span class="k">Versão instalada</span><span class="v mono" id="upd-cur">—</span></div>
+          <div class="row"><span class="k">Última verificação</span><span class="v" id="upd-last">nunca</span></div>
+          <div class="row"><span class="k">Situação</span><span class="v" id="upd-status">—</span></div>
+          <div class="mk-msg" id="upd-msg"></div>
+          <div id="upd-new" style="display:none;margin-top:10px;padding:10px 12px;border:1px solid var(--blue);border-radius:12px">
+            <b>Há uma versão nova</b> <span class="mono" id="upd-newv"></span>
+            <p class="note" id="upd-notes" style="margin:6px 0;white-space:pre-wrap"></p>
+            <p class="note" id="upd-size" style="margin:0 0 8px"></p>
+            <div class="upd-bar" id="upd-bar" style="display:none"><i id="upd-barfill"></i></div>
+            <div class="row" style="border-top:none"><span class="k"></span><span class="v">
+              <button class="btn sm" id="upd-install">BAIXAR E INSTALAR</button>
+              <button class="btn sm" id="upd-later">DEPOIS</button>
+              <button class="btn sm" id="upd-cancel" style="display:none">CANCELAR</button>
+            </span></div>
+          </div>
+          <div class="row" style="margin-top:10px"><span class="k">Verificar sozinho (no máx. a cada 6 h)</span><span class="v"><label class="chk" style="margin:0"><input type="checkbox" id="upd-auto" checked><span class="box"></span></label></span></div>
+          <div class="row" style="border-top:none"><span class="k"></span><span class="v"><button class="btn sm" id="upd-check">VERIFICAR AGORA</button></span></div>
+          <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Avançado: endereço da consulta (forks)</summary>
+            <div class="mk-cfg" style="margin-top:6px"><input type="text" id="upd-url" aria-label="Endereço da consulta de versão" spellcheck="false"><button class="btn sm" id="upd-url-save" style="flex:none">SALVAR</button><button class="btn sm" id="upd-url-reset" style="flex:none">PADRÃO</button></div>
+          </details>
+          <p class="note" style="margin-top:8px">A consulta é anônima (API pública do GitHub) e só compara o código-fonte da sua versão com o da última publicada. Ao atualizar, o HB Studio mostra uma confirmação do Windows antes de fechar e abrir o instalador. <b>O instalador ainda não tem assinatura digital</b>: o SHA-256 só detecta arquivo corrompido — veja docs/ATUALIZACAO.md.</p>
+        </div>
+      </div>
+      <!-- /FEATURE: updates -->
       <!-- FEATURE: captions -->
       <div class="card" id="cap-card"><h3><span class="cap">Legendas ao vivo</span></h3>
         <div class="body">
@@ -3604,6 +3636,51 @@ body.cur{cursor:default}
   $('#cb-retryall').onclick = () => send('cloudretry', 'all');
   $('#cb-clearfin').onclick = () => send('cloudclearfinished');
   // ---- /FEATURE: cloudbackup ----
+  // ---- FEATURE: updates ---- CONFIG card "Atualizações" (the host owns every decision: download path, SHA-256, the
+  // native confirmation dialog and running the installer; this page only sends intents and renders the state)
+  let updSt = null;
+  const updFmtSize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  function updRender(d) {
+    updSt = d;
+    $('#upd-cur').textContent = d.current || '—';
+    $('#upd-last').textContent = d.lastCheck ? new Date(d.lastCheck * 1000).toLocaleString('pt-BR') : 'nunca';
+    if (document.activeElement !== $('#upd-auto')) $('#upd-auto').checked = !!d.enabled;
+    const u = $('#upd-url');
+    if (document.activeElement !== u) u.value = d.releaseUrl === d.defaultUrl ? '' : d.releaseUrl;
+    u.placeholder = d.defaultUrl || '';
+    const dl = d.download || {}, busy = dl.phase === 'download' || dl.phase === 'verify';
+    const avail = d.state === 'available' && d.release;
+    $('#upd-status').textContent = d.checking ? 'Verificando…' : avail ? 'Há uma versão nova' : d.state === 'uptodate' ? 'Você está na versão mais recente' : 'Ainda não verificado';
+    const msg = $('#upd-msg');
+    msg.textContent = d.error || '';
+    msg.classList.toggle('on', !!d.error);
+    $('#upd-new').style.display = avail ? '' : 'none';
+    $('#upd-dot').hidden = !(avail && !d.dismissed);
+    if (avail) {
+      $('#upd-newv').textContent = '(' + (d.release.commit || '') + ')';
+      $('#upd-notes').textContent = d.release.notes || '';
+      $('#upd-notes').style.display = d.release.notes ? '' : 'none';
+      $('#upd-size').textContent = 'Instalador: ' + updFmtSize(d.release.size || 0) + (d.release.hashPublished ? ' · SHA-256 publicado' : ' · SEM SHA-256 publicado (a atualização automática será recusada)');
+    }
+    $('#upd-bar').style.display = busy ? '' : 'none';
+    $('#upd-barfill').style.width = (dl.pct || 0) + '%';
+    $('#upd-cancel').style.display = dl.phase === 'download' ? '' : 'none';
+    $('#upd-install').disabled = busy;
+    $('#upd-install').textContent = dl.phase === 'download' ? 'BAIXANDO… ' + (dl.pct || 0) + '%' : dl.phase === 'verify' ? 'VERIFICANDO…' : 'BAIXAR E INSTALAR';
+    $('#upd-later').disabled = busy;
+    $('#upd-check').disabled = !!d.checking || busy;
+  }
+  $('#upd-check').onclick = () => send('updcheck');
+  $('#upd-install').onclick = () => send('updinstall');
+  $('#upd-later').onclick = () => send('updlater');
+  $('#upd-cancel').onclick = () => send('updcancel');
+  $('#upd-auto').onchange = ev => send('updauto', ev.target.checked ? '1' : '0');
+  $('#upd-url-save').onclick = () => send('updcfg', $('#upd-url').value.trim());
+  $('#upd-url-reset').onclick = () => { $('#upd-url').value = ''; send('updcfg', ''); };
+  if (host) {
+    send('updget');   // the host decides whether a check is due (at most once per 6 h)
+    setInterval(() => send('updget'), 30 * 60 * 1000);   // long sessions: re-ask; the host throttles
+  }
   // ---------- LEGENDAS AO VIVO ---------- FEATURE: captions
   const capLangs = [['pt', 'Português'], ['en', 'English'], ['es', 'Español'], ['fr', 'Français'], ['de', 'Deutsch'], ['it', 'Italiano'], ['auto', 'Detectar automaticamente']];
   let capSt = null, capModelSig = '', capBoxSig = '';
@@ -3689,6 +3766,7 @@ body.cur{cursor:default}
     else if (typeof d.t === 'string' && d.t.startsWith('ai_')) aiMsg(d);   // FEATURE: ai
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'cloud_state') cbRender(d);   // FEATURE: cloudbackup
+    else if (d.t === 'upd_state') updRender(d);   // FEATURE: updates
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); } else if (d.t === 'rec_iso') renderMultitrack(d);   /* FEATURE: multitrack */
   };
