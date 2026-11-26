@@ -7,3 +7,5 @@ dist/
 tools/ui/node_modules/
 tools/ui/package-lock.json
 graphify-out/
+.deps/
+.ccache/

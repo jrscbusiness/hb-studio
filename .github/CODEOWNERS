@@ -1,0 +1,6 @@
+# Default reviewers for everything. Add more specific owners per module as maintainers join.
+# (Assumes the repository owner's GitHub login is jrscbusiness; adjust if it differs.)
+*                        @jrscbusiness
+/.github/                @jrscbusiness
+/marketplace/            @jrscbusiness
+/SECURITY.md             @jrscbusiness
