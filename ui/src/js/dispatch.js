@@ -7,6 +7,7 @@
     else if (d.t === 'remote') renderRemote(d);   /* FEATURE: remote */
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);
+    else if (d.t === 'perfgov') renderPerfGov(d);   // FEATURE: perf
     else if (typeof d.t === 'string' && d.t.startsWith('chat_')) chatMsg(d);   // FEATURE: chat
     else if (d.t === 'overlay_state') ovState(d);   // FEATURE: overlays
     else if (d.t === 'cap') renderCap(d);   // FEATURE: captions

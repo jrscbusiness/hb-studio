@@ -1207,7 +1207,13 @@ button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var
         <p class="note" style="margin-top:10px" id="outfmt-note"></p></div></div>
       <div class="card"><h3><span class="cap">Qualidade do Preview</span></h3>
         <div class="body"><div id="previewq-list"></div>
+        <p class="note" id="previewq-auto" style="margin-top:10px;display:none"><span class="badge" id="previewq-auto-badge">reduzido automaticamente</span> <span id="previewq-auto-txt"></span></p>
         <p class="note" style="margin-top:10px">Controla o tamanho dos monitores PROGRAM/PREVIEW e das miniaturas das câmeras na tela — não afeta a resolução real da transmissão/gravação. Baixe para computadores mais fracos ou com muitas câmeras; a mudança vale na hora, sem precisar reiniciar.</p></div></div>
+      <div class="card"><h3><span class="cap">Desempenho</span></h3>
+        <div class="body">
+          <label class="chk"><input type="checkbox" id="perf-auto" checked><span class="box"></span>Ajustar a qualidade do preview automaticamente</label>
+          <p class="note" style="margin-top:8px">Se o relógio do PROGRAM começar a perder quadros, o app baixa sozinho a qualidade do preview (um degrau por vez) e volta ao que você escolheu depois de alguns segundos estável. Só mexe no preview da tela — a resolução e a qualidade reais da transmissão/gravação nunca mudam.</p>
+        </div></div>
       <!-- FEATURE: ai -->
       <div class="card" id="ai-card"><h3><span class="cap">Inteligência Artificial</span></h3>
         <div class="body">
@@ -1778,6 +1784,7 @@ body.cur{cursor:default}
   $$('#tabs button').forEach(b => b.addEventListener('click', () => {
     $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
     $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.v));
+    send('tab', b.dataset.v);   // FEATURE: perf - the host lowers monitor/tile rates on tabs that do not show them
     try { b.scrollIntoView({block: 'nearest', inline: 'nearest'}); } catch (e) {}   // nav scrolls when the 10 tabs don't fit
   }));
   addEventListener('keydown', e => {
@@ -2261,6 +2268,16 @@ body.cur{cursor:default}
       box.appendChild(f);
     });
   }
+  // Auto quality governor (src/perf/quality_governor.hpp): the host reports the operator's choice, the level
+  // currently applied and whether it is automatically reduced.
+  function renderPerfGov(d) {
+    const cb = $('#perf-auto'); if (cb) cb.checked = !!d.on;
+    const box = $('#previewq-auto'); if (!box) return;
+    const lab = id => (previewQPresets.find(p => p.id === id) || { label: id }).label.split(' (')[0];
+    box.style.display = d.on && d.reduced ? '' : 'none';
+    $('#previewq-auto-txt').textContent = d.reduced ? 'Usando "' + lab(d.active) + '" (você escolheu "' + lab(d.user) + '") porque o PROGRAM estava perdendo quadros.' : '';
+  }
+  $('#perf-auto').addEventListener('change', e => send('perfgov', e.target.checked ? 'on' : 'off'));
   renderPreviewQ('alta');   // shows the preset list immediately, before any previewq message arrives
   $('#log-cfg-copy').addEventListener('click', () => {
     const text = lastLog.map(l => l.t).join('\n');
@@ -3909,6 +3926,7 @@ body.cur{cursor:default}
     else if (d.t === 'remote') renderRemote(d);   /* FEATURE: remote */
     else if (d.t === 'outfmt') renderOutFmt(d);
     else if (d.t === 'previewq') renderPreviewQ(d.id);
+    else if (d.t === 'perfgov') renderPerfGov(d);   // FEATURE: perf
     else if (typeof d.t === 'string' && d.t.startsWith('chat_')) chatMsg(d);   // FEATURE: chat
     else if (d.t === 'overlay_state') ovState(d);   // FEATURE: overlays
     else if (d.t === 'cap') renderCap(d);   // FEATURE: captions

@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(HB_BUILD_TESTS "Build unit tests" ON)
 option(HB_BUILD_TOOLS "Build command line tools" ON)
+option(HB_BUILD_BENCH "Build hb_bench (video hot-path benchmark, not part of ctest)" OFF)   # FEATURE: perf
 
 # Static MSVC runtime everywhere: the virtual camera DLL is loaded by a system
 # service and must not depend on a VC++ redistributable being installed.
@@ -54,6 +55,13 @@ if(HB_BUILD_TOOLS)
   add_executable(hb_probe tools/hb_probe.cpp)
   target_link_libraries(hb_probe PRIVATE hb_core)
 endif()
+
+# ---- FEATURE: perf ---- portable video benchmark (docs/DESEMPENHO.md); build with -DHB_BUILD_BENCH=ON
+if(HB_BUILD_BENCH)
+  add_executable(hb_bench tools/bench_video.cpp)
+  target_link_libraries(hb_bench PRIVATE hb_core)
+endif()
+# ---- /FEATURE: perf ----
 
 # Windows 11 virtual camera (Media Foundation Frame Server media source + PoC app).
 if(WIN32)
@@ -154,6 +162,7 @@ if(WIN32)
     target_link_libraries(hb_studio PRIVATE hb_cloud)   # FEATURE: cloudbackup (cmake/modules/cloud.cmake)
     target_link_libraries(hb_studio PRIVATE hb_chat)   # FEATURE: chat (defined in cmake/modules/chat.cmake)
     target_link_libraries(hb_studio PRIVATE hb_diagnostics hb_diagnostics_win)   # FEATURE: diagnostics (cmake/modules/diagnostics*.cmake)
+    target_link_libraries(hb_studio PRIVATE hb_perf)   # FEATURE: perf (cmake/modules/perf.cmake)
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")

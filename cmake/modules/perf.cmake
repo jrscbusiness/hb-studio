@@ -1,0 +1,28 @@
+# Video performance work (docs/DESEMPENHO.md): QualityGovernor / UiFrameGate (src/perf) and the tests that prove
+# the optimised hot paths (frame_ops, pixel_convert, overlay blend, scene compositor) match the originals.
+file(GLOB HB_PERF_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/perf/*.cpp)
+add_library(hb_perf STATIC ${HB_PERF_SOURCES})
+target_include_directories(hb_perf PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(hb_perf PUBLIC hb_core)
+if(MSVC)
+  target_compile_options(hb_perf PRIVATE /W4 /permissive-)
+else()
+  target_compile_options(hb_perf PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(HB_BUILD_BENCH)
+  target_link_libraries(hb_bench PRIVATE hb_perf)
+  target_compile_definitions(hb_bench PRIVATE HB_BENCH_PERF=1)
+endif()
+
+if(HB_BUILD_TESTS)
+  file(GLOB HB_PERF_TESTS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/tests/perf_*.cpp)
+  add_executable(hb_perf_tests ${HB_PERF_TESTS})
+  target_link_libraries(hb_perf_tests PRIVATE hb_perf GTest::gtest_main)
+  if(MSVC)
+    target_compile_options(hb_perf_tests PRIVATE /W4 /permissive-)
+  else()
+    target_compile_options(hb_perf_tests PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
+  gtest_discover_tests(hb_perf_tests)
+endif()

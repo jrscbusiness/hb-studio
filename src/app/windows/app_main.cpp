@@ -84,6 +84,8 @@
 #include "overlay/windows/gdi_glyphs.hpp"
 // ---- /FEATURE ----
 #include "chat/service.hpp"   // FEATURE: chat
+#include "perf/quality_governor.hpp"   // FEATURE: perf
+#include "perf/ui_frame_gate.hpp"      // FEATURE: perf
 // ---- FEATURE: captions ----
 #include "captions/controller.hpp"
 #include "captions/windows/winhttp_client.hpp"
@@ -363,6 +365,24 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         std::string v;
         if (f && std::getline(f, v)) engine.setPreviewQuality(v);   // unknown/corrupt id: keeps the default
     }
+    // ---- FEATURE: perf ---- auto preview quality (default ON) + UI frame throttling by active tab (docs/DESEMPENHO.md)
+    const std::string perfGovPath = mediaDir.empty() ? std::string() : mediaDir + "\\perfgov.txt";
+    perf::QualityGovernor perfGov({}, static_cast<int>(app::Engine::previewQualityPresets().size()), engine.previewQualityIndex());
+    perf::UiFramePolicy uiPolicy;
+    std::atomic<bool> perfGovDirty{true}, uiGateReset{false};
+    if (!perfGovPath.empty()) {
+        std::ifstream f(perfGovPath, std::ios::binary);
+        std::string v;
+        if (f && std::getline(f, v) && v == "off") perfGov.setEnabled(false);
+    }
+    auto perfGovJson = [&] {
+        const auto& presets = app::Engine::previewQualityPresets();
+        const auto idx = [&](int i) { return std::string(presets[static_cast<std::size_t>(std::clamp(i, 0, static_cast<int>(presets.size()) - 1))].id); };
+        return std::string("{\"t\":\"perfgov\",\"on\":") + (perfGov.enabled() ? "true" : "false") + ",\"active\":\"" +
+               idx(engine.previewQualityIndex()) + "\",\"user\":\"" + idx(perfGov.userLevel()) + "\",\"reduced\":" +
+               (perfGov.reduced() ? "true" : "false") + "}";
+    };
+    // ---- /FEATURE: perf ----
 
     std::mutex devMutex;
     std::map<int, std::shared_ptr<win::DShowSource>> devices;   // slot -> running capture (keeps it alive)
@@ -824,8 +844,25 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         else if (c.a[1] == "deactivate") vcam.deactivate();
     }, 2);
     router.add("devrefresh", [&](const app::Command&) { scan(); });
+    // ---- FEATURE: perf ----
+    router.add("perfgov", [&](const app::Command& c) {
+        perfGov.setEnabled(c.a[1] == "on");
+        engine.setPreviewQualityIndex(perfGov.level());   // off: back to the operator's own choice at once
+        if (!perfGovPath.empty()) {
+            std::ofstream f(perfGovPath, std::ios::binary | std::ios::trunc);
+            f << (c.a[1] == "on" ? "on" : "off");
+        }
+        perfGovDirty = true;
+    }, 2);
+    router.add("tab", [&](const app::Command& c) {
+        uiPolicy.setActiveTab(c.a[1]);
+        uiGateReset = true;   // the new tab gets fresh frames at once
+    }, 2);
+    // ---- /FEATURE: perf ----
     router.add("previewq", [&](const app::Command& c) {
         if (engine.setPreviewQuality(c.a[1])) {
+            perfGov.setUserLevel(engine.previewQualityIndex());   // FEATURE: perf - the operator's pick is the new ceiling
+            perfGovDirty = true;
             if (!previewQPath.empty()) {
                 std::ofstream f(previewQPath, std::ios::binary | std::ios::trunc);
                 f << c.a[1];
@@ -1263,7 +1300,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             postChroma();   // FEATURE: chroma
             postCloud(true);   // FEATURE: cloudbackup
             host.postQueued("cap", captions.pollJson(true));   // FEATURE: captions
-            host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
+            host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" +
+                                            win::jsonEscape(app::Engine::previewQualityPresets()[static_cast<std::size_t>(perfGov.userLevel())].id) + "\"}");
+            perfGovDirty = true;   // FEATURE: perf (the operator's choice above, the active level in "perfgov")
         }
         else if (c == "ndiout" && a.size() >= 2) {
             if (a[1] == "on" || a[1] == "off") {
@@ -1738,16 +1777,29 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             video::Frame remoteThumb;                 // FEATURE: remote
             std::vector<std::uint8_t> remoteBytes;    // FEATURE: remote
             std::uint64_t tick = 0;
+            perf::UiFrameGate uiGate;   // FEATURE: perf
             auto next = std::chrono::steady_clock::now();
             while (running) {
                 next += std::chrono::milliseconds(66);  // ~15 Hz
+                // ---- FEATURE: perf ---- auto preview quality + unchanged-frame skipping + per-tab rates
+                if (uiGateReset.exchange(false)) uiGate.reset();
+                {
+                    const auto sn = engine.snapshot();
+                    const int lv = perfGov.update({sn.fps, sn.skipped, sn.targetFps});
+                    if (perfGov.enabled() && lv != engine.previewQualityIndex()) { engine.setPreviewQualityIndex(lv); perfGovDirty = true; }
+                    if (perfGovDirty.exchange(false) || tick % 60 == 0) host.postQueued("perfgov", perfGovJson());
+                }
+                const double nowSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                // ---- /FEATURE: perf ----
                 auto sendFrame = [&](const char* id, int quality) {
-                    if (!engine.renderUiFrame(id, frame) || !jpeg.encode(frame, quality, bytes)) return;
+                    if (!engine.renderUiFrame(id, frame) || !uiGate.shouldSend(id, frame, nowSec) || !jpeg.encode(frame, quality, bytes)) return;
                     host.postQueued(id, std::string("{\"t\":\"f\",\"id\":\"") + id + "\",\"d\":\"" +
                                             win::base64(bytes.data(), bytes.size()) + "\"}");
                 };
-                sendFrame("pgm", 80);
-                sendFrame("pvw", 80);
+                if (uiPolicy.monitorDue(tick)) {   // FEATURE: perf
+                    sendFrame("pgm", 80);
+                    sendFrame("pvw", 80);
+                }
                 // Outputs: second/third-monitor windows and the NDI sender want the FULL-resolution
                 // Program/Preview, not the small UI monitor size sendFrame() above produces.
                 auto progLatest = (progWin.isOpen() || ndiOutputEnabled) ? engine.program().latest() : nullptr;
@@ -1823,9 +1875,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 // ---- /FEATURE ----
                 // Input tiles: half of them per tick (~7.5 fps each) to save CPU.
                 for (int i = static_cast<int>(tick % 2); i < app::Engine::kSourceCount; i += 2)
+                    if (uiPolicy.tileDue(tick, i))   // FEATURE: perf
                     sendFrame(("s" + std::to_string(i)).c_str(), 70);
                 // FEATURE: scenes - CENAS tiles ("cN"; empty slots render nothing and are skipped)
                 for (int i = static_cast<int>(tick % 2); i < app::Engine::kSceneCount; i += 2)
+                    if (uiPolicy.tileDue(tick, i))   // FEATURE: perf
                     sendFrame(("c" + std::to_string(i)).c_str(), 70);
                 {
                     int tid; std::string ttxt;

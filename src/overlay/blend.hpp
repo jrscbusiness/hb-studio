@@ -10,6 +10,7 @@
 //     straight-alpha "over" operator is used so the result is still straight alpha.
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include "video/program_output.hpp"
@@ -60,6 +61,44 @@ inline void blendPixel(std::uint8_t* d, std::uint8_t b, std::uint8_t g, std::uin
     d[3] = static_cast<std::uint8_t>((outA + 127) / 255);
 }
 
+// Row helpers for the common case "destination row is fully opaque" (Program frames always are): the general
+// blendPixel() reduces to out = (src * a + dst * (255 - a) + 127) / 255 for every a in 0..255 (a = 0 leaves the
+// pixel unchanged, a = 255 copies the source), so the per-pixel branches can go and the loop vectorises.
+// floor(x / 255) for 0 <= x <= 65534 without a division (vectorises).
+inline int div255floor(int x) { return (x + 1 + (x >> 8)) >> 8; }
+inline bool rowOpaque(const std::uint8_t* d, int n) {
+    std::uint8_t all = 255;
+    for (int i = 0; i < n; ++i) all &= d[i * 4 + 3];
+    return all == 255;
+}
+// Two 8-bit lanes per 32-bit word (SWAR): lanes {0,2} and {1,3} of the pixel are blended together; every lane
+// stays below 65536 so nothing carries across lanes. The destination alpha byte is put back untouched.
+inline std::uint32_t ld32(const std::uint8_t* p) { std::uint32_t v; std::memcpy(&v, p, 4); return v; }
+inline std::uint32_t swarDiv255(std::uint32_t v) { return ((v + 0x00010001u + ((v >> 8) & 0x00FF00FFu)) >> 8) & 0x00FF00FFu; }
+inline void blendRowOpaque(std::uint8_t* d, const std::uint8_t* s, int n, int op) {
+    const std::uint8_t ab[4] = {0, 0, 0, 255};
+    std::uint32_t amask;
+    std::memcpy(&amask, ab, 4);
+    for (int x = 0; x < n; ++x) {
+        const std::uint32_t sp = ld32(s + x * 4), dp = ld32(d + x * 4);
+        const std::uint32_t sa = s[x * 4 + 3];
+        const std::uint32_t a = op >= 256 ? sa : (sa * static_cast<std::uint32_t>(op)) >> 8;
+        const std::uint32_t ia = 255 - a;
+        const std::uint32_t e = swarDiv255((sp & 0x00FF00FFu) * a + (dp & 0x00FF00FFu) * ia + 0x007F007Fu);
+        const std::uint32_t o = swarDiv255(((sp >> 8) & 0x00FF00FFu) * a + ((dp >> 8) & 0x00FF00FFu) * ia + 0x007F007Fu);
+        const std::uint32_t r = ((e | (o << 8)) & ~amask) | (dp & amask);
+        std::memcpy(d + x * 4, &r, 4);
+    }
+}
+inline void blendSolidRowOpaque(std::uint8_t* d, int n, std::uint8_t b, std::uint8_t g, std::uint8_t r, int a) {
+    const int ia = 255 - a, cb = b * a + 127, cg = g * a + 127, cr = r * a + 127;
+    for (int x = 0; x < n; ++x) {
+        d[x * 4] = static_cast<std::uint8_t>(div255floor(cb + d[x * 4] * ia));
+        d[x * 4 + 1] = static_cast<std::uint8_t>(div255floor(cg + d[x * 4 + 1] * ia));
+        d[x * 4 + 2] = static_cast<std::uint8_t>(div255floor(cr + d[x * 4 + 2] * ia));
+    }
+}
+
 // Clips a w*h rectangle placed at (x,y) against a (cw,ch) canvas. Returns false if nothing is visible.
 inline bool clipRect(int x, int y, int w, int h, int cw, int ch, Rect& out) {
     const int x0 = std::max(0, x), y0 = std::max(0, y);
@@ -85,6 +124,7 @@ inline void blendBitmap(video::Frame& dst, const Bitmap& src, int dx, int dy, do
     for (int y = 0; y < r.h; ++y) {
         const std::uint8_t* s = src.bgra.data() + (static_cast<std::size_t>(y + r.y - dy) * src.w + (r.x - dx)) * 4;
         std::uint8_t* d = dst.data.data() + static_cast<std::size_t>(y + r.y) * dst.stride + static_cast<std::size_t>(r.x) * 4;
+        if (rowOpaque(d, r.w)) { blendRowOpaque(d, s, r.w, op); continue; }
         for (int x = 0; x < r.w; ++x, s += 4, d += 4) {
             if (s[3] == 0) continue;
             blendPixel(d, s[0], s[1], s[2], op >= 256 ? s[3] : (s[3] * op) >> 8);
@@ -120,6 +160,7 @@ inline void fillRect(video::Frame& dst, int x, int y, int w, int h, std::uint32_
     if (!frameValid(dst) || !clipRect(x, y, w, h, dst.width, dst.height, r)) return;
     for (int yy = 0; yy < r.h; ++yy) {
         std::uint8_t* d = dst.data.data() + static_cast<std::size_t>(yy + r.y) * dst.stride + static_cast<std::size_t>(r.x) * 4;
+        if (alpha > 0 && rowOpaque(d, r.w)) { blendSolidRowOpaque(d, r.w, colB(rgb), colG(rgb), colR(rgb), std::min(alpha, 255)); continue; }
         for (int xx = 0; xx < r.w; ++xx, d += 4) blendPixel(d, colB(rgb), colG(rgb), colR(rgb), alpha);
     }
 }

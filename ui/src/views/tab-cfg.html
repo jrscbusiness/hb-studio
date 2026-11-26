@@ -35,7 +35,13 @@
         <p class="note" style="margin-top:10px" id="outfmt-note"></p></div></div>
       <div class="card"><h3><span class="cap">Qualidade do Preview</span></h3>
         <div class="body"><div id="previewq-list"></div>
+        <p class="note" id="previewq-auto" style="margin-top:10px;display:none"><span class="badge" id="previewq-auto-badge">reduzido automaticamente</span> <span id="previewq-auto-txt"></span></p>
         <p class="note" style="margin-top:10px">Controla o tamanho dos monitores PROGRAM/PREVIEW e das miniaturas das câmeras na tela — não afeta a resolução real da transmissão/gravação. Baixe para computadores mais fracos ou com muitas câmeras; a mudança vale na hora, sem precisar reiniciar.</p></div></div>
+      <div class="card"><h3><span class="cap">Desempenho</span></h3>
+        <div class="body">
+          <label class="chk"><input type="checkbox" id="perf-auto" checked><span class="box"></span>Ajustar a qualidade do preview automaticamente</label>
+          <p class="note" style="margin-top:8px">Se o relógio do PROGRAM começar a perder quadros, o app baixa sozinho a qualidade do preview (um degrau por vez) e volta ao que você escolheu depois de alguns segundos estável. Só mexe no preview da tela — a resolução e a qualidade reais da transmissão/gravação nunca mudam.</p>
+        </div></div>
 <!-- @include views/cfg/ai.html -->
 <!-- @include views/cfg/remote.html -->
 <!-- @include views/cfg/cloudbackup.html -->
