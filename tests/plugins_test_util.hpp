@@ -1,4 +1,5 @@
 #pragma once
+#include <random>
 #include <gtest/gtest.h>
 #include <miniz.h>
 
@@ -64,8 +65,14 @@ inline std::string sourceManifest(const std::string& id, const std::string& libN
 
 inline std::filesystem::path makeTempDir(const std::string& tag) {
     static std::atomic<int> n{0};
-    auto p = std::filesystem::temp_directory_path() / ("hbtest_" + tag + "_" + std::to_string(::testing::UnitTest::GetInstance() ? 1 : 0) +
-                                                       "_" + std::to_string(++n) + "_" + std::to_string(reinterpret_cast<std::uintptr_t>(&n) & 0xFFFFF));
+    // ctest runs every test in its own process: the counter repeats and the low bits of a static's address are
+    // nearly constant under ASLR (on Windows only ~4 bits vary), so parallel runs collided. The test name plus
+    // random bits from random_device make the directory unique per process and per test.
+    const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+    std::random_device rd;
+    auto p = std::filesystem::temp_directory_path() /
+             ("hbtest_" + tag + "_" + std::string(info ? info->name() : "x") + "_" + std::to_string(++n) + "_" +
+              std::to_string(rd()));
     std::filesystem::remove_all(p);
     std::filesystem::create_directories(p);
     return p;

@@ -40,7 +40,8 @@ TEST(MarketplaceNetAdapter, FetchReturnsBodyAndEtagFor200Only) {
     EXPECT_EQ(a.etag, "\"abc\"");
     // No CR/LF can survive into the conditional header.
     bool found = false;
-    for (const auto& h : fake->requests().at(0).headers)
+    const auto sent = fake->requests();   // keep the copy alive: iterating a member of a temporary dangles (passed on Linux by luck, failed on MSVC)
+    for (const auto& h : sent.at(0).headers)
         if (h.first == "If-None-Match") {
             found = true;
             EXPECT_EQ(h.second.find('\r'), std::string::npos);
