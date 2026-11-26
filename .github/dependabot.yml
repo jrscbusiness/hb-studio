@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Keeps the GitHub Actions used by .github/workflows/*.yml up to date. Only the Actions
+  # ecosystem: C++ dependencies are pinned through CMake FetchContent and reviewed by hand.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]

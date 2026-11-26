@@ -1,0 +1,56 @@
+name: Relatar um bug / Bug report
+description: Algo não funciona como deveria no HB Studio.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por ajudar! Quanto mais detalhes, mais rápido dá para corrigir. Português ou inglês, como preferir.
+        **Não cole chaves de transmissão, tokens ou senhas.** O registro do app já oculta segredos, mas confira antes de colar.
+        Problema de segurança? Não use esta página, veja o SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Versão do HB Studio
+      description: Aparece no rodapé do aplicativo ("HB STUDIO 0.3.0+abc1234").
+      placeholder: "0.3.0+abc1234"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Versão do Windows
+      description: "Win+R → winver. Ex.: Windows 11 23H2 (build 22631)."
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Câmera / placa de captura / equipamento envolvido
+      description: Modelo e como está ligado (USB, HDMI→captura, NDI, ONVIF...). Escreva "nenhum" se não for relevante. A placa de vídeo (GPU) também ajuda em problemas de transmissão/gravação.
+      placeholder: "Logitech C920 via USB; GPU NVIDIA GTX 1650"
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu
+      description: O que você fez, o que esperava e o que viu no lugar.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abrir a aba ...
+        2. Clicar em ...
+        3. ...
+  - type: textarea
+    id: log
+    attributes:
+      label: Registro (log)
+      description: Em CONFIG → Registro (logs) clique em COPIAR REGISTRO e cole aqui.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Capturas de tela ou outras informações

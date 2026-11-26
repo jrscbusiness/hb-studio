@@ -1,0 +1,30 @@
+name: Sugerir funcionalidade / Feature request
+description: Uma ideia para o HB Studio.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Veja antes o [roteiro](https://github.com/jrscbusiness/hb-studio/blob/main/docs/ROADMAP.md) — a ideia pode já estar listada (comente nela).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema você quer resolver?
+      description: 'Descreva a situação de uso (por exemplo, "no culto, preciso de ...").'
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Como você imagina a solução
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas ou como você faz hoje
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Você pode ajudar a implementar ou testar?
+      options:
+        - Posso programar
+        - Posso testar com equipamento real
+        - Só estou sugerindo

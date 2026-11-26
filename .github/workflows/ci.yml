@@ -1,5 +1,32 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+    # Docs/community-file-only changes cannot change the binaries, so skip the 15+ minute build.
+    # (Side effect: a docs-only commit on main does not republish the "latest" release - the
+    # installer content would be identical anyway.) marketplace/** is deliberately NOT ignored.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+      - ".github/CODEOWNERS"
+      - ".github/dependabot.yml"
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+      - ".github/CODEOWNERS"
+      - ".github/dependabot.yml"
+
+# Cancel a superseded run of the same branch/PR. Runs on main are never cancelled (each one has its
+# own group, keyed by run id) because main publishes the "latest" release.
+concurrency:
+  group: ci-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: write   # publishes the "latest" pre-release with HBStudio-Setup.exe
@@ -14,22 +41,94 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-2022]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      # ccache is used on Linux only (the Visual Studio generator ignores compiler launchers).
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_MAXSIZE: 400M
+      CCACHE_COMPRESS: "1"
+      # MSVC: compile the files of one project in parallel (cmake --build --parallel only
+      # parallelises across projects). Empty on Linux.
+      CXXFLAGS: ${{ runner.os == 'Windows' && '/MP' || '' }}
+      CFLAGS: ${{ runner.os == 'Windows' && '/MP' || '' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch WebView2 SDK (Windows)
+      # FetchContent sources (googletest, pugixml, miniz, miniaudio, vst3sdk, whisper.cpp) and
+      # their already-compiled objects live in .deps (see FETCHCONTENT_BASE_PATH below). Restored
+      # on every run; saved only from main so feature branches cannot evict it (branches can read
+      # main's cache). A partial (prefix) hit is fine: the build tool rebuilds only what changed.
+      - name: Restore dependency cache
+        id: cache_deps
+        uses: actions/cache/restore@v4
+        with:
+          path: .deps
+          key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/modules/*.cmake') }}
+          restore-keys: |
+            deps-${{ runner.os }}-
+
+      - name: Restore ccache (Linux)
+        id: cache_ccache
+        if: runner.os == 'Linux'
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Install ccache (Linux)
+        if: runner.os == 'Linux'
+        run: command -v ccache || sudo apt-get install -y --no-install-recommends ccache
+
+      - name: Restore WebView2 SDK cache (Windows)
+        id: cache_wv2
         if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: third_party/webview2
+          key: webview2-${{ env.WEBVIEW2_SDK_VERSION }}
+
+      - name: Fetch WebView2 SDK (Windows)
+        if: runner.os == 'Windows' && steps.cache_wv2.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$env:WEBVIEW2_SDK_VERSION" -OutFile wv2.zip
           Expand-Archive wv2.zip third_party/webview2 -Force
 
-      - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_BASE_PATH="$PWD/.deps"
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "-DFETCHCONTENT_BASE_PATH=$PWD/.deps"
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release --parallel 4
       - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+        # Parallel for speed. A few tests use fixed temp-directory names, so on any failure the
+        # failed tests are re-run serially before the step is allowed to fail.
+        shell: bash
+        run: |
+          ctest --test-dir build -C Release -j 4 --output-on-failure \
+            || ctest --test-dir build -C Release --rerun-failed --output-on-failure
+
+      - name: Save dependency cache (main only)
+        if: github.ref == 'refs/heads/main' && steps.cache_deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .deps
+          key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/modules/*.cmake') }}
+
+      - name: Save ccache (Linux, main only)
+        if: runner.os == 'Linux' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
 
       - name: UI interaction tests (real browser, clicks + 15 Hz state feed)
         if: runner.os == 'Linux'

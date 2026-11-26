@@ -1,0 +1,19 @@
+name: Pergunta / Question
+description: Dúvida de uso ou de contribuição.
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Leia antes o [README](https://github.com/jrscbusiness/hb-studio/blob/main/README.md) e os guias em `docs/`.
+        Se o repositório tiver GitHub Discussions ativado, perguntas abertas também cabem lá.
+  - type: textarea
+    id: question
+    attributes:
+      label: Sua pergunta
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão do HB Studio (rodapé do app), se relevante
