@@ -45,6 +45,12 @@
 #include "ndi/ndi.hpp"
 #include "scene/scene_service.hpp"   // FEATURE: scenes
 #include "marketplace/service.hpp"   // FEATURE: marketplace
+// ---- FEATURE: diagnostics ----
+#include "diagnostics/checklist.hpp"
+#include "diagnostics/report.hpp"
+#include "diagnostics/settings.hpp"
+#include "diagnostics/windows/sys_win.hpp"
+// ---- /FEATURE: diagnostics ----
 // ---- FEATURE: cloudbackup ----
 #include "cloud/cloud_platform.hpp"
 #include "cloud/cloud_service.hpp"
@@ -906,6 +912,245 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     });
     // ---- /FEATURE ----
 
+    // ---- FEATURE: diagnostics ---- "Exportar diagnóstico" + "Checklist antes de entrar ao vivo" (docs/DIAGNOSTICO.md).
+    // Portable logic: src/diagnostics (report + redactor + checks); Windows probes: diagnostics/windows/sys_win.cpp.
+    hb::diag::ChecklistSettings chkSettings;
+    const std::string chkPath = mediaDir.empty() ? std::string() : mediaDir + "\\checklist.json";
+    if (!chkPath.empty()) {
+        std::ifstream f(chkPath, std::ios::binary);
+        if (f) {
+            std::string text(16 * 1024 + 1, '\0');
+            f.read(text.data(), static_cast<std::streamsize>(text.size()));
+            text.resize(static_cast<std::size_t>(f.gcount()));
+            chkSettings = hb::diag::ChecklistSettings::fromJson(text);
+        }
+    }
+    auto postChkCfg = [&] { host.postQueued("chkcfg", chkSettings.uiJson()); };
+    win::TaskQueue diagTasks;                 // own thread: the checklist may wait seconds on the network
+    std::atomic<bool> chkBusy{false};
+
+    // Everything the checklist knows without probing, gathered on the UI thread.
+    auto gatherChecklistInput = [&] {
+        hb::diag::ChecklistInput in;
+        const auto rs = media.settings();
+        in.recordingFolder = rs.folder.empty() ? videosDir : rs.folder;
+        in.recordingVideoKbps = rs.videoBitrateKbps;
+        in.recordingAudioKbps = rs.audioBitrateKbps;
+        in.minFreeBytes = static_cast<std::int64_t>(rs.minFreeMegabytes) * 1024 * 1024;
+        for (const auto& d : destinations.list()) {
+            hb::diag::ChecklistDestination cd;
+            cd.name = d.name;
+            cd.enabled = d.enabled;
+            cd.urlSet = !d.serverUrl.empty();
+            cd.keySet = !d.streamKey.empty();   // only the boolean ever leaves this function
+            cd.videoKbps = d.videoKbps;
+            cd.audioKbps = d.audioKbps;
+            in.destinations.push_back(std::move(cd));
+        }
+        for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+            const auto as = assignments.get(i);
+            if (as.empty()) continue;
+            const auto info = engine.slotInfo(i);
+            hb::diag::ChecklistCamera cam;
+            cam.slot = i;
+            cam.name = as.name;
+            cam.enabled = as.enabled;
+            cam.online = info.live && info.status.state == video::SourceStatus::State::Online;
+            cam.detail = info.status.message;
+            in.cameras.push_back(std::move(cam));
+        }
+        for (const auto& st : media.audio().snapshot().strips) {
+            hb::diag::ChecklistAudioStrip as;
+            as.index = st.index;
+            as.name = st.name;
+            as.assigned = st.inputKind != audio_io::InputKind::None;
+            as.state = st.inputState;
+            as.peakDb = std::max({static_cast<double>(st.peakDb[0]), static_cast<double>(st.peakDb[1]),
+                                  static_cast<double>(st.holdDb[0]), static_cast<double>(st.holdDb[1])});
+            in.audio.push_back(std::move(as));
+        }
+        in.speedTestEnabled = chkSettings.speedTestEnabled;
+        in.speedTestUrl = chkSettings.speedTestUrl;
+        return in;
+    };
+
+    // Redactor: every saved stream key verbatim + the user's folders as %ENV% aliases.
+    auto makeRedactor = [&] {
+        hb::diag::Redactor r;
+        for (const auto& d : destinations.list()) r.addSecret(d.streamKey);
+        const std::wstring lad = win::localAppDataPath();
+        if (!lad.empty()) r.addPathAlias(win::narrow(lad), "%LOCALAPPDATA%");
+        PWSTR prof = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Profile, 0, nullptr, &prof))) {
+            r.addPathAlias(win::narrow(prof), "%USERPROFILE%");
+            CoTaskMemFree(prof);
+        }
+        return r;
+    };
+
+    auto gatherDiagnostics = [&] {
+        hb::diag::DiagnosticsInput d;
+        d.appVersion = HB_VERSION;
+        const auto snap = engine.snapshot();
+        d.logicalCores = snap.cores;
+        d.ramGiB = snap.ramGiB;
+        const auto pf = engine.program().format();
+        d.outputFormat = std::to_string(pf.width) + "x" + std::to_string(pf.height) + " @ " + std::to_string(pf.fps.num) +
+                         (pf.fps.den != 1 ? "/" + std::to_string(pf.fps.den) : std::string()) + " fps";
+        d.previewQuality = engine.previewQuality();
+        // video devices from the last scan, with the slot that uses them
+        {
+            std::lock_guard lock(devMutex);
+            for (const auto& kv : knownNames) {
+                hb::diag::DeviceLine dl;
+                dl.name = kv.second;
+                dl.status = "disponível";
+                for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+                    const auto as = assignments.get(i);
+                    if (as.empty() || as.id != kv.first) continue;
+                    const auto info = engine.slotInfo(i);
+                    static const char* const kState[] = {"conectando", "online", "sem sinal", "erro"};
+                    dl.status = "CAM " + std::to_string(i + 1) + (as.enabled ? "" : " (desligada)");
+                    dl.detail = std::string(info.live ? kState[static_cast<int>(info.status.state)] : "offline") +
+                                (info.status.width > 0 ? ", " + std::to_string(info.status.width) + "x" + std::to_string(info.status.height) : std::string());
+                    if (!info.status.message.empty()) dl.detail += ", " + info.status.message;
+                    if (info.status.state == video::SourceStatus::State::Error || info.status.state == video::SourceStatus::State::NoSignal)
+                        d.extraErrors.push_back({"CAM " + std::to_string(i + 1), info.status.message.empty() ? dl.detail : info.status.message, ""});
+                    break;
+                }
+                d.videoDevices.push_back(std::move(dl));
+            }
+        }
+        // assigned cameras whose device is missing from the last scan
+        for (int i = 0; i < app::Engine::kSourceCount; ++i) {
+            const auto as = assignments.get(i);
+            if (as.empty()) continue;
+            bool listed = false;
+            {
+                std::lock_guard lock(devMutex);
+                listed = knownNames.count(as.id) != 0;
+            }
+            if (!listed) d.videoDevices.push_back({as.name, "CAM " + std::to_string(i + 1), "dispositivo ausente na última busca"});
+        }
+        const auto aud = media.audio().snapshot();
+        for (const auto& dev : aud.devices)
+            d.audioDevices.push_back({dev.name, std::string(dev.kind == audio_io::DeviceKind::Capture ? "entrada" : "saída") + (dev.isDefault ? " (padrão)" : ""),
+                                      std::to_string(dev.channels) + " canais, " + std::to_string(dev.sampleRate) + " Hz"});
+        for (const auto& st : aud.strips)
+            if (st.inputKind != audio_io::InputKind::None)
+                d.audioDevices.push_back({"Canal " + std::to_string(st.index + 1) + " (" + st.name + ") <- " + st.inputName, st.inputState, st.inputMessage});
+        // features
+        const auto vs = vcam.status();
+        d.features.push_back({"Saída NDI", ndiOutputEnabled ? "ligado" : "desligado", false});
+        d.features.push_back({"Câmera virtual", vs.installed ? (vs.active ? "ativa" : "instalada") : "não instalada", false});
+        d.features.push_back({"Controle remoto (celular)", remoteSvc.enabled() ? "ligado" : "desligado", false});
+        d.features.push_back({"Gravando agora", media.recording() ? "sim" : "não", false});
+        d.features.push_back({"Janela PROGRAM aberta", progWin.isOpen() ? "sim" : "não", false});
+        d.features.push_back({"Janela PREVIEW aberta", prevWin.isOpen() ? "sim" : "não", false});
+        // settings (no secrets)
+        const auto rs = media.settings();
+        d.settings.push_back({"Perfil de gravação", rs.profileId, false});
+        d.settings.push_back({"Pasta de gravação", rs.folder.empty() ? videosDir : rs.folder, false});
+        d.settings.push_back({"Bitrate de gravação (vídeo/áudio kbps)", std::to_string(rs.videoBitrateKbps) + "/" + std::to_string(rs.audioBitrateKbps), false});
+        d.settings.push_back({"Áudio de gravação", std::to_string(rs.audioSampleRate) + " Hz, " + std::to_string(rs.audioBitsPerSample) + " bits", false});
+        d.settings.push_back({"Limite mínimo de espaço livre (MB)", std::to_string(rs.minFreeMegabytes), false});
+        d.settings.push_back({"Tema", themePref, false});
+        d.settings.push_back({"Perfil do computador (tier)", snap.tier, false});
+        d.settings.push_back({"Quadros produzidos / perdidos", std::to_string(snap.produced) + " / " + std::to_string(snap.skipped), false});
+        d.settings.push_back({"Teste de upload do checklist", chkSettings.speedTestEnabled ? "ligado" : "desligado", false});
+        auto clip = [](std::string t) { if (t.size() > 1500) t.resize(1500); return t; };
+        d.settings.push_back({"Estado do chat (UI)", clip(chatSvc.statusJson()), false});
+        d.settings.push_back({"Estado do backup em nuvem (UI)", clip(cloudSvc.stateJson()), false});
+        // stream destinations: never the key, only whether it is set; sender status when running
+        for (const auto& dst : destinations.list()) {
+            hb::diag::DestinationLine dl;
+            dl.name = dst.name;
+            dl.platform = dst.platform;
+            dl.protocol = dst.protocol;
+            dl.serverUrl = dst.serverUrl;
+            dl.enabled = dst.enabled;
+            dl.urlSet = !dst.serverUrl.empty();
+            dl.keySet = !dst.streamKey.empty();
+            dl.videoKbps = dst.videoKbps;
+            dl.audioKbps = dst.audioKbps;
+            {
+                std::lock_guard lock(sendersMutex);
+                auto it = senders.find(dst.id);
+                if (it != senders.end() && it->second) {
+                    const auto st = it->second->status();
+                    dl.status = std::string(st.publishing ? "transmitindo" : (st.running ? "conectando" : "parado")) + ": " + st.message;
+                    if (!st.publishing && !st.message.empty()) d.extraErrors.push_back({"TRANSMISSÃO " + dst.name, st.message, ""});
+                }
+            }
+            d.destinations.push_back(std::move(dl));
+        }
+        d.log = engine.logTail();
+        return d;
+    };
+
+    router.add("diagexport", [&](const app::Command&) {
+        // The destination path comes ONLY from the native Save dialog: nothing in the message is used as a path.
+        wchar_t file[MAX_PATH * 4] = {0};
+        OPENFILENAMEW ofn{};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = host.hwnd();
+        ofn.lpstrFile = file;
+        ofn.nMaxFile = static_cast<DWORD>(sizeof(file) / sizeof(file[0]));
+        ofn.lpstrFilter = L"Diagnóstico (*.txt)\0*.txt\0";
+        ofn.lpstrDefExt = L"txt";
+        ofn.lpstrTitle = L"Exportar diagnóstico";
+        ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+        wcsncpy_s(file, L"HBStudio-diagnostico.txt", _TRUNCATE);
+        if (!GetSaveFileNameW(&ofn)) return;
+        const std::string path = win::narrow(file);
+        auto input = gatherDiagnostics();
+        auto redactor = makeRedactor();
+        diagTasks.post([&toast, input = std::move(input), redactor = std::move(redactor), path]() mutable {
+            const auto si = hb::diag::sys::querySystemInfo();
+            input.windowsVersion = si.windowsVersion;
+            input.cpuName = si.cpuName;
+            input.gpus = si.gpus;
+            input.monitors = si.monitors;
+            const std::string text = hb::diag::buildReport(input, redactor);
+            std::string err;
+            if (hb::diag::writeTextFile(path, text, err)) toast("Diagnóstico salvo. Anexe o arquivo ao relato do problema.");
+            else toast("Não foi possível salvar o diagnóstico: " + err);
+        });
+    });
+    router.add("chkrun", [&](const app::Command&) {
+        if (chkBusy.exchange(true)) return;
+        host.postQueued("checklist", "{\"t\":\"checklist\",\"busy\":true}");
+        auto input = gatherChecklistInput();
+        diagTasks.post([&host, &chkBusy, input = std::move(input)]() mutable {
+            std::string json;
+            try {
+                json = hb::diag::checklistJson(hb::diag::runChecklist(input, hb::diag::sys::makeProbes()));
+            } catch (...) {
+                json = "{\"t\":\"checklist\",\"error\":true,\"results\":[]}";
+            }
+            host.postQueued("checklist", json);
+            chkBusy = false;
+        });
+    });
+    router.add("chkcfg", [&](const app::Command& c) {   // chkcfg|0/1|https://endpoint
+        const std::string url = c.str(2);
+        const bool want = c.str(1) == "1";
+        if (!url.empty() && !hb::diag::isValidSpeedTestUrl(url)) {
+            toast("Endereço do teste inválido: use um link https:// completo, sem usuário/senha.");
+            postChkCfg();
+            return;
+        }
+        chkSettings.speedTestUrl = url;
+        chkSettings.speedTestEnabled = want && !url.empty();
+        if (want && url.empty()) toast("Informe o endereço HTTPS do teste de upload para ativá-lo.");
+        if (!chkPath.empty()) {
+            std::ofstream f(chkPath, std::ios::binary | std::ios::trunc);
+            f << chkSettings.toJson();
+        }
+        postChkCfg();
+    }, 2, 3);
+    // ---- /FEATURE: diagnostics ----
+
     auto onMessage = [&](const std::string& msg) {
         if (router.dispatch(msg)) return;
         const std::string c0 = msg.substr(0, msg.find('|'));
@@ -967,6 +1212,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         // ---- FEATURE: overlays ----
         // ---- FEATURE: chat ----
         if (c0 == "ready") chatSvc.postAll();
+        if (c0 == "ready") postChkCfg();   // FEATURE: diagnostics
         else if (c0.rfind("chat", 0) == 0 && chatSvc.handleCommand(msg)) return;
         // ---- /FEATURE ----
         if (c0 == "ready") { std::lock_guard lk(overlayMutex); postOverlayState(true); }

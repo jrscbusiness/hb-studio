@@ -1,0 +1,10 @@
+# Windows glue for diagnostics (OS/hardware info, checklist probes). See diagnostics.cmake for the portable part.
+if(WIN32)
+  add_library(hb_diagnostics_win STATIC src/diagnostics/windows/sys_win.cpp)
+  target_include_directories(hb_diagnostics_win PUBLIC ${CMAKE_SOURCE_DIR}/src)
+  target_link_libraries(hb_diagnostics_win PUBLIC hb_diagnostics winhttp dxgi mfplat mf mfuuid ole32 user32 advapi32)
+  target_compile_definitions(hb_diagnostics_win PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+  if(MSVC)
+    target_compile_options(hb_diagnostics_win PRIVATE /W4 /permissive-)
+  endif()
+endif()
