@@ -1,0 +1,22 @@
+      <!-- FEATURE: diagnostics -->
+      <div class="card" id="dg-card"><h3><span class="cap">Diagnóstico e checklist</span></h3>
+        <div class="body">
+          <p class="note">Algo deu errado? Gere UM arquivo de texto para anexar ao relato do problema: versão, computador, dispositivos, configurações e o registro recente. Chaves, senhas, tokens, IPs e o seu nome de usuário do Windows são removidos automaticamente.</p>
+          <div class="row" style="margin-top:8px;border-top:none;justify-content:flex-start"><button class="btn sm" id="dg-export">EXPORTAR DIAGNÓSTICO</button></div>
+          <p class="note" id="dg-note" style="margin-top:6px"></p>
+          <div class="dg-sep">
+            <span class="cap">Checklist antes de entrar ao vivo</span>
+            <p class="note" style="margin-top:6px">Confere espaço em disco, internet, destinos de transmissão, câmeras, áudio, codificador e relógio. Nada é enviado para fora, exceto o teste de internet (e o de upload, se você ativar abaixo).</p>
+            <div class="row" style="margin-top:8px;border-top:none;justify-content:flex-start"><button class="btn primary sm" id="chk-run">RODAR CHECKLIST</button></div>
+            <ul class="chk-list" id="chk-list" aria-live="polite"></ul>
+            <p class="note" id="chk-sum" style="margin-top:8px"></p>
+            <div class="dg-speed">
+              <label class="chk"><input type="checkbox" id="chk-speed-on"><span class="box"></span>Medir a velocidade de envio (upload) — desligado por padrão</label>
+              <input type="text" id="chk-speed-url" maxlength="300" autocomplete="off" placeholder="https://seu-servidor.exemplo/upload" aria-label="Endereço HTTPS do teste de upload">
+              <div><button class="btn sm" id="chk-speed-save">SALVAR</button></div>
+              <p class="note">Por privacidade o teste só roda se você ativar e informar um endereço HTTPS que você controla e que aceite envios (POST). São enviados cerca de 512 KB de dados sem significado, no máximo 10 segundos.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /FEATURE: diagnostics -->
