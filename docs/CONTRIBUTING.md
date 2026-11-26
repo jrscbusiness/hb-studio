@@ -66,3 +66,13 @@ Regras importantes:
 4. `python3 -I tools/build_ui.py`, rode `tools/ui/ui_test.js` e faça commit de `ui/src/` **e** `ui/index.html`.
 
 Conflito de merge em `ui/index.html`? Resolva em `ui/src/` e simplesmente regenere o arquivo (`git checkout --theirs ui/index.html` ou qualquer lado, depois `python3 -I tools/build_ui.py`).
+
+## Código Windows (`src/app/windows/*`): como validar sem Windows
+O CI do Windows é o verificador final, mas dá para pegar a maioria dos erros bobos (namespace errado, `#include` faltando, uso antes da declaração, lambda *move-only* num `std::function`) localmente:
+```
+sudo apt-get install -y g++-mingw-w64-x86-64
+tools/check_windows_syntax.sh                      # roda g++ -fsyntax-only (mingw) nos .cpp de Windows verificáveis
+```
+O script lista o que **não** dá para checar (WebView2/WRL, câmera virtual do Media Foundation, SDK do VST3).
+
+Lógica nova do shell do app deve ir para código **portátil e testado**: `src/app/command_router.hpp` (parser `cmd|a|b` e roteador de comandos simples: `router.add("nome", handler, minPartes, maxPartes)` em `app_main.cpp`), `src/app/state_json.*` (JSON do estado enviado à UI), `src/app/json_escape.hpp`. Caminhos em `%LOCALAPPDATA%`: use `win::localAppDataPath()`.

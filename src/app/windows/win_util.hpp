@@ -1,6 +1,8 @@
 #pragma once
 #include <windows.h>
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace hb::win {
@@ -13,7 +15,11 @@ bool loadResource(int id, const void** data, std::size_t* size);
 std::string loadResourceText(int id);
 
 std::string base64(const std::uint8_t* data, std::size_t size);
-std::string jsonEscape(const std::string& s);
+std::string jsonEscape(const std::string& s);   // same as hb::app::jsonEscape (portable, unit-tested)
+
+// %LOCALAPPDATA% (known folder FOLDERID_LocalAppData), no trailing backslash; empty if the lookup
+// fails. Callers append e.g. L"\\HBStudio\\ptz.json".
+std::wstring localAppDataPath();
 
 // Real Windows build number (not subject to manifest shimming); 0 if unknown.
 unsigned windowsBuild();
