@@ -985,6 +985,42 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
     await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
   }
   // ---- /FEATURE: cloudbackup ----
+  // ---- FEATURE: diagnostics ---- CONFIG card "Diagnóstico e checklist"
+  console.log('\n[diag] Diagnóstico e checklist (CONFIG)');
+  {
+    await tab('cfg');
+    await page.waitForTimeout(100);
+    ok(await page.locator('#dg-card').isVisible(), 'DIAG: o cartão "Diagnóstico e checklist" aparece em CONFIG');
+    await clearSent();
+    await page.click('#dg-export');
+    ok((await sent()).includes('diagexport'), 'DIAG: EXPORTAR DIAGNÓSTICO envia somente "diagexport" (sem caminho)');
+    await clearSent();
+    await page.click('#chk-run');
+    ok((await sent()).includes('chkrun'), 'DIAG: RODAR CHECKLIST envia chkrun');
+    await page.evaluate(m => window.__hbMessage(m), { t: 'checklist', busy: true });
+    ok(await page.locator('#chk-run').isDisabled(), 'DIAG: botão fica desabilitado enquanto verifica');
+    await page.evaluate(m => window.__hbMessage(m), { t: 'checklist', ok: 1, warn: 1, fail: 1, results: [
+      { id: 'disk', s: 'ok', title: 'Espaço em disco para gravar', detail: '120,0 GB livres', hint: '' },
+      { id: 'audio', s: 'warn', title: 'Áudio', detail: 'Sem sinal agora: Mic', hint: 'Fale no microfone' },
+      { id: 'net', s: 'fail', title: 'Internet', detail: '<img src=x onerror=window.__xss=1>', hint: 'Verifique o cabo' },
+      { id: 'upload', s: 'skip', title: 'Velocidade de envio (upload)', detail: 'Teste desligado', hint: '' } ] });
+    ok((await page.locator('.chk-item').count()) === 4, 'DIAG: lista mostra os 4 itens');
+    const icons = await page.locator('.chk-item .ico').allTextContents();
+    ok(icons.join('') === '✔⚠✖–', 'DIAG: ícones ✔ ⚠ ✖ por item');
+    ok((await page.locator('.chk-item.fail .h').textContent()).includes('Verifique o cabo'), 'DIAG: dica de correção aparece no item com problema');
+    ok((await page.locator('.chk-item.ok .h').count()) === 0, 'DIAG: item OK não mostra dica');
+    ok(!(await page.evaluate(() => window.__xss)) && (await page.locator('.chk-item.fail .d').textContent()).includes('<img'), 'DIAG: texto do host é inserido como texto (sem HTML)');
+    ok(!(await page.locator('#chk-run').isDisabled()), 'DIAG: botão volta a ficar ativo');
+    ok((await page.textContent('#chk-sum')).includes('1 problema'), 'DIAG: resumo conta os problemas');
+    await page.evaluate(m => window.__hbMessage(m), { t: 'chkcfg', enabled: false, url: '' });
+    ok(!(await page.isChecked('#chk-speed-on')), 'DIAG: teste de upload vem DESLIGADO por padrão');
+    await clearSent();
+    await page.click('.dg-speed .chk');
+    await page.fill('#chk-speed-url', 'https://speed.example.com/up');
+    await page.click('#chk-speed-save');
+    ok((await sent()).includes('chkcfg|1|https://speed.example.com/up'), 'DIAG: SALVAR envia chkcfg|1|url');
+  }
+  // ---- /FEATURE: diagnostics ----
   // ---- FEATURE: captions ----
   console.log('\n[5g] CONFIG: Legendas ao vivo');
   await page.setViewportSize({ width: 1280, height: 800 });
