@@ -61,6 +61,20 @@ void fail(HttpResponse& r, const char* stage) {
     r.error = (e == ERROR_WINHTTP_TIMEOUT) ? ErrorKind::Timeout : ErrorKind::Transport;
     r.errorStage = stage;
     r.nativeError = e;
+    switch (e) {
+        case ERROR_WINHTTP_TIMEOUT: r.failure = Failure::Timeout; break;
+        case ERROR_WINHTTP_SECURE_FAILURE:
+        case ERROR_WINHTTP_SECURE_CERT_CN_INVALID:
+        case ERROR_WINHTTP_SECURE_CERT_DATE_INVALID:
+        case ERROR_WINHTTP_SECURE_INVALID_CA:
+        case ERROR_WINHTTP_SECURE_INVALID_CERT:
+        case ERROR_WINHTTP_SECURE_CERT_REV_FAILED: r.failure = Failure::Tls; break;
+        case ERROR_WINHTTP_NAME_NOT_RESOLVED: r.failure = Failure::NameNotResolved; break;
+        case ERROR_WINHTTP_CANNOT_CONNECT: r.failure = Failure::CannotConnect; break;
+        case ERROR_WINHTTP_CONNECTION_ERROR: r.failure = Failure::ConnectionError; break;
+        case ERROR_WINHTTP_REDIRECT_FAILED: r.failure = Failure::RedirectFailed; break;
+        default: r.failure = Failure::Other; break;
+    }
     r.errorText = std::string(stage) + " failed (WinHTTP " + std::to_string(static_cast<unsigned long>(e)) + ")";
 }
 
@@ -136,6 +150,10 @@ private:
         DWORD policy = req.redirects == RedirectPolicy::Never ? WINHTTP_OPTION_REDIRECT_POLICY_NEVER
                                                               : WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
         ::WinHttpSetOption(request.h, WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof policy);
+        if (req.maxRedirects > 0) {
+            DWORD maxRedirects = static_cast<DWORD>(req.maxRedirects);
+            ::WinHttpSetOption(request.h, WINHTTP_OPTION_MAX_HTTP_AUTOMATIC_REDIRECTS, &maxRedirects, sizeof maxRedirects);
+        }
         // Per request: the session may be shared by several threads.
         ::WinHttpSetTimeouts(request.h, req.timeouts.resolveMs, req.timeouts.connectMs, req.timeouts.sendMs, req.timeouts.receiveMs);
 

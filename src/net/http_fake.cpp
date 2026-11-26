@@ -80,6 +80,8 @@ HttpResponse FakeHttpClient::send(const HttpRequest& req) {
     if (reply.error != ErrorKind::None) {
         resp.error = reply.error;
         resp.errorText = reply.errorText;
+        resp.failure = reply.failure;
+        resp.nativeError = reply.nativeError;
         return resp;
     }
     resp.status = reply.status;

@@ -46,6 +46,18 @@ enum class ErrorKind {
     Cancelled,       // body source, sink or progress callback asked to stop
 };
 
+// Finer classification of Transport/Timeout errors, so modules can show specific messages without
+// knowing WinHTTP error numbers.
+enum class Failure {
+    Other,
+    Timeout,
+    Tls,              // certificate / secure-channel failure
+    NameNotResolved,
+    CannotConnect,
+    ConnectionError,  // connection dropped
+    RedirectFailed,   // redirect refused (downgrade, loop, limit)
+};
+
 struct Timeouts {
     int resolveMs = 30000, connectMs = 30000, sendMs = 30000, receiveMs = 30000;  // 0 = no limit (WinHTTP semantics)
     static Timeouts all(int ms) { return Timeouts{ms, ms, ms, ms}; }
@@ -71,6 +83,7 @@ struct HttpRequest {
     std::chrono::milliseconds bufferedBodyDeadline{0};
 
     RedirectPolicy redirects = RedirectPolicy::FollowNoDowngrade;
+    int maxRedirects = 0;    // 0 = WinHTTP's default limit
     bool httpsOnly = false;  // refuse http:// URLs (and, with redirects, cross-scheme hops stay non-downgrading)
 
     // Response handling. Bytes that are not streamed are accumulated in HttpResponse::body, capped at
@@ -95,6 +108,7 @@ struct HttpResponse {
     std::uint64_t bytesReceived = 0;  // body bytes seen (streamed or buffered), before any truncation
     ErrorKind error = ErrorKind::None;
     std::string errorText;      // short technical description, never contains secrets
+    Failure failure = Failure::Other;
     std::string errorStage;     // e.g. "WinHttpConnect" (empty when not applicable)
     unsigned long nativeError = 0;  // GetLastError() of the failing call, 0 if none
     bool ok() const { return error == ErrorKind::None; }

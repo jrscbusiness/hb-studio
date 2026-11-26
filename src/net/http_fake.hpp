@@ -18,6 +18,8 @@ public:
         std::size_t chunk = 0;       // deliver the body in pieces of this size (0 = one piece)
         ErrorKind error = ErrorKind::None;  // scripted transport failure (status stays 0)
         std::string errorText = "scripted failure";
+        Failure failure = Failure::Other;
+        unsigned long nativeError = 0;
     };
     using Handler = std::function<Reply(const HttpRequest&)>;
 
