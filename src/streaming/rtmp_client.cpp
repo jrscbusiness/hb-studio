@@ -2,12 +2,14 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <random>
 #include <thread>
 
 #include "streaming/flv.hpp"
+#include "streaming/tls_stream.hpp"
 
 namespace hb::streaming {
 
@@ -44,7 +46,14 @@ ParsedRtmpUrl parseRtmpUrl(const std::string& url) {
     ParsedRtmpUrl out;
     std::string rest = url;
     const std::size_t scheme = rest.find("://");
-    if (scheme != std::string::npos) rest = rest.substr(scheme + 3);
+    if (scheme != std::string::npos) {
+        std::string sch = rest.substr(0, scheme);
+        for (auto& c : sch) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (sch == "rtmps") out.tls = true;
+        else if (sch != "rtmp") return out;   // srt://, http://... are not ours
+        rest = rest.substr(scheme + 3);
+    }
+    if (out.tls) out.port = 443;
     const std::size_t slash = rest.find('/');
     if (slash == std::string::npos || slash == 0) return out;   // no host, or no app segment at all
     std::string hostPort = rest.substr(0, slash);
@@ -60,6 +69,7 @@ ParsedRtmpUrl parseRtmpUrl(const std::string& url) {
         const int p = std::atoi(portStr.c_str());
         if (p <= 0 || p > 65535) return out;
         out.port = static_cast<std::uint16_t>(p);
+        out.portExplicit = true;
     }
     if (out.host.empty()) return out;
     out.ok = true;
@@ -71,6 +81,18 @@ RtmpClient::RtmpClient(std::unique_ptr<hb::rtsp::ITcpStream> transport)
 
 RtmpClient::~RtmpClient() { stop(); }
 
+bool RtmpClient::open(const std::string& url, const std::string& streamKey, int timeoutMs) {
+    const ParsedRtmpUrl p = parseRtmpUrl(url);
+    if (!p.ok) return failPermanent("Endereço do servidor inválido: \"" + url + "\".");
+    RtmpTarget t;
+    t.host = p.host;
+    t.port = p.port;
+    t.app = p.app;
+    t.streamKey = streamKey;
+    t.tls = p.tls;
+    return start(t, timeoutMs);
+}
+
 void RtmpClient::stop() {
     publishing_ = false;
     if (io_) io_->close();
@@ -81,6 +103,11 @@ bool RtmpClient::fail(const std::string& msg) {
     error_ = msg;
     publishing_ = false;
     return false;
+}
+
+bool RtmpClient::failPermanent(const std::string& msg) {
+    permanent_ = true;
+    return fail(msg);
 }
 
 bool RtmpClient::readExact(std::uint8_t* buf, std::size_t len, int timeoutMs) {
@@ -278,7 +305,15 @@ bool RtmpClient::waitCommandReply(double transactionId, const char* matchName, i
 bool RtmpClient::start(const RtmpTarget& target, int timeoutMs) {
     error_.clear();
     publishing_ = false;
+    permanent_ = false;
     chunkStates_.clear();
+
+    if (target.tls && !tlsWrapped_) {
+        std::unique_ptr<ITlsEngine> engine = tlsFactory_ ? tlsFactory_() : makeSystemTlsEngine();
+        if (!engine) return failPermanent("RTMPS (TLS) não está disponível neste sistema.");
+        io_ = std::make_unique<TlsStream>(std::move(io_), std::move(engine));
+        tlsWrapped_ = true;
+    }
 
     auto cst = io_->connect(target.host, target.port);
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
@@ -287,7 +322,11 @@ bool RtmpClient::start(const RtmpTarget& target, int timeoutMs) {
         io_->waitReadable(50);
         cst = io_->pollConnect();
     }
-    if (cst != hb::rtsp::IoStatus::Ok) return fail("não foi possível conectar: " + io_->lastError());
+    if (cst != hb::rtsp::IoStatus::Ok) {
+        const bool certFail = tlsWrapped_ && static_cast<TlsStream*>(io_.get())->certificateError();
+        const std::string why = io_->lastError();
+        return certFail ? failPermanent("conexão segura recusada: " + why) : fail("não foi possível conectar: " + why);
+    }
 
     if (!handshake(timeoutMs)) return false;
 
@@ -299,7 +338,12 @@ bool RtmpClient::start(const RtmpTarget& target, int timeoutMs) {
         if (!writeMessage(kChunkControl, kMsgSetChunkSize, 0, 0, body.data(), body.size())) return false;
     }
 
-    const std::string tcUrl = target.tcUrl.empty() ? ("rtmp://" + target.host + "/" + target.app) : target.tcUrl;
+    std::string tcUrl = target.tcUrl;
+    if (tcUrl.empty()) {
+        const std::uint16_t defPort = target.tls ? 443 : 1935;
+        tcUrl = std::string(target.tls ? "rtmps://" : "rtmp://") + target.host +
+                (target.port != defPort ? ":" + std::to_string(target.port) : std::string()) + "/" + target.app;
+    }
     std::vector<std::uint8_t> connectArgs;
     amf0::encode(amf0::Value::object({{"app", amf0::Value::string(target.app)},
                                       {"type", amf0::Value::string("nonprivate")},
@@ -344,7 +388,7 @@ bool RtmpClient::start(const RtmpTarget& target, int timeoutMs) {
         const auto* code = status[3].field("code");
         if (level && level->type == amf0::Value::Type::String && level->str != "status") {
             const std::string c = code && code->type == amf0::Value::Type::String ? code->str : "desconhecido";
-            return fail("o servidor recusou a publicação (" + c + ").");
+            return failPermanent("o servidor recusou a publicação (" + c + ").");
         }
     }
 

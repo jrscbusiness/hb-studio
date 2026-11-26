@@ -25,12 +25,14 @@
       <option value="amf">AMD AMF</option>
     </select></label>
   </div>
+  <label class="chk" style="margin-top:4px"><input type="checkbox" id="xm-abr"><span class="box"></span>Bitrate adaptativo: reduz o bitrate (até 40%) quando a fila de envio cresce ou há descartes, e recupera devagar (padrão: desligado)</label>
   <label class="chk" style="margin-top:4px"><input type="checkbox" id="xm-ownformat"><span class="box"></span>Usar resolução/fps própria para este destino, em vez de seguir o Program</label>
   <div class="grid2" id="xm-ownformat-fields" style="display:none;margin-top:8px">
     <label>Largura<input id="xm-w" type="number" min="160" max="7680"></label>
     <label>Altura<input id="xm-h" type="number" min="90" max="4320"></label>
     <label>FPS<input id="xm-fps" type="number" min="1" max="240"></label>
   </div>
+  <p class="note" id="xm-hint" style="margin-top:8px"></p>
   <p class="note" id="xm-note" style="margin-top:10px"></p>
   <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="xm-cancel">CANCELAR</button><button class="btn primary sm" id="xm-save" style="flex:none">SALVAR</button></div>
 </div></div>

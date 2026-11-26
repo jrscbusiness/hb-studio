@@ -205,6 +205,32 @@ public:
     std::string activeEncoderName() const override { return activeName_; }
     std::string lastError() const override { return error_; }
 
+    bool setBitrateKbps(int kbps) override {
+        if (!mft_ || kbps <= 0) return false;
+        ComPtr<ICodecAPI> codec;
+        if (FAILED(mft_.As(&codec)) || !codec) return false;
+        VARIANT v;
+        VariantInit(&v);
+        v.vt = VT_UI4;
+        v.ulVal = static_cast<ULONG>(kbps) * 1000;
+        const HRESULT hr = codec->SetValue(&CODECAPI_AVEncCommonMeanBitRate, &v);
+        VariantClear(&v);
+        return SUCCEEDED(hr);
+    }
+
+    bool requestKeyFrame() override {
+        if (!mft_) return false;
+        ComPtr<ICodecAPI> codec;
+        if (FAILED(mft_.As(&codec)) || !codec) return false;
+        VARIANT v;
+        VariantInit(&v);
+        v.vt = VT_UI4;
+        v.ulVal = 1;
+        const HRESULT hr = codec->SetValue(&CODECAPI_AVEncVideoForceKeyFrame, &v);
+        VariantClear(&v);
+        return SUCCEEDED(hr);
+    }
+
 private:
     bool configureOutputType(int bitrateKbps) {
         ComPtr<IMFMediaType> out;

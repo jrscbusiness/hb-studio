@@ -794,6 +794,19 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => window.__hbMessage({ t: 'xmit_status', list: [{ id: 'd1', running: true, publishing: true, message: 'Transmitindo.', videoUnits: 10, audioUnits: 20 }] }));
   ok((await page.locator('.xmitcard').first().locator('.xc-st').textContent()).trim() === 'AO VIVO', 'TRANSMISSÃO: status "publishing" mostra AO VIVO');
 
+  // Stream health: bar + numbers appear only with stats, warn on drops, RECONECTANDO label
+  await page.evaluate(() => window.__hbMessage({ t: 'xmit_status', list: [{ id: 'd1', running: true, publishing: true, adaptive: true, message: 'Transmitindo.',
+    videoUnits: 10, audioUnits: 20, stats: { targetKbps: 6160, encoderKbps: 4000, actualKbps: 5900.4, droppedV: 3, droppedA: 0, droppedRecent: 2,
+    reconnects: 1, qV: 5, qA: 7, err: '', encoder: 'nvenc', hist: [6000, 5900, 2000, 5800] } }] }));
+  const healthTxt = await page.locator('.xmitcard').first().locator('.xc-stats').textContent();
+  ok(healthTxt.includes('5.9 / 6.2 Mbps') && healthTxt.includes('descartes 3') && healthTxt.includes('reconexões 1') && healthTxt.includes('nvenc') && healthTxt.includes('adaptativo: 4.0'),
+    'TRANSMISSÃO: card mostra bitrate real/alvo, descartes, reconexões, fila, codificador e bitrate adaptativo');
+  ok(await page.locator('.xmitcard').first().locator('.xc-stats.warn').count() === 1, 'TRANSMISSÃO: descartes recentes destacam a linha de saúde');
+  ok(await page.locator('.xmitcard').first().locator('canvas.xc-spark').count() === 1, 'TRANSMISSÃO: card tem o sparkline de bitrate');
+  await page.evaluate(() => window.__hbMessage({ t: 'xmit_status', list: [{ id: 'd1', running: true, publishing: false, reconnecting: true, message: 'Reconectando em 2 s', stats: { targetKbps: 6160, encoderKbps: 6160, actualKbps: 0, droppedV: 0, droppedA: 0, droppedRecent: 0, reconnects: 0, qV: 0, qA: 0, err: '', encoder: '', hist: [] } }] }));
+  ok((await page.locator('.xmitcard').first().locator('.xc-st').textContent()).trim() === 'RECONECTANDO', 'TRANSMISSÃO: reconexão automática mostra RECONECTANDO');
+  await page.evaluate(() => window.__hbMessage({ t: 'xmit_status', list: [{ id: 'd1', running: true, publishing: true, message: 'Transmitindo.', videoUnits: 10, audioUnits: 20 }] }));
+
   await clearSent();
   await page.locator('.xmitcard').nth(1).locator('[data-a=enable]').click();
   ok((await sent()).includes('xmitenable|d2|1'), 'TRANSMISSÃO: ATIVAR envia xmitenable|id|1');
@@ -809,6 +822,23 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   await page.evaluate(() => document.querySelector('#xm-platform').dispatchEvent(new Event('change')));
   // "custom" has no preset; switching to it must not clobber text already in the server field.
   ok((await page.inputValue('#xm-server')) === 'rtmp://a.rtmp.youtube.com/live2', 'TRANSMISSÃO: trocar para "Personalizado" não apaga um servidor já preenchido');
+  // RTMPS: switching the protocol swaps a PRESET address for its rtmps twin, never a hand-typed one
+  await page.selectOption('#xm-platform', 'youtube');
+  await page.evaluate(() => document.querySelector('#xm-platform').dispatchEvent(new Event('change')));
+  await page.selectOption('#xm-protocol', 'rtmps');
+  await page.evaluate(() => document.querySelector('#xm-protocol').dispatchEvent(new Event('change')));
+  ok((await page.inputValue('#xm-server')) === 'rtmps://a.rtmps.youtube.com:443/live2', 'TRANSMISSÃO: trocar para RTMPS troca o preset do YouTube pelo endereço rtmps');
+  ok((await page.locator('#xm-hint').textContent()).includes('RTMPS'), 'TRANSMISSÃO: dica explica o RTMPS (TLS)');
+  await page.fill('#xm-server', 'rtmp://meu.servidor/app');
+  await page.selectOption('#xm-protocol', 'rtmp');
+  await page.evaluate(() => document.querySelector('#xm-protocol').dispatchEvent(new Event('change')));
+  ok((await page.inputValue('#xm-server')) === 'rtmp://meu.servidor/app', 'TRANSMISSÃO: trocar o protocolo não apaga um endereço digitado à mão');
+  await page.selectOption('#xm-protocol', 'srt');
+  await page.evaluate(() => document.querySelector('#xm-protocol').dispatchEvent(new Event('change')));
+  ok((await page.locator('#xm-hint').textContent()).includes('SRT ainda não'), 'TRANSMISSÃO: SRT mostra aviso de não suportado');
+  await page.selectOption('#xm-protocol', 'rtmp');
+  ok(await page.locator('#xm-abr').count() === 1 && !(await page.isChecked('#xm-abr')), 'TRANSMISSÃO: bitrate adaptativo vem desligado por padrão');
+  await page.selectOption('#xm-platform', 'custom');
   await page.fill('#xm-server', '');
   await clearSent();
   await page.click('#xm-save');
@@ -825,6 +855,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   const savedPayload = JSON.parse(savedMsg.slice('xmitsave|'.length));
   ok(savedPayload.name === 'Meu servidor RTMP' && savedPayload.serverUrl === 'rtmp://meuservidor.exemplo.com/live' &&
     savedPayload.streamKey === 'chave-123' && savedPayload.platform === 'custom', 'TRANSMISSÃO: payload salvo contém os campos preenchidos');
+  ok(savedPayload.adaptiveBitrate === false, 'TRANSMISSÃO: payload carrega adaptiveBitrate (desligado)');
   ok(await page.locator('#modal4.on').count() === 0, 'TRANSMISSÃO: salvar fecha o editor');
 
   // Editing an existing destination never shows its real key, only a masked hint as a placeholder.
