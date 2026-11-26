@@ -4,19 +4,6 @@
 
 namespace hb::ai {
 
-bool FakeSecretStore::protect(const std::string& plain, std::string& blob) {
-    if (failProtect) return false;
-    blob = "FAKE1:" + std::string(plain.rbegin(), plain.rend());
-    return true;
-}
-
-bool FakeSecretStore::unprotect(const std::string& blob, std::string& plain) {
-    if (failUnprotect || blob.rfind("FAKE1:", 0) != 0) return false;
-    const std::string body = blob.substr(6);
-    plain.assign(body.rbegin(), body.rend());
-    return true;
-}
-
 std::string toHex(const std::string& bytes) {
     static const char* d = "0123456789abcdef";
     std::string o;
@@ -47,8 +34,9 @@ bool fromHex(const std::string& hex, std::string& bytes) {
     return true;
 }
 
-#ifndef _WIN32
-std::unique_ptr<ISecretStore> makeDefaultSecretStore() { return nullptr; }
-#endif
+std::unique_ptr<ISecretStore> makeDefaultSecretStore() {
+    // Same entropy/description as the pre-src/net implementation: existing blobs keep decrypting.
+    return hb::net::makeDpapiSecretStore({"HBStudio.ai.v1", "HB Studio AI key"});
+}
 
 }  // namespace hb::ai

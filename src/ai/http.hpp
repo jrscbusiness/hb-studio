@@ -1,7 +1,7 @@
 #pragma once
-// HTTP transport abstraction for the AI client. Real implementation: WinHTTP (http_win.cpp, Windows
-// only, NOT VALIDATED on real hardware). Elsewhere makeDefaultAiHttp() returns a transport that
-// always fails with a clear message, so portable code still links; tests use fakes.
+// HTTP transport abstraction for the AI client. Real implementation: net_adapter.cpp over the shared
+// WinHTTP client of src/net (Windows only; elsewhere it always fails with a clear message, so portable
+// code still links); tests use fakes.
 #include <chrono>
 #include <cstddef>
 #include <functional>

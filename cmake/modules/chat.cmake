@@ -9,14 +9,15 @@ add_library(hb_chat STATIC
   src/chat/sources.cpp
   src/chat/hub.cpp
   src/chat/settings.cpp
-  src/chat/service.cpp)
+  src/chat/service.cpp
+  src/chat/net_adapter.cpp)
 if(WIN32)
   target_sources(hb_chat PRIVATE src/chat/net_win.cpp)
-  target_link_libraries(hb_chat PUBLIC winhttp crypt32 ws2_32)
+  target_link_libraries(hb_chat PUBLIC winhttp ws2_32)
   target_compile_definitions(hb_chat PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 endif()
 target_include_directories(hb_chat PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(hb_chat PUBLIC hb_core Threads::Threads)
+target_link_libraries(hb_chat PUBLIC hb_core hb_net Threads::Threads)
 if(MSVC)
   target_compile_options(hb_chat PRIVATE /W4 /permissive-)
 else()

@@ -41,8 +41,8 @@ FILES=(
   src/app/windows/wic_jpeg.cpp
   src/streaming/tls_schannel.cpp
   src/app/windows/win_util.cpp
-  src/ai/http_win.cpp
-  src/ai/secret_store_win.cpp
+  src/net/http_win.cpp
+  src/net/secret_store_win.cpp
   src/captions/windows/winhttp_client.cpp
   src/chat/net_win.cpp
   src/chroma/windows/wic_image.cpp
@@ -52,7 +52,6 @@ FILES=(
   src/discovery/udp_socket_win.cpp
   src/marketplace/downloader_win.cpp
   src/ndi/ndi_backend_win.cpp
-  src/onvif/http_client_win.cpp
   src/overlay/windows/gdi_glyphs.cpp
   src/ptz/udp_transport_win.cpp
   src/recording/windows/mf_writers.cpp

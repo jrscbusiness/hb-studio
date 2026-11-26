@@ -7,14 +7,9 @@ add_library(hb_ai STATIC
   src/ai/ai_service.cpp
   src/ai/assistant.cpp
   src/ai/ai_commands.cpp
-  src/ai/http_stub.cpp)
-if(WIN32)
-  target_sources(hb_ai PRIVATE src/ai/http_win.cpp src/ai/secret_store_win.cpp)
-  target_link_libraries(hb_ai PUBLIC winhttp crypt32)
-  target_compile_definitions(hb_ai PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-endif()
+  src/ai/net_adapter.cpp)
 target_include_directories(hb_ai PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(hb_ai PUBLIC hb_core Threads::Threads)
+target_link_libraries(hb_ai PUBLIC hb_core hb_net Threads::Threads)
 if(MSVC)
   target_compile_options(hb_ai PRIVATE /W4 /permissive-)
 else()

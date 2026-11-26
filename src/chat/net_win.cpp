@@ -1,5 +1,5 @@
 // Windows implementations of the chat transports: WinHTTP (HTTPS client + text WebSocket) and a
-// DPAPI-backed secret store. NOT VALIDATED: written without access to a Windows compiler; the
+// DPAPI secret store (now in src/net). NOT VALIDATED: written without access to a Windows compiler; the
 // Windows CI build and a manual run against the real services are the verification (docs/CHAT.md).
 #ifdef _WIN32
 
@@ -11,7 +11,6 @@
 #endif
 #include <windows.h>
 #include <winhttp.h>
-#include <wincrypt.h>
 
 #include <algorithm>
 #include <atomic>
@@ -23,9 +22,9 @@
 #include <thread>
 
 #include "chat/net.hpp"
+#include "chat/net_adapter.hpp"
 
 #pragma comment(lib, "winhttp.lib")
-#pragma comment(lib, "crypt32.lib")
 
 namespace hb::chat {
 namespace {
@@ -75,49 +74,6 @@ bool crack(const std::string& url, ParsedUrl& out) {
     out.secure = uc.nScheme == INTERNET_SCHEME_HTTPS;
     return uc.nScheme == INTERNET_SCHEME_HTTPS || uc.nScheme == INTERNET_SCHEME_HTTP;
 }
-
-class WinChatHttp : public IChatHttp {
-public:
-    HttpResponse send(const HttpRequest& req) override {
-        HttpResponse resp;
-        ParsedUrl u;
-        if (!crack(req.url, u)) { resp.error = "invalid URL"; return resp; }
-        Handle session(::WinHttpOpen(L"HBStudio-Chat/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
-                                     WINHTTP_NO_PROXY_BYPASS, 0));
-        if (!session.h) { resp.error = winErr("WinHttpOpen"); return resp; }
-        const int t = std::clamp(req.timeoutMs, 1000, 60000);
-        ::WinHttpSetTimeouts(session.h, t, t, t, t);
-        Handle conn(::WinHttpConnect(session.h, u.host.c_str(), u.port, 0));
-        if (!conn.h) { resp.error = winErr("WinHttpConnect"); return resp; }
-        Handle request(::WinHttpOpenRequest(conn.h, widen(req.method).c_str(), u.path.c_str(), nullptr, WINHTTP_NO_REFERER,
-                                            WINHTTP_DEFAULT_ACCEPT_TYPES, u.secure ? WINHTTP_FLAG_SECURE : 0));
-        if (!request.h) { resp.error = winErr("WinHttpOpenRequest"); return resp; }
-        std::wstring headers;
-        for (const auto& h : req.headers) headers += widen(h.first) + L": " + widen(h.second) + L"\r\n";
-        const BOOL sent = ::WinHttpSendRequest(request.h, headers.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : headers.c_str(),
-                                               headers.empty() ? 0 : static_cast<DWORD>(-1L),
-                                               req.body.empty() ? WINHTTP_NO_REQUEST_DATA : const_cast<char*>(req.body.data()),
-                                               static_cast<DWORD>(req.body.size()), static_cast<DWORD>(req.body.size()), 0);
-        if (!sent) { resp.error = winErr("WinHttpSendRequest"); return resp; }
-        if (!::WinHttpReceiveResponse(request.h, nullptr)) { resp.error = winErr("WinHttpReceiveResponse"); return resp; }
-        DWORD status = 0, size = sizeof status;
-        ::WinHttpQueryHeaders(request.h, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX,
-                              &status, &size, WINHTTP_NO_HEADER_INDEX);
-        resp.status = static_cast<int>(status);
-        for (;;) {
-            DWORD avail = 0;
-            if (!::WinHttpQueryDataAvailable(request.h, &avail)) { resp.error = winErr("WinHttpQueryDataAvailable"); return resp; }
-            if (avail == 0) break;
-            std::string chunk(avail, '\0');
-            DWORD read = 0;
-            if (!::WinHttpReadData(request.h, chunk.data(), avail, &read)) { resp.error = winErr("WinHttpReadData"); return resp; }
-            resp.body.append(chunk.data(), read);
-            if (resp.body.size() > 4u * 1024 * 1024) { resp.error = "response too large"; return resp; }
-        }
-        resp.transportOk = true;
-        return resp;
-    }
-};
 
 // Text WebSocket over WinHTTP (Windows 8+). A reader thread fills a queue so receive() can poll.
 class WinChatSocket : public IChatSocket {
@@ -223,71 +179,19 @@ private:
     std::deque<std::string> queue_;
 };
 
-std::wstring keyFile(const std::string& dir, const std::string& key) {
-    std::string f;
-    for (char c : key) f += (std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '-' || c == '_') ? c : '_';
-    return widen(dir) + L"\\" + widen(f) + L".bin";
-}
-
-class DpapiSecretStore : public ISecretStore {
-public:
-    explicit DpapiSecretStore(std::string dir) : dir_(std::move(dir)) {}
-
-    bool put(const std::string& key, const std::string& value) override {
-        if (key.empty() || key.size() > 64) return false;
-        ::CreateDirectoryW(widen(dir_).c_str(), nullptr);
-        DATA_BLOB in, out;
-        in.cbData = static_cast<DWORD>(value.size());
-        in.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(value.data()));
-        if (!::CryptProtectData(&in, L"HBStudio chat", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out)) return false;
-        const std::wstring path = keyFile(dir_, key);
-        const std::wstring tmp = path + L".tmp";
-        HANDLE h = ::CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        bool ok = false;
-        if (h != INVALID_HANDLE_VALUE) {
-            DWORD w = 0;
-            ok = ::WriteFile(h, out.pbData, out.cbData, &w, nullptr) && w == out.cbData;
-            ::CloseHandle(h);
-        }
-        ::LocalFree(out.pbData);
-        if (!ok) { ::DeleteFileW(tmp.c_str()); return false; }
-        return ::MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
-    }
-
-    bool get(const std::string& key, std::string& outValue) const override {
-        HANDLE h = ::CreateFileW(keyFile(dir_, key).c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
-                                 FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h == INVALID_HANDLE_VALUE) return false;
-        LARGE_INTEGER sz;
-        std::string blob;
-        if (::GetFileSizeEx(h, &sz) && sz.QuadPart > 0 && sz.QuadPart < 64 * 1024) {
-            blob.resize(static_cast<std::size_t>(sz.QuadPart));
-            DWORD r = 0;
-            if (!::ReadFile(h, blob.data(), static_cast<DWORD>(blob.size()), &r, nullptr) || r != blob.size()) blob.clear();
-        }
-        ::CloseHandle(h);
-        if (blob.empty()) return false;
-        DATA_BLOB in, out;
-        in.cbData = static_cast<DWORD>(blob.size());
-        in.pbData = reinterpret_cast<BYTE*>(blob.data());
-        if (!::CryptUnprotectData(&in, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out)) return false;
-        outValue.assign(reinterpret_cast<char*>(out.pbData), out.cbData);
-        ::SecureZeroMemory(out.pbData, out.cbData);
-        ::LocalFree(out.pbData);
-        return true;
-    }
-
-    bool erase(const std::string& key) override { return ::DeleteFileW(keyFile(dir_, key).c_str()) != 0; }
-
-private:
-    std::string dir_;
-};
-
 }  // namespace
 
-std::unique_ptr<IChatHttp> makeDefaultChatHttp() { return std::make_unique<WinChatHttp>(); }
+std::unique_ptr<IChatHttp> makeDefaultChatHttp() {
+    hb::net::HttpClientOptions o;
+    o.userAgent = "HBStudio-Chat/1.0";
+    return makeChatHttpOverNet(hb::net::makeWinHttpClient(o));
+}
 std::unique_ptr<IChatSocket> makeDefaultChatSocket() { return std::make_unique<WinChatSocket>(); }
-std::unique_ptr<ISecretStore> makeDpapiSecretStore(const std::string& dir) { return std::make_unique<DpapiSecretStore>(dir); }
+std::unique_ptr<ISecretStore> makeDpapiSecretStore(const std::string& dir) {
+    // No entropy, as before: existing chat_secrets files keep decrypting.
+    std::shared_ptr<hb::net::ISecretStore> dpapi = hb::net::makeDpapiSecretStore({"", "HBStudio chat"});
+    return makeFileSecretStore(dir, std::move(dpapi));
+}
 
 }  // namespace hb::chat
 

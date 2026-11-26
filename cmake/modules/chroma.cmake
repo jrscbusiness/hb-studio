@@ -7,9 +7,10 @@ add_library(hb_chroma STATIC
   src/chroma/ai_worker.cpp
   src/chroma/model_store.cpp
   src/chroma/chroma_filter.cpp
-  src/chroma/service.cpp)
+  src/chroma/service.cpp
+  src/chroma/net_adapter.cpp)
 target_include_directories(hb_chroma PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(hb_chroma PUBLIC hb_core Threads::Threads)
+target_link_libraries(hb_chroma PUBLIC hb_core hb_net Threads::Threads)
 if(MSVC)
   target_compile_options(hb_chroma PRIVATE /W4 /permissive-)
 else()
@@ -32,7 +33,7 @@ if(WIN32)
   add_library(hb_chroma_win STATIC
     src/chroma/windows/winhttp_client.cpp
     src/chroma/windows/wic_image.cpp)
-  target_link_libraries(hb_chroma_win PUBLIC hb_chroma winhttp windowscodecs ole32)
+  target_link_libraries(hb_chroma_win PUBLIC hb_chroma windowscodecs ole32)
   target_compile_definitions(hb_chroma_win PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
   if(MSVC)
     target_compile_options(hb_chroma_win PRIVATE /W4 /permissive-)
