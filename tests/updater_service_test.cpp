@@ -68,7 +68,10 @@ struct UpdaterSvc : ::testing::Test {
     fs::path dir;
     std::int64_t t = 1000000;
     void SetUp() override {
-        dir = fs::path(::testing::TempDir()) / "hb_updater_test";
+        // One directory per test: ctest -j runs tests of this fixture in parallel processes, and a shared
+        // name made them delete each other's files.
+        const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+        dir = fs::path(::testing::TempDir()) / (std::string("hb_updater_test_") + info->name());
         std::error_code ec;
         fs::remove_all(dir, ec);
         fs::create_directories(dir);
