@@ -13,9 +13,10 @@ add_library(hb_captions STATIC
   src/captions/model_manager.cpp
   src/captions/cloud_recognizer.cpp
   src/captions/settings.cpp
-  src/captions/controller.cpp)
+  src/captions/controller.cpp
+  src/captions/net_adapter.cpp)
 target_include_directories(hb_captions PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(hb_captions PUBLIC hb_core hb_audio Threads::Threads)
+target_link_libraries(hb_captions PUBLIC hb_core hb_audio hb_net Threads::Threads)
 if(MSVC)
   target_compile_options(hb_captions PRIVATE /W4 /permissive-)
 else()
@@ -66,7 +67,7 @@ if(WIN32)
   add_library(hb_captions_win STATIC
     src/captions/windows/winhttp_client.cpp)
   target_include_directories(hb_captions_win PUBLIC ${CMAKE_SOURCE_DIR}/src)
-  target_link_libraries(hb_captions_win PUBLIC hb_captions winhttp)
+  target_link_libraries(hb_captions_win PUBLIC hb_captions)
   if(HB_CAPTIONS_WHISPER)
     target_link_libraries(hb_captions_win PUBLIC hb_captions_whisper)
   endif()
@@ -91,7 +92,8 @@ if(HB_BUILD_TESTS)
     tests/captions_models_test.cpp
     tests/captions_cloud_test.cpp
     tests/captions_settings_test.cpp
-    tests/captions_controller_test.cpp)
+    tests/captions_controller_test.cpp
+    tests/captions_net_adapter_test.cpp)
   target_include_directories(hb_captions_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
   target_link_libraries(hb_captions_tests PRIVATE hb_captions GTest::gtest_main)
   if(MSVC)

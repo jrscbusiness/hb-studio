@@ -1,21 +1,15 @@
 #pragma once
-// WinHTTP implementation of the two network seams of the captions module:
-//   IDownloader  - streaming GET to a file with progress (model download from Hugging Face; redirects followed)
-//   IHttpPoster  - POST of an in-memory body (OpenAI-compatible transcription endpoint)
+// Windows implementation of the two network seams of the captions module (IDownloader and IHttpPoster):
+// the portable adapter (captions/net_adapter.cpp) over the shared WinHTTP client of src/net.
 // NOT VALIDATED on Windows: written without a Windows compiler (see docs/LEGENDAS.md).
 #ifdef _WIN32
-#include "captions/cloud_recognizer.hpp"
-#include "captions/model_manager.hpp"
+#include "captions/net_adapter.hpp"
 
 namespace hb::captions::win {
 
-class WinHttpClient : public IDownloader, public IHttpPoster {
+class WinHttpClient : public NetBackedHttp {
 public:
-    bool download(const std::string& url, const std::string& destPathUtf8,
-                  const std::function<bool(std::uint64_t received, std::uint64_t total)>& progress,
-                  std::string& error) override;
-    HttpResponse post(const std::string& url, const std::vector<std::pair<std::string, std::string>>& headers,
-                      const std::string& body, int timeoutMs) override;
+    WinHttpClient();
 };
 
 }  // namespace hb::captions::win
