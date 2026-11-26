@@ -587,6 +587,19 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await pqBaixa.evaluate(e => e.classList.contains('on'))), 'the chosen preset becomes the one marked selected');
   ok((await page.locator('#previewq-list .fmt.on').count()) === 1, 'only one preset is marked selected at a time');
   await page.evaluate(() => window.__hbMessage({ t: 'previewq', id: 'alta' }));
+  // FEATURE: perf - CONFIG > Desempenho toggle + "reduzido automaticamente" badge
+  ok((await page.locator('#perf-auto').isChecked()), 'auto preview quality is ON by default');
+  ok(!(await page.locator('#previewq-auto').isVisible()), 'no "reduzido automaticamente" badge while nothing was reduced');
+  await page.evaluate(() => window.__hbMessage({ t: 'perfgov', on: true, active: 'baixa', user: 'alta', reduced: true }));
+  ok((await page.locator('#previewq-auto').isVisible()), 'the badge appears when the governor lowered the preview');
+  ok((await page.locator('#previewq-auto-txt').textContent()).includes('Baixa'), 'the badge names the level in use');
+  await page.evaluate(() => window.__hbMessage({ t: 'perfgov', on: true, active: 'alta', user: 'alta', reduced: false }));
+  ok(!(await page.locator('#previewq-auto').isVisible()), 'the badge disappears once the quality is back');
+  await clearSent();
+  await page.locator('#perf-auto').uncheck();
+  ok((await sent()).includes('perfgov|off'), 'unchecking sends perfgov|off');
+  await page.locator('#perf-auto').check();
+  ok((await sent()).includes('perfgov|on'), 'checking sends perfgov|on');
 
   console.log('\n[5b] ÁUDIO: canais, efeitos, gravação');
   const AUDIO = () => ({ t: 'audio', ver: 1, strips: Array.from({ length: 8 }, (_, i) => ({ i, name: ['MIC 1', 'MIC 2', 'LINHA', 'SISTEMA', 'FAIXA 5', 'FAIXA 6', 'FAIXA 7', 'FAIXA 8'][i],

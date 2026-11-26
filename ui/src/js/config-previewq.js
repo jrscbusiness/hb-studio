@@ -16,6 +16,16 @@
       box.appendChild(f);
     });
   }
+  // Auto quality governor (src/perf/quality_governor.hpp): the host reports the operator's choice, the level
+  // currently applied and whether it is automatically reduced.
+  function renderPerfGov(d) {
+    const cb = $('#perf-auto'); if (cb) cb.checked = !!d.on;
+    const box = $('#previewq-auto'); if (!box) return;
+    const lab = id => (previewQPresets.find(p => p.id === id) || { label: id }).label.split(' (')[0];
+    box.style.display = d.on && d.reduced ? '' : 'none';
+    $('#previewq-auto-txt').textContent = d.reduced ? 'Usando "' + lab(d.active) + '" (você escolheu "' + lab(d.user) + '") porque o PROGRAM estava perdendo quadros.' : '';
+  }
+  $('#perf-auto').addEventListener('change', e => send('perfgov', e.target.checked ? 'on' : 'off'));
   renderPreviewQ('alta');   // shows the preset list immediately, before any previewq message arrives
   $('#log-cfg-copy').addEventListener('click', () => {
     const text = lastLog.map(l => l.t).join('\n');

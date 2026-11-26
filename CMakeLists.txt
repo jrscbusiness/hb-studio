@@ -139,6 +139,7 @@ if(WIN32)
     target_link_libraries(hb_studio PRIVATE hb_marketplace)   # FEATURE: marketplace (cmake/modules/marketplace.cmake)
     target_link_libraries(hb_studio PRIVATE hb_cloud)   # FEATURE: cloudbackup (cmake/modules/cloud.cmake)
     target_link_libraries(hb_studio PRIVATE hb_chat)   # FEATURE: chat (defined in cmake/modules/chat.cmake)
+    target_link_libraries(hb_studio PRIVATE hb_perf)   # FEATURE: perf (cmake/modules/perf.cmake)
     target_link_options(hb_studio PRIVATE /MANIFESTUAC:NO)
     add_custom_command(TARGET hb_studio POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hb_studio> "${HB_EMBED_DIR}/HBStudio.exe")

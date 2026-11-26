@@ -76,6 +76,7 @@
   $$('#tabs button').forEach(b => b.addEventListener('click', () => {
     $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
     $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.v));
+    send('tab', b.dataset.v);   // FEATURE: perf - the host lowers monitor/tile rates on tabs that do not show them
     try { b.scrollIntoView({block: 'nearest', inline: 'nearest'}); } catch (e) {}   // nav scrolls when the 10 tabs don't fit
   }));
   addEventListener('keydown', e => {
