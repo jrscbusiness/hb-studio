@@ -42,16 +42,14 @@ Substituição do fundo: cor sólida, desfoque do próprio fundo, imagem (PNG/JP
 * **Runtime:** ONNX Runtime (MIT), provedor **CPU** apenas (2 threads de cálculo por inferência).
   DirectML/GPU **não** está ligado. Foi escolhido por ser o runtime ONNX mais difundido e pequeno
   o bastante para um instalador (a DLL tem ~10–15 MB; **não foi medido aqui**).
-* **Como entra no build:** não é baixado automaticamente (não consegui verificar o SHA-256 do zip
-  oficial neste ambiente, e uma dependência binária sem hash fixado seria pior que nenhuma). Baixe
-  o `onnxruntime-win-x64-<versão>.zip` oficial de github.com/microsoft/onnxruntime/releases, extraia
-  em `third_party/onnxruntime` (ou `-DHB_ORT_DIR=...`) — `cmake/modules/chroma.cmake` detecta
-  `include/onnxruntime_cxx_api.h` + `lib/onnxruntime.lib`, define `HB_HAVE_ONNX` e liga com
-  *delay-load*. Sem isso o app compila e roda **só com chroma clássico** e a UI diz isso.
-  * **Pendência do coordenador:** empacotar `onnxruntime.dll` ao lado do `HBStudio.exe` no
-    instalador (`setup_main.cpp`/`.rc` embute só o exe e a DLL da câmera virtual). Sem a DLL, a IA
-    falha com a mensagem "onnxruntime.dll não encontrada" (sonda segura antes do *delay-load*, que
-    senão seria uma exceção SEH).
+* **Como entra no build:** o CI do Windows baixa o zip oficial (`ORT_VERSION` no `ci.yml`), extrai em
+  `third_party/onnxruntime` e o instalador **embute `onnxruntime.dll`** (veja BUILD.md). O hash SHA-256 do zip
+  ainda **não está fixado** (não foi possível baixá-lo no ambiente de desenvolvimento): a CI imprime o hash
+  calculado como aviso e deve ser copiado para `ORT_ZIP_SHA256`. Localmente: extraia o zip em
+  `third_party/onnxruntime` (ou `-DHB_ORT_DIR=...`) — `cmake/modules/chroma.cmake` detecta
+  `include/onnxruntime_cxx_api.h` + `lib/onnxruntime.lib`, define `HB_HAVE_ONNX` e liga com *delay-load*. Sem
+  isso o app compila e roda **só com chroma clássico** e a UI diz isso. Sem a DLL ao lado do exe, a IA falha
+  com "onnxruntime.dll não encontrada" (sonda segura antes do *delay-load*).
 
 ## Arquitetura (nunca bloquear o relógio de 30 fps)
 
