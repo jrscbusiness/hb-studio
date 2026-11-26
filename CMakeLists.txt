@@ -174,6 +174,10 @@ if(HB_BUILD_TESTS)
     tests/stream_destinations_test.cpp)
   target_link_libraries(hb_tests PRIVATE hb_core GTest::gtest_main)
   include(GoogleTest)
+  # Discover tests when ctest runs, not as a POST_BUILD step: the post-build step launches every test
+  # executable with a 5 s timeout, which timed out on a loaded Windows runner (flaky "Process terminated
+  # due to timeout" while building hb_tests) and also slows every build.
+  set(CMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE PRE_TEST)
   gtest_discover_tests(hb_tests)
 endif()
 
