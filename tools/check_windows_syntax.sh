@@ -42,8 +42,6 @@ FILES=(
   src/app/windows/win_util.cpp
   src/net/http_win.cpp
   src/net/secret_store_win.cpp
-  src/ai/http_win.cpp
-  src/ai/secret_store_win.cpp
   src/captions/windows/winhttp_client.cpp
   src/chat/net_win.cpp
   src/chroma/windows/wic_image.cpp
