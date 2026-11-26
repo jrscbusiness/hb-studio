@@ -40,6 +40,8 @@ FILES=(
   src/app/windows/stream_sender.cpp
   src/app/windows/wic_jpeg.cpp
   src/app/windows/win_util.cpp
+  src/net/http_win.cpp
+  src/net/secret_store_win.cpp
   src/ai/http_win.cpp
   src/ai/secret_store_win.cpp
   src/captions/windows/winhttp_client.cpp
