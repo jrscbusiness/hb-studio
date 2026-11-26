@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload screenshots
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-screenshots
           path: shots
@@ -280,7 +280,7 @@ jobs:
 
       - name: Upload installer artifact
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HBStudio-Setup
           path: |
