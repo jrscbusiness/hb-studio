@@ -50,8 +50,9 @@ jobs:
       CCACHE_COMPRESS: "1"
       # MSVC: compile the files of one project in parallel (cmake --build --parallel only
       # parallelises across projects). Empty on Linux.
-      CXXFLAGS: ${{ runner.os == 'Windows' && '/MP' || '' }}
-      CFLAGS: ${{ runner.os == 'Windows' && '/MP' || '' }}
+      # (job-level env cannot use the `runner` context, only matrix/github/...: use matrix.os)
+      CXXFLAGS: ${{ startsWith(matrix.os, 'windows') && '/MP' || '' }}
+      CFLAGS: ${{ startsWith(matrix.os, 'windows') && '/MP' || '' }}
     steps:
       - uses: actions/checkout@v4
 
