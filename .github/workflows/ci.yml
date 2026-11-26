@@ -67,7 +67,7 @@ jobs:
       # main's cache). A partial (prefix) hit is fine: the build tool rebuilds only what changed.
       - name: Restore dependency cache
         id: cache_deps
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .deps
           key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/modules/*.cmake') }}
@@ -77,7 +77,7 @@ jobs:
       - name: Restore ccache (Linux)
         id: cache_ccache
         if: runner.os == 'Linux'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-${{ github.sha }}
@@ -95,7 +95,7 @@ jobs:
       - name: Restore WebView2 SDK cache (Windows)
         id: cache_wv2
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: third_party/webview2
           key: webview2-${{ env.WEBVIEW2_SDK_VERSION }}
@@ -110,7 +110,7 @@ jobs:
       - name: Restore ONNX Runtime cache (Windows)
         id: cache_ort
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: third_party/onnxruntime
           key: onnxruntime-${{ env.ORT_VERSION }}-${{ env.ORT_ZIP_SHA256 }}
@@ -165,14 +165,14 @@ jobs:
 
       - name: Save dependency cache (main only)
         if: github.ref == 'refs/heads/main' && steps.cache_deps.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .deps
           key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/modules/*.cmake') }}
 
       - name: Save ccache (Linux, main only)
         if: runner.os == 'Linux' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-${{ github.sha }}
