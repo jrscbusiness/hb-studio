@@ -3,6 +3,11 @@
 - Sempre que terminar de corrigir algo e subir (push) para o GitHub, informe o
   usuário dizendo literalmente: **PRONTO PODE TESTAR**
 
+## Economia de tokens
+- Regras completas e scripts: `docs/AGENT_RULES.md` (agentes: leiam antes de começar).
+- Nunca leia inteiros `ui/index.html` (330 KB) nem `graphify-out/GRAPH_REPORT.md`; use Grep + Read com offset/limit.
+- Verifique com `tools/check_all.sh` e acompanhe a CI com `tools/ci_status.sh`; filtre toda saída (`| tail`, `| grep`).
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
