@@ -5,6 +5,9 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cwchar>
+#include <exception>
 
 #include "app/json_escape.hpp"
 
@@ -88,11 +91,114 @@ bool systemPrefersDark() {
     return r == ERROR_SUCCESS && type == REG_DWORD && value == 0;
 }
 
+namespace {
+wchar_t g_dataDir[MAX_PATH] = {0};   // set by installCrashReporter
+volatile LONG g_startupLogReset = 0;
+
+// "HBStudio.exe+0x1234" for an address, or "?+0x..." when no module owns it. Async-signal-ish: only Win32 calls.
+void describeAddress(const void* addr, char* out, std::size_t cap) {
+    HMODULE m = nullptr;
+    wchar_t name[MAX_PATH] = {0};
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           static_cast<LPCWSTR>(addr), &m) &&
+        m && GetModuleFileNameW(m, name, MAX_PATH)) {
+        const wchar_t* base = name;
+        for (const wchar_t* p = name; *p; ++p)
+            if (*p == L'\\' || *p == L'/') base = p + 1;
+        char narrowName[128] = {0};
+        WideCharToMultiByte(CP_UTF8, 0, base, -1, narrowName, static_cast<int>(sizeof narrowName) - 1, nullptr, nullptr);
+        snprintf(out, cap, "%s+0x%llx", narrowName,
+                 static_cast<unsigned long long>(static_cast<const char*>(addr) - reinterpret_cast<const char*>(m)));
+    } else {
+        snprintf(out, cap, "?+0x%llx", static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(addr)));
+    }
+}
+
+void appendFile(const wchar_t* path, DWORD disposition, const char* data, std::size_t len) {
+    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, disposition,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    DWORD w = 0;
+    WriteFile(f, data, static_cast<DWORD>(len), &w, nullptr);
+    CloseHandle(f);
+}
+
+void writeCrashReport(const char* title, DWORD code, const void* faultAddr) {
+    if (g_dataDir[0] == 0) return;
+    char text[6144];
+    int n = 0;
+    char where[200];
+    describeAddress(faultAddr, where, sizeof where);
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    n += snprintf(text + n, sizeof text - static_cast<std::size_t>(n),
+                  "HB Studio crash report\r\n%s\r\nversion: %s\r\ntime: %04d-%02d-%02d %02d:%02d:%02d\r\nthread: %lu\r\n"
+                  "exception code: 0x%08lX\r\nfault: %s\r\nstack (module+offset):\r\n",
+                  title,
+#ifdef HB_VERSION
+                  HB_VERSION,
+#else
+                  "?",
+#endif
+                  st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, GetCurrentThreadId(),
+                  static_cast<unsigned long>(code), where);
+    void* frames[48] = {nullptr};
+    const USHORT count = CaptureStackBackTrace(0, 48, frames, nullptr);
+    for (USHORT i = 0; i < count && n < static_cast<int>(sizeof text) - 220; ++i) {
+        describeAddress(frames[i], where, sizeof where);
+        n += snprintf(text + n, sizeof text - static_cast<std::size_t>(n), "  %s\r\n", where);
+    }
+    wchar_t path[MAX_PATH];
+    _snwprintf_s(path, MAX_PATH, _TRUNCATE, L"%s\\crash-%04d%02d%02d-%02d%02d%02d.txt", g_dataDir, st.wYear, st.wMonth,
+                 st.wDay, st.wHour, st.wMinute, st.wSecond);
+    appendFile(path, CREATE_ALWAYS, text, static_cast<std::size_t>(n));
+    wchar_t logPath[MAX_PATH];
+    _snwprintf_s(logPath, MAX_PATH, _TRUNCATE, L"%s\\startup.log", g_dataDir);
+    char line[300];
+    const int ln = snprintf(line, sizeof line, "CRASH %s code=0x%08lX fault=%s\r\n", title, static_cast<unsigned long>(code), where);
+    appendFile(logPath, OPEN_ALWAYS, line, static_cast<std::size_t>(ln));
+}
+
+LONG WINAPI crashFilter(EXCEPTION_POINTERS* ep) {
+    if (ep && ep->ExceptionRecord)
+        writeCrashReport("unhandled exception", ep->ExceptionRecord->ExceptionCode, ep->ExceptionRecord->ExceptionAddress);
+    return EXCEPTION_CONTINUE_SEARCH;   // let Windows report/terminate as usual
+}
+
+void terminateHandler() {
+    char what[200] = "unknown";
+    try {
+        if (auto e = std::current_exception()) std::rethrow_exception(e);
+    } catch (const std::exception& ex) {
+        snprintf(what, sizeof what, "%s", ex.what());
+    } catch (...) {
+    }
+    char title[260];
+    snprintf(title, sizeof title, "std::terminate (uncaught C++ exception: %s)", what);
+    writeCrashReport(title, 0xE06D7363, reinterpret_cast<const void*>(&terminateHandler));
+    std::abort();
+}
+}  // namespace
+
+void installCrashReporter(const std::wstring& dir) {
+    if (dir.empty() || dir.size() >= MAX_PATH - 40) return;
+    wcsncpy_s(g_dataDir, MAX_PATH, dir.c_str(), _TRUNCATE);
+    SetUnhandledExceptionFilter(crashFilter);
+    std::set_terminate(terminateHandler);
+}
+
 void trace(const char* msg) {
     wchar_t path[MAX_PATH];
     const DWORD n = GetEnvironmentVariableW(L"HB_TRACE", path, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return;
-    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+    const bool haveEnv = n != 0 && n < MAX_PATH;
+    DWORD disposition = OPEN_ALWAYS;
+    if (!haveEnv) {
+        if (g_dataDir[0] == 0) return;
+        _snwprintf_s(path, MAX_PATH, _TRUNCATE, L"%s\\startup.log", g_dataDir);
+        // First line of this process truncates the previous run's log.
+        if (InterlockedCompareExchange(&g_startupLogReset, 1, 0) == 0) disposition = CREATE_ALWAYS;
+    }
+    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, disposition,
                            FILE_ATTRIBUTE_NORMAL, nullptr);
     if (f == INVALID_HANDLE_VALUE) return;
     char line[512];

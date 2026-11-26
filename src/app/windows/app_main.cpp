@@ -206,6 +206,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         return 0;
     }
 
+    {   // crash reporter + always-on startup log (%LOCALAPPDATA%\HBStudio\startup.log, crash-*.txt)
+        const std::wstring crashDir = win::localAppDataPath();
+        if (!crashDir.empty()) {
+            const std::wstring d = crashDir + L"\\HBStudio";
+            CreateDirectoryW(d.c_str(), nullptr);
+            win::installCrashReporter(d);
+        }
+    }
     win::trace("wWinMain start");
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
@@ -325,6 +333,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // ---- /FEATURE ----
     win::trace("media service started");
 
+    win::trace("init: overlays");
     // ---- FEATURE: overlays ---- timer / scoreboard / QR / lower third / captions / chat pin over PROGRAM
     // (docs/OVERLAYS.md). Declared after `engine`, so it is destroyed first; the render hook only keeps the
     // shared render state alive, never the manager or the bus.
@@ -365,6 +374,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         std::string v;
         if (f && std::getline(f, v)) engine.setPreviewQuality(v);   // unknown/corrupt id: keeps the default
     }
+    win::trace("init: perf");
     // ---- FEATURE: perf ---- auto preview quality (default ON) + UI frame throttling by active tab (docs/DESEMPENHO.md)
     const std::string perfGovPath = mediaDir.empty() ? std::string() : mediaDir + "\\perfgov.txt";
     perf::QualityGovernor perfGov({}, static_cast<int>(app::Engine::previewQualityPresets().size()), engine.previewQualityIndex());
@@ -453,6 +463,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         j += "]}";
         host.postQueued("xmit_status", j);
     };
+    win::trace("init: cloudbackup");
     // ---- FEATURE: cloudbackup ---- automatic recording backup to S3-compatible storage / Google Drive.
     // Uploads run on one low-priority background thread, never while a live stream runs (default),
     // credentials are DPAPI-protected (cloud_secrets.json) and never sent to the UI.
@@ -626,6 +637,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         toastText = t;
         ++toastId;
     };
+    win::trace("init: chat");
     // ---- FEATURE: chat ---- unified live chat (docs/CHAT.md): YouTube / Facebook / Instagram(limited) / Twitch.
     // Declared after `engine` and `host`, so it is destroyed first; its threads are also stopped explicitly
     // at shutdown. Secrets are DPAPI-encrypted per user under %LOCALAPPDATA%\HBStudio\chat_secrets.
@@ -650,6 +662,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }());
     chatSvc.start();
     // ---- /FEATURE ----
+    win::trace("init: ai");
     // ---- FEATURE: ai ----
     // AI providers (CONFIG > Inteligência Artificial). Declared after `host` so worker threads are joined
     // (AiService destructor) before the window goes away. Keys: DPAPI-encrypted file, never sent to the UI.
@@ -663,6 +676,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
     hb::ai::AiService aiService(aiStore, hb::ai::AiClient(hb::ai::AiClientDeps{hb::ai::makeDefaultAiHttp(), {}, {}}));
     // ---- /FEATURE ----
+    win::trace("init: ai");
     // ---- FEATURE: ai ----
     hb::ai::AiCommands aiCommands(aiService, aiStore, aiPath, [&](const std::string& key, std::string json) { host.postQueued(key, std::move(json)); },
                                   [&](const std::string& t) { toast(t); });
@@ -676,6 +690,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // "cmd|a|b|rest" splitting lives in app/command_router.hpp (hb::app::splitCommand, unit-tested).
     auto split = [](const std::string& msg, std::size_t maxParts) { return app::splitCommand(msg, maxParts); };
 
+    win::trace("init: remote");
     // ---- FEATURE: remote ----
     // Phone/tablet remote control (src/remote). Remote sessions reach THIS SAME handler (onMessage)
     // after the server's strict command allowlist rebuilt the text, so no logic is duplicated.
@@ -685,6 +700,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     hb::remote::RemoteService remoteSvc(
         [&](const std::string& cmd) { if (remoteDispatch) remoteDispatch(cmd); },
         [&](const std::string& line) { engine.logger().info("remote", line); });
+    win::trace("init: scenes");
     // ---- FEATURE: scenes ---- CENAS bank (scenes.json in %LOCALAPPDATA%\HBStudio)
     scene::SceneService sceneSvc(mediaDir.empty() ? std::string() : mediaDir + "\\scenes.json",
                                  [&](int slot, std::shared_ptr<const scene::Scene> s) { engine.setScene(slot, std::move(s)); });
@@ -692,6 +708,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto postScenes = [&] { host.postQueued("scenes", sceneSvc.stateJson()); };
     // ---- /FEATURE ----
 
+    win::trace("init: marketplace");
     // ---- FEATURE: marketplace ---- community catalog (static index.json over HTTPS), download + SHA-256 check,
     // then the EXISTING plugin review/consent dialog (plugins.beginInstall) - never bypassed.
     const std::string mktDir = mediaDir.empty() ? std::string() : mediaDir + "\\marketplace";
@@ -730,6 +747,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto postMarket = [&] { host.postQueued("mkt", marketSvc.catalogJson()); };
     // ---- /FEATURE ----
 
+    win::trace("init: updates");
     // ---- FEATURE: updates ---- self-update (docs/ATUALIZACAO.md): compares this build's commit with the public
     // "latest" release, downloads + SHA-256-verifies the installer, then runs it ONLY after a native confirmation
     // dialog shown by this host (never by the web page). The installer path is chosen here, not by the UI.
@@ -751,6 +769,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     };
     // ---- /FEATURE ----
 
+    win::trace("init: teleprompter");
     // ---- FEATURE: teleprompter ---- host-authoritative scroll state + script library
     // (%LOCALAPPDATA%\HBStudio\teleprompter). Commands "tp|..." arrive from the main UI, from the
     // presenter window and (play/pause/speed/seek) from the remote allowlist; see docs/TELEPROMPTER.md.
@@ -784,6 +803,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (fx.state) tpBroadcast("tp", tpc.stateJson());
     };
     // ---- /FEATURE ----
+    win::trace("init: captions");
     // ---- FEATURE: captions ---- Legendas ao vivo: local whisper.cpp (or optional cloud) -> "caption.text" on the bus
     // (docs/LEGENDAS.md). Taps the Program audio through a bounded drop-oldest queue on its own worker thread.
     hb::captions::win::WinHttpClient captionHttp;
@@ -805,6 +825,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 #endif
     hb::captions::CaptionController captions(std::move(captionDeps));
     // ---- /FEATURE ----
+    win::trace("init: chroma");
     // ---- FEATURE: chroma ---- per-camera background removal (classic chroma key + local AI)
     chroma::WinHttpClient chromaHttp;
     chroma::ChromaService::Deps chromaDeps;
@@ -844,6 +865,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         else if (c.a[1] == "deactivate") vcam.deactivate();
     }, 2);
     router.add("devrefresh", [&](const app::Command&) { scan(); });
+    win::trace("init: perf");
     // ---- FEATURE: perf ----
     router.add("perfgov", [&](const app::Command& c) {
         perfGov.setEnabled(c.a[1] == "on");
@@ -966,6 +988,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         for (const auto& d : destinations.list()) stopXmit(d.id);
         postXmitStatus();
     });
+    win::trace("init: remote");
     // ---- FEATURE: remote ----
     router.add("remote", [&](const app::Command& c) {   // desktop UI only: remote|on / off / newpin / revoke / kick|id
         const std::string t = remoteSvc.handleUi(c.raw);
@@ -974,6 +997,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     });
     // ---- /FEATURE ----
 
+    win::trace("init: diagnostics");
     // ---- FEATURE: diagnostics ---- "Exportar diagnóstico" + "Checklist antes de entrar ao vivo" (docs/DIAGNOSTICO.md).
     // Portable logic: src/diagnostics (report + redactor + checks); Windows probes: diagnostics/windows/sys_win.cpp.
     hb::diag::ChecklistSettings chkSettings;
@@ -1725,6 +1749,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         }
     };
 
+    win::trace("init: remote");
     // ---- FEATURE: remote ----
     remoteDispatch = [&](const std::string& cmd) { onMessage(cmd); };
     // ---- /FEATURE ----

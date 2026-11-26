@@ -29,7 +29,15 @@ unsigned windowsBuild();
 // missing or unreadable (e.g. a locked-down machine) — never throws.
 bool systemPrefersDark();
 
-// Appends a timestamped line to the file named by the HB_TRACE environment variable (no-op if unset).
+// Appends a timestamped line to the file named by the HB_TRACE environment variable. When HB_TRACE is not
+// set it writes <dir>\startup.log instead (dir given to installCrashReporter; the file is truncated once per
+// process start), so a crash during startup always leaves a trail the user can send. No-op before
+// installCrashReporter when HB_TRACE is unset.
 void trace(const char* msg);
+
+// Installs the process-wide crash reporter: an unhandled-exception filter and a std::terminate handler that
+// write <dir>\crash-<time>.txt (exception code, faulting module+offset, the stack as module+offset, thread id)
+// and a CRASH line in startup.log. No secrets are written. Safe to call once, as early as possible.
+void installCrashReporter(const std::wstring& dir);
 
 }  // namespace hb::win
