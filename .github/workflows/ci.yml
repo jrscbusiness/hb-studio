@@ -54,7 +54,7 @@ jobs:
       CXXFLAGS: ${{ startsWith(matrix.os, 'windows') && '/MP' || '' }}
       CFLAGS: ${{ startsWith(matrix.os, 'windows') && '/MP' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # FetchContent sources (googletest, pugixml, miniz, miniaudio, vst3sdk, whisper.cpp) and
       # their already-compiled objects live in .deps (see FETCHCONTENT_BASE_PATH below). Restored
