@@ -729,6 +729,22 @@ button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var
 .chat-muted button{font-size:11px;border:1px solid var(--line-2);border-radius:8px;padding:2px 8px;background:var(--surface);color:var(--ink-2)}
 @media (max-width:1180px){.chatwrap{grid-template-columns:minmax(0,1fr) 270px}}
 /* /FEATURE: chat */
+/* FEATURE: diagnostics - CONFIG card "Diagnóstico e checklist" */
+.chk-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.chk-item{display:grid;grid-template-columns:24px 1fr;gap:2px 8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.chk-item .ico{grid-row:1 / span 3;font-size:16px;line-height:1.3;font-weight:700;text-align:center}
+.chk-item .t{font-weight:600;font-size:13px}
+.chk-item .d{font-size:12px;color:var(--ink-2);line-height:1.45}
+.chk-item .h{font-size:12px;color:var(--warn-ink);line-height:1.45}
+.chk-item.ok .ico{color:#1E9E5A}
+.chk-item.warn .ico{color:var(--warn-ink)}
+.chk-item.warn{border-color:var(--warn-line);background:var(--warn-bg)}
+.chk-item.fail .ico{color:#D64545}
+.chk-item.fail{border-color:#D64545}
+.chk-item.skip .ico{color:var(--muted)}
+.dg-sep{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.dg-speed{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.dg-speed input[type=text]{height:34px;border:1px solid var(--line-2);border-radius:9px;padding:0 10px;background:var(--surface);color:var(--ink);font:inherit}
 </style>
 </head>
 <body>
@@ -1339,6 +1355,28 @@ button.cchip.off{background:var(--surface-2);color:var(--muted);border-color:var
         </div>
       </div>
       <!-- /FEATURE: captions -->
+      <!-- FEATURE: diagnostics -->
+      <div class="card" id="dg-card"><h3><span class="cap">Diagnóstico e checklist</span></h3>
+        <div class="body">
+          <p class="note">Algo deu errado? Gere UM arquivo de texto para anexar ao relato do problema: versão, computador, dispositivos, configurações e o registro recente. Chaves, senhas, tokens, IPs e o seu nome de usuário do Windows são removidos automaticamente.</p>
+          <div class="row" style="margin-top:8px;border-top:none;justify-content:flex-start"><button class="btn sm" id="dg-export">EXPORTAR DIAGNÓSTICO</button></div>
+          <p class="note" id="dg-note" style="margin-top:6px"></p>
+          <div class="dg-sep">
+            <span class="cap">Checklist antes de entrar ao vivo</span>
+            <p class="note" style="margin-top:6px">Confere espaço em disco, internet, destinos de transmissão, câmeras, áudio, codificador e relógio. Nada é enviado para fora, exceto o teste de internet (e o de upload, se você ativar abaixo).</p>
+            <div class="row" style="margin-top:8px;border-top:none;justify-content:flex-start"><button class="btn primary sm" id="chk-run">RODAR CHECKLIST</button></div>
+            <ul class="chk-list" id="chk-list" aria-live="polite"></ul>
+            <p class="note" id="chk-sum" style="margin-top:8px"></p>
+            <div class="dg-speed">
+              <label class="chk"><input type="checkbox" id="chk-speed-on"><span class="box"></span>Medir a velocidade de envio (upload) — desligado por padrão</label>
+              <input type="text" id="chk-speed-url" maxlength="300" autocomplete="off" placeholder="https://seu-servidor.exemplo/upload" aria-label="Endereço HTTPS do teste de upload">
+              <div><button class="btn sm" id="chk-speed-save">SALVAR</button></div>
+              <p class="note">Por privacidade o teste só roda se você ativar e informar um endereço HTTPS que você controla e que aceite envios (POST). São enviados cerca de 512 KB de dados sem significado, no máximo 10 segundos.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /FEATURE: diagnostics -->
       <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
         <div class="body">
           <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
@@ -3751,6 +3789,53 @@ body.cur{cursor:default}
       bx.scrollTop = bx.scrollHeight;
     }
   }
+  // ---- FEATURE: diagnostics ---- CONFIG card "Diagnóstico e checklist" (docs/DIAGNOSTICO.md)
+  // Host strings are written with textContent only. The export path is chosen by the host's native Save dialog.
+  const chkIcons = { ok: '✔', warn: '⚠', fail: '✖', skip: '–' };
+  const chkStatusTxt = { ok: 'OK', warn: 'Atenção', fail: 'Problema', skip: 'Não verificado' };
+  let chkSpeedDirty = false;
+  function chkRender(d) {
+    const btn = $('#chk-run'), list = $('#chk-list'), sum = $('#chk-sum');
+    if (d.busy) {
+      btn.disabled = true; btn.textContent = 'VERIFICANDO…';
+      sum.textContent = 'Verificando… o teste de internet pode levar alguns segundos.';
+      return;
+    }
+    btn.disabled = false; btn.textContent = 'RODAR CHECKLIST';
+    list.innerHTML = '';
+    (d.results || []).forEach(r => {
+      const li = document.createElement('li');
+      const st = chkIcons[r.s] ? r.s : 'skip';
+      li.className = 'chk-item ' + st; li.dataset.id = r.id;
+      const ic = document.createElement('span'); ic.className = 'ico'; ic.textContent = chkIcons[st]; ic.setAttribute('aria-label', chkStatusTxt[st]);
+      const t = document.createElement('div'); t.className = 't'; t.textContent = r.title;
+      const dd = document.createElement('div'); dd.className = 'd'; dd.textContent = r.detail || '';
+      li.append(ic, t, dd);
+      if (r.hint) { const h = document.createElement('div'); h.className = 'h'; h.textContent = 'Como resolver: ' + r.hint; li.appendChild(h); }
+      list.appendChild(li);
+    });
+    if (d.error) sum.textContent = 'Não foi possível concluir a verificação.';
+    else if ((d.results || []).length) {
+      sum.textContent = d.fail ? d.fail + ' problema(s) a resolver antes de entrar ao vivo.' + (d.warn ? ' ' + d.warn + ' atenção(ões).' : '')
+        : d.warn ? 'Sem problemas graves; ' + d.warn + ' ponto(s) de atenção.' : 'Tudo certo para entrar ao vivo.';
+    }
+  }
+  function chkCfg(d) {
+    if (chkSpeedDirty) return;   // never wipe what the user is typing
+    $('#chk-speed-on').checked = !!d.enabled;
+    $('#chk-speed-url').value = d.url || '';
+  }
+  $('#dg-export').addEventListener('click', () => {
+    send('diagexport');
+    const n = $('#dg-note'); n.textContent = 'Escolha onde salvar o arquivo na janela que abriu.';
+  });
+  $('#chk-run').addEventListener('click', () => { send('chkrun'); });
+  $('#chk-speed-save').addEventListener('click', () => {
+    send('chkcfg', $('#chk-speed-on').checked ? '1' : '0', $('#chk-speed-url').value.trim());
+    chkSpeedDirty = false;
+  });
+  ['#chk-speed-on', '#chk-speed-url'].forEach(s => $(s).addEventListener('input', () => { chkSpeedDirty = true; }));
+  // ---- /FEATURE: diagnostics ----
   const onMsg = m => {
     const d = typeof m === 'string' ? JSON.parse(m) : m;
     if (d.t === 'f') drawFrame(d.id, d.d); else if (d.t === 's') { lastState = d; render(d); } else if (d.t === 'ptz') { ptz = d; renderPtz(); } else if (d.t === 'devices') { devs = d.list; renderLists(true); const nn = $('#ndi-note'); if (d.ndiMsg) { nn.textContent = d.ndiMsg; nn.style.display = ''; } else nn.style.display = 'none'; } else if (d.t === 'theme') applyTheme(d); else if (d.t === 'plugins') { plugins = d; renderPlugins(); if (mkAsked) send('mktlist'); } else if (d.t === 'plugin_review') { showReview(d); mktAfterReview(d); } else if (typeof d.t === 'string' && d.t.startsWith('mkt')) mktMsg(d); else if (d.t === 'plugin_result') { toast(d.message); } else if (d.t === 'outputs') renderOutputs(d);
@@ -3767,6 +3852,8 @@ body.cur{cursor:default}
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'cloud_state') cbRender(d);   // FEATURE: cloudbackup
     else if (d.t === 'upd_state') updRender(d);   // FEATURE: updates
+    else if (d.t === 'checklist') chkRender(d);   // FEATURE: diagnostics
+    else if (d.t === 'chkcfg') chkCfg(d);   // FEATURE: diagnostics
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); } else if (d.t === 'rec_iso') renderMultitrack(d);   /* FEATURE: multitrack */
   };

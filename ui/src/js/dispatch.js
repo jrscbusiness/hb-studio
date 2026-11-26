@@ -14,6 +14,8 @@
     else if (d.t === 'xmit_dest') { xmitList = d.list || []; renderXmit(); }
     else if (d.t === 'cloud_state') cbRender(d);   // FEATURE: cloudbackup
     else if (d.t === 'upd_state') updRender(d);   // FEATURE: updates
+    else if (d.t === 'checklist') chkRender(d);   // FEATURE: diagnostics
+    else if (d.t === 'chkcfg') chkCfg(d);   // FEATURE: diagnostics
     else if (d.t === 'xmit_status') { xmitStatus = {}; (d.list || []).forEach(s => { xmitStatus[s.id] = s; }); renderXmit(); }
     else if (d.t === 'audio') { if (audBusy()) audPending = d; else renderAudio(d); } else if (d.t === 'audiolv') audioLevels(d); else if (d.t === 'recprofiles') renderRecProfiles(d); else if (d.t === 'rec') { recst = d; renderRec(); } else if (d.t === 'rec_iso') renderMultitrack(d);   /* FEATURE: multitrack */
   };

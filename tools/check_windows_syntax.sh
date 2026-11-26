@@ -47,6 +47,7 @@ FILES=(
   src/chroma/windows/wic_image.cpp
   src/chroma/windows/winhttp_client.cpp
   src/cloud/cloud_platform_win.cpp
+  src/diagnostics/windows/sys_win.cpp
   src/discovery/udp_socket_win.cpp
   src/marketplace/downloader_win.cpp
   src/ndi/ndi_backend_win.cpp
