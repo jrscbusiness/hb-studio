@@ -170,3 +170,17 @@ TEST(StreamDestinations, FilePersistence) {
     EXPECT_FALSE(b.load("nonexistent.json"));
     EXPECT_EQ(b.get(id).name, "Kick");   // untouched when the file is missing
 }
+
+TEST(StreamDestinations, AdaptiveBitrateDefaultsOffAndRoundTrips) {
+    StreamDestination d;
+    EXPECT_FALSE(d.adaptiveBitrate);
+    d.name = "x"; d.serverUrl = "rtmps://a.rtmps.youtube.com:443/live2"; d.protocol = "rtmps"; d.adaptiveBitrate = true;
+    StreamDestinations a;
+    ASSERT_FALSE(a.upsert(d).empty());
+    StreamDestinations b;
+    ASSERT_TRUE(b.fromJson(a.toJson()));
+    ASSERT_EQ(b.list().size(), 1u);
+    EXPECT_TRUE(b.list()[0].adaptiveBitrate);
+    EXPECT_EQ(b.list()[0].protocol, "rtmps");
+    EXPECT_NE(a.uiJson().find("\"adaptiveBitrate\":true"), std::string::npos);
+}

@@ -6,15 +6,14 @@ Módulo: `src/streaming/` (biblioteca `hb_streaming`, protocolo — portável) +
 aba **TRANSMISSÃO** na UI (primeira aba, antes de PRODUÇÃO).
 
 > **Estado de validação:** o protocolo RTMP (handshake, AMF0, chunking, connect/createStream/publish,
-> envio de mensagens de vídeo/áudio) foi testado de ponta a ponta contra um servidor RTMP de teste
-> rodando em socket real (`tests/rtmp_client_test.cpp`, `tests/rtmp_test_support.hpp`) — não é mock,
-> é um socket TCP de verdade em 127.0.0.1. A codificação H.264/AAC (`src/streaming/windows/
-> mf_video_encoder.cpp` / `mf_audio_encoder.cpp`) **ainda não está implementada** (placeholder que
-> falha de forma honesta, não finge codificar) — por isso, hoje, um destino nunca chega a transmitir
-> de verdade, mesmo com credenciais corretas: ele nem chega a abrir a conexão de rede, porque
-> `StreamSender` cria e inicia os codificadores *antes* de conectar (ver "Arquitetura" abaixo) e para
-> cedo se eles falharem. Nada aqui foi testado contra uma plataforma real (YouTube/Twitch/etc.) nem
-> contra hardware de aceleração (NVENC/QSV/AMF).
+> envio de vídeo/áudio) é testado de ponta a ponta contra um servidor RTMP de teste em socket TCP real
+> (`tests/rtmp_client_test.cpp`). **RTMPS** é testado em duas camadas: a lógica de TLS (laço de E/S,
+> enquadramento de registros, escritas parciais, rejeição de certificado) com um motor TLS falso
+> (`tests/tls_stream_test.cpp`, `tests/rtmps_test.cpp`); o motor real (Schannel, `src/streaming/tls_schannel.cpp`)
+> só é verificado por compilação — **não foi validado contra um servidor real** (YouTube/Twitch/etc.). Os
+> codificadores H.264/AAC via Media Foundation (`mf_video_encoder.cpp`/`mf_audio_encoder.cpp`) estão
+> implementados, mas **sem validação em hardware de aceleração (NVENC/QSV/AMF) nem em transmissão longa**.
+> Nada aqui foi testado contra uma plataforma real. **SRT não está implementado** (veja `docs/SRT.md`).
 
 ## Por que não há login/OAuth com nenhuma plataforma
 
@@ -33,11 +32,15 @@ parceiros aprovados via API (Graph API para contas comerciais, com aprovação c
 um endereço RTMP público e estável que qualquer app possa usar, ao contrário de YouTube/Twitch/
 Facebook/Kick/Vimeo. Oferecer um preset "Instagram" sem isso funcionar seria enganoso.
 
-**Só YouTube e Twitch vêm com o endereço do servidor pré-preenchido.** São os dois endereços mais
-estáveis e documentados publicamente; para as demais plataformas (Facebook, Kick, Vimeo, LinkedIn, X)
+**Só YouTube e Twitch vêm com o endereço do servidor pré-preenchido** (RTMP e RTMPS:
+`rtmp://a.rtmp.youtube.com/live2` / `rtmps://a.rtmps.youtube.com:443/live2`, `rtmp://live.twitch.tv/app` /
+`rtmps://live.twitch.tv:443/app`; trocar o protocolo no editor troca o preset, nunca um endereço digitado à mão).
+São os dois endereços mais estáveis e documentados publicamente; para as demais plataformas (Facebook, Kick, Vimeo, LinkedIn, X)
 o campo fica em branco com uma dica — um endereço chutado errado é pior que nenhum, porque falha
 silenciosamente só na hora de transmitir. "Personalizado" cobre qualquer servidor RTMP/RTMPS próprio
-(ex.: um servidor `nginx-rtmp` ou `MediaMTX` da própria igreja/produtora).
+(ex.: um servidor `nginx-rtmp` ou `MediaMTX` da própria igreja/produtora). O Facebook exige RTMPS
+(`rtmps://live-api-s.facebook.com:443/rtmp/`, **endereço não verificado**: copie o da sua página de transmissão;
+o editor só mostra isso como dica).
 
 ## Arquitetura
 
@@ -48,31 +51,79 @@ silenciosamente só na hora de transmitir. "Personalizado" cobre qualquer servid
 2. **`src/streaming/flv.*`** — monta os *bodies* de tag de vídeo/áudio no formato FLV (RTMP reaproveita
    esse layout exato para suas mensagens de vídeo tipo 9 e áudio tipo 8, só sem o enquadramento de
    arquivo FLV). Puro empacotamento de bytes, sem codec nenhum.
-3. **`src/streaming/rtmp_client.*`** (`RtmpClient`) — cliente RTMP(S) do zero: handshake simples,
-   multiplexação de chunk stream, comandos `connect`/`createStream`/`publish`, envio de vídeo/áudio.
-   Construído sobre `hb::rtsp::ITcpStream` (a abstração de socket já existente e multiplataforma do
-   módulo RTSP — POSIX/Winsock), em vez de uma nova camada de socket. Deliberadamente síncrono/
-   bloqueante (`start()`/`sendVideo()`/`sendAudio()` bloqueiam a thread chamadora): correto aqui
-   porque cada destino roda na própria thread dedicada (`StreamSender`), nunca na thread de
-   áudio/vídeo em tempo real — um destino travado trava só a própria thread.
-4. **`src/streaming/windows/mf_encoder.hpp`** — contrato (`IH264Encoder`/`IAacEncoder`) para
-   codificação H.264/AAC via `IMFTransform` do Media Foundation **diretamente** (não via
-   `IMFSinkWriter`, que é o que `src/recording/windows/mf_writers.cpp` usa para gravação em MP4) —
-   `IMFSinkWriter` não expõe nenhum ponto para pegar a amostra codificada crua antes de ele mesmo
-   empacotar no MP4, então RTMP (que tem seu próprio empacotamento, FLV) precisa de um caminho
-   separado. As implementações reais (`mf_video_encoder.cpp`/`mf_audio_encoder.cpp`) ainda são
-   placeholders.
-5. **`src/app/stream_destinations.*`** (`StreamDestinations`) — lista de até 16 destinos, persistida
-   em `xmit.json` (mesmo diretório de `inputs.txt`/`ptz.json`), com a chave de transmissão guardada
-   ali mas **nunca** devolvida por inteiro para a UI (`uiJson()` só manda `keySet`/`keyHint`
-   mascarado — ver "Segurança" abaixo).
-6. **`src/app/windows/stream_sender.*`** (`StreamSender`) — uma instância por destino, cada uma na
-   própria thread. Capta o Program (vídeo via `ProgramOutput::addConsumer`, áudio via
-   `AudioEngine::addProgramConsumer` — o mesmo ponto que `rec::Recorder` já usa para gravação) em
-   filas limitadas que descartam o mais antigo sob atraso (nunca bloqueiam a thread de
-   áudio/vídeo). Cria e inicia os codificadores **antes** de abrir a conexão RTMP: não faz sentido
-   abrir uma conexão de verdade com a conta do operador (o que aparece como tentativa de conexão no
-   painel da própria plataforma) se nada pode ser enviado por ela.
+3. **`src/streaming/transport.hpp`** (`IStreamTransport`) — a costura entre "o que um destino faz" (publicar
+   corpos de mensagem de vídeo/áudio) e "como os bytes chegam" (RTMP, RTMPS, futuramente SRT).
+   `makeStreamTransport("rtmp"|"rtmps"|"srt")`; `srt` devolve `nullptr` com a explicação (ver `docs/SRT.md`).
+4. **`src/streaming/rtmp_client.*`** (`RtmpClient`, implementa `IStreamTransport`) — cliente RTMP(S) do zero:
+   handshake simples, multiplexação de chunk stream, `connect`/`createStream`/`publish`, envio de vídeo/áudio.
+   Construído sobre `hb::rtsp::ITcpStream`. Síncrono/bloqueante: correto porque cada destino roda na própria thread.
+   Falhas "permanentes" (servidor recusou a publicação, certificado rejeitado, URL inválida) são marcadas
+   (`permanentFailure()`) para que a reconexão não insista.
+5. **RTMPS** — `src/streaming/tls_engine.hpp` (`ITlsEngine`, máquina de estados TLS *sem E/S*),
+   `tls_stream.*` (`TlsStream`: decorador `ITcpStream` que cuida do laço de E/S, buffers, escritas parciais,
+   `WouldBlock`; o handshake roda dentro de `pollConnect()`) e `tls_schannel.cpp` (motor real no Windows:
+   Schannel/SSPI — `AcquireCredentialsHandle`, laço `InitializeSecurityContext`, `EncryptMessage`/
+   `DecryptMessage` com `SECPKG_ATTR_STREAM_SIZES`). Veja "RTMPS" abaixo.
+6. **`src/streaming/windows/mf_encoder.hpp`** — contrato (`IH264Encoder`/`IAacEncoder`) para codificação
+   H.264/AAC via `IMFTransform` diretamente (não `IMFSinkWriter`, que só grava MP4). Extensões em tempo de
+   execução (melhor esforço): `setBitrateKbps` (`CODECAPI_AVEncCommonMeanBitRate`) e `requestKeyFrame`
+   (`CODECAPI_AVEncVideoForceKeyFrame`).
+7. **`src/streaming/stream_stats.*`**, **`adaptive_bitrate.*`**, **`reconnecting_publisher.*`** — lógica pura
+   e portável (relógio injetável, testada em `tests/*_test.cpp`): saúde, bitrate adaptativo, reconexão.
+8. **`src/app/stream_destinations.*`** (`StreamDestinations`) — lista de até 16 destinos, persistida em
+   `xmit.json`, com a chave guardada ali mas **nunca** devolvida por inteiro à UI (`uiJson()` só manda
+   `keySet`/`keyHint`). Campo novo: `adaptiveBitrate` (padrão `false`).
+9. **`src/app/windows/stream_sender.*`** (`StreamSender`) — uma instância por destino, na própria thread.
+   Capta o Program (vídeo via `ProgramOutput::addConsumer`, áudio via `AudioEngine::addProgramConsumer`) em
+   filas limitadas que descartam o mais antigo sob atraso (e contam o descarte). Cria os codificadores
+   **antes** de abrir a conexão e envia por um `ReconnectingPublisher`.
+
+## RTMPS (TLS)
+
+- `rtmps://host[:porta]/app` — porta padrão **443**. O esquema da URL decide o TLS; se o destino diz
+  "RTMPS" mas a URL ainda é `rtmp://`, o `StreamSender` promove para `rtmps://` (porta 443 se não escrita).
+- O `tcUrl` anunciado no `connect` usa `rtmps://` e inclui a porta quando não é a padrão.
+- **Verificação do certificado sempre ligada, sem opção para desligar.** Schannel valida a cadeia contra o
+  repositório de raízes do Windows e confere o nome do servidor; depois do handshake a cadeia é validada de novo
+  explicitamente (`CertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_SSL, nome do servidor)`). Certificado
+  inválido/expirado/de outro nome = falha **permanente** com mensagem em pt-BR (sem repetir tentativas).
+  Não há checagem de revogação online (OCSP/CRL).
+- Só TLS 1.2 é habilitado (todos os destinos atuais aceitam); TLS 1.3 e renegociação não são tratados.
+- Em builds não-Windows não há motor TLS: RTMPS falha com erro claro — nunca cai para texto puro.
+- Limitação conhecida: se o socket aceitar só parte de um registro TLS, o resto sai no próximo
+  `send()`/`waitReadable()`/`stop()` (mídia chega a cada poucos ms).
+
+## Saúde da transmissão
+
+`StreamStats` (janela deslizante de 10 s, histórico de 30 s) por destino: bitrate **alvo** (vídeo+áudio) × **real**
+(payload enviado, sem cabeçalhos), bitrate atual pedido ao codificador (difere do alvo sob bitrate adaptativo),
+quadros de vídeo/áudio **descartados** pelas filas limitadas (total e na janela), **reconexões** bem-sucedidas
+após queda, último erro, nome do codificador (`x264`/`nvenc`/`qsv`/`amf`) e profundidade das filas. Vai na
+mensagem `xmit_status` (campo `stats`, mais `reconnecting` e `adaptive`) e aparece no card do destino na aba
+TRANSMISSÃO: sparkline em `<canvas>` (30 s de bitrate) e uma linha "5.9 / 6.2 Mbps · descartes 0 · reconexões 0 ·
+fila 0/1 · nvenc"; fica em destaque quando há descartes recentes ou reconexão.
+
+## Bitrate adaptativo (opcional, padrão DESLIGADO)
+
+Caixa "Bitrate adaptativo" no editor do destino. A cada ~1 s o controlador (`AdaptiveBitrate`, lógica pura)
+olha a fila de envio de vídeo e os descartes: **estresse** = descartes novos, fila ≥ 50% da capacidade, ou fila
+≥ 25% e crescendo. Após 3 amostras seguidas de estresse e 5 s desde a última mudança, reduz o bitrate de vídeo
+×0,85 (piso: **40% do alvo**). Recupera **devagar**: só depois de 20 s contínuos saudáveis (fila ≤ 15%, sem
+descartes) e 10 s desde a última mudança, soma 5% do alvo por vez (e exige outros 20 s saudáveis para o passo
+seguinte). Amostras neutras não reduzem nem recuperam (histerese, evita oscilação).
+O encoder recebe o novo bitrate via `ICodecAPI` (`CODECAPI_AVEncCommonMeanBitRate`) — **melhor esforço**: muitos
+MFTs de hardware ignoram/recusam; nesse caso o recurso se desativa sozinho e o card mostra o aviso.
+Não validado em hardware real.
+
+## Reconexão automática
+
+`ReconnectingPublisher`: ao perder a conexão, tenta de novo com espera exponencial (1, 2, 4 … máx. 30 s, ±20%
+de jitter), até 20 tentativas seguidas; o contador só zera depois de 30 s de conexão estável (um link que
+oscila continua com espera longa). Recusa do servidor (chave/app inválidos), certificado rejeitado, URL
+inválida ou protocolo indisponível = desiste na hora. A cada nova conexão os timestamps recomeçam em 0, os
+cabeçalhos AVC/AAC são reenviados e o vídeo só volta a partir de um quadro-chave (o encoder é instruído a gerar
+um). Enquanto desconectado, os quadros são descartados (o card mostra RECONECTANDO e o tempo até a próxima tentativa).
+Testado com transporte falso e relógio manual (`tests/reconnecting_publisher_test.cpp`).
 
 ## Isolamento entre destinos
 
@@ -93,13 +144,9 @@ id, sem tocar no mapa inteiro.
 
 ## Limitações conhecidas / próximos passos
 
-- Codificação H.264/AAC real via Media Foundation (`mf_video_encoder.cpp`/`mf_audio_encoder.cpp`):
-  pendente.
-- `RtmpClient` não implementa RTMPS (TLS) ainda — só RTMP puro, que é o que todo preset de plataforma
-  oferece de qualquer forma (RTMPS costuma ser necessário só por trás de certos proxies/CDNs).
-- Sem SRT (mencionado como protocolo na UI/dados, mas sem implementação).
-- Cada destino hoje roda seu próprio par de codificadores mesmo quando dois destinos pedem o mesmo
-  bitrate/resolução — evitar essa codificação redundante compartilhando um encoder entre destinos
-  compatíveis é uma otimização futura, não implementada nesta primeira versão.
-- Nada foi validado contra uma plataforma real, contra hardware de aceleração (NVENC/QSV/AMF) ou em
-  uma transmissão de longa duração — só contra um servidor RTMP de teste em loopback.
+- **SRT não implementado** — ver `docs/SRT.md` (decisão, passos exatos, interface de encaixe).
+- Schannel (RTMPS) e `setBitrateKbps`/`requestKeyFrame` do Media Foundation: só compilados, **não validados** em
+  Windows real nem contra plataformas reais.
+- Cada destino roda seu próprio par de codificadores mesmo quando dois destinos pedem o mesmo bitrate/resolução
+  (compartilhar um encoder é otimização futura).
+- Nada foi validado contra uma plataforma real, hardware de aceleração (NVENC/QSV/AMF) ou transmissão longa.
