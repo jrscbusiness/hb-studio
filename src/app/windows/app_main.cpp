@@ -45,6 +45,7 @@
 #include "ndi/ndi.hpp"
 #include "scene/scene_service.hpp"   // FEATURE: scenes
 #include "marketplace/service.hpp"   // FEATURE: marketplace
+#include "updater/update_service.hpp"   // FEATURE: updates
 // ---- FEATURE: cloudbackup ----
 #include "cloud/cloud_platform.hpp"
 #include "cloud/cloud_service.hpp"
@@ -700,6 +701,27 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto postMarket = [&] { host.postQueued("mkt", marketSvc.catalogJson()); };
     // ---- /FEATURE ----
 
+    // ---- FEATURE: updates ---- self-update (docs/ATUALIZACAO.md): compares this build's commit with the public
+    // "latest" release, downloads + SHA-256-verifies the installer, then runs it ONLY after a native confirmation
+    // dialog shown by this host (never by the web page). The installer path is chosen here, not by the UI.
+    const std::string updDir = mediaDir.empty() ? std::string() : mediaDir + "\\updates";
+    auto updDownloader = marketplace::makeDefaultDownloader();
+    updater::UpdaterConfig updCfg;
+    updCfg.dataDirUtf8 = updDir;
+    updCfg.appVersion = HB_VERSION;
+    updater::UpdateService updSvc(*updDownloader, updCfg);
+    updSvc.load();
+    win::TaskQueue updTasks;   // declared after updSvc/updDownloader: destroyed (joined) first
+    auto postUpd = [&] { host.postQueued("upd", updSvc.stateJson()); };
+    auto liveBusy = [&] {
+        if (media.recording()) return true;
+        std::lock_guard lock(sendersMutex);
+        for (const auto& kv : senders)
+            if (kv.second->status().running) return true;
+        return false;
+    };
+    // ---- /FEATURE ----
+
     // ---- FEATURE: teleprompter ---- host-authoritative scroll state + script library
     // (%LOCALAPPDATA%\HBStudio\teleprompter). Commands "tp|..." arrive from the main UI, from the
     // presenter window and (play/pause/speed/seek) from the remote allowlist; see docs/TELEPROMPTER.md.
@@ -1060,6 +1082,93 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 editor->closeEditor();
             }
         }
+        // ---- FEATURE: updates ----
+        else if (c.rfind("upd", 0) == 0) {   // updget | updcheck | updinstall | updlater | updcancel | updauto|0/1 | updcfg|url
+            if (c == "updget") {
+                postUpd();
+                if (!updSvc.busy() && updSvc.dueForAutoCheck()) {
+                    updTasks.post([&] {
+                        updSvc.check(false);
+                        postUpd();
+                    });
+                }
+            } else if (c == "updcheck") {
+                if (!updSvc.busy()) {
+                    updTasks.post([&] {
+                        updSvc.check(true);
+                        postUpd();
+                    });
+                }
+            } else if (c == "updauto" && a.size() >= 2) {
+                updSvc.setAutoCheck(a[1] == "1");
+                postUpd();
+            } else if (c == "updlater") {
+                updSvc.dismiss();
+                postUpd();
+            } else if (c == "updcancel") {
+                updSvc.cancelDownload();
+            } else if (c == "updcfg") {
+                if (updSvc.setReleaseUrl(a.size() >= 2 ? a[1] : std::string())) toast("Endereço de atualizações salvo.");
+                else toast("Endereço inválido: use um link https://api.github.com/repos/.../releases/tags/...");
+                postUpd();
+            } else if (c == "updinstall") {
+                if (updSvc.busy()) {
+                    toast("Já existe uma verificação ou download em andamento.");
+                } else if (liveBusy()) {
+                    toast("Pare a transmissão e a gravação antes de atualizar.");
+                } else {
+                    updTasks.post([&] {
+                        const auto out = updSvc.downloadInstaller([&](int) { postUpd(); });
+                        postUpd();
+                        if (!out.ok) {
+                            if (!out.cancelled) toast(out.error);
+                            return;
+                        }
+                        if (liveBusy()) {
+                            toast("Pare a transmissão e a gravação antes de atualizar. O instalador verificado ficou guardado.");
+                            return;
+                        }
+                        // Native confirmation, shown by the host. Default button = NO. The text states plainly that the
+                        // installer is not code-signed and that the SHA-256 only guards against corruption.
+                        const std::string txt =
+                            "Há uma versão nova do HB Studio (" + out.staged.commit.substr(0, 7) + ").\n\n"
+                            "O instalador foi baixado e o SHA-256 confere com o publicado na mesma página de versões:\n" +
+                            out.staged.sha256.substr(0, 16) + "…\n\n"
+                            "Atenção: o instalador NÃO tem assinatura digital. O SHA-256 só detecta arquivo corrompido; "
+                            "não protege contra uma versão publicada comprometida.\n\n"
+                            "O HB Studio será fechado e o instalador será aberto (o Windows pedirá permissão de administrador). "
+                            "Deseja continuar?";
+                        const int ans = MessageBoxW(host.hwnd(), win::widen(txt).c_str(), L"Atualizar o HB Studio",
+                                                    MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_SETFOREGROUND);
+                        if (ans != IDYES) {
+                            toast("Atualização adiada. O instalador verificado ficou guardado.");
+                            return;
+                        }
+                        std::string err;
+                        if (!updSvc.verifyStaged(err)) {   // re-hash right before running: the file lives in a user-writable folder
+                            toast(err);
+                            updSvc.discardStaged();
+                            postUpd();
+                            return;
+                        }
+                        const std::wstring exe = win::widen(updSvc.staged().pathUtf8);
+                        SHELLEXECUTEINFOW sei{};
+                        sei.cbSize = sizeof sei;
+                        sei.fMask = SEE_MASK_NOASYNC;
+                        sei.hwnd = host.hwnd();
+                        sei.lpVerb = L"open";
+                        sei.lpFile = exe.c_str();
+                        sei.nShow = SW_SHOWNORMAL;
+                        if (!ShellExecuteExW(&sei)) {   // UAC refused or the file vanished: stay open
+                            toast("Não foi possível abrir o instalador (permissão negada?). O HB Studio continua aberto.");
+                            return;
+                        }
+                        host.close();   // WM_CLOSE: the normal, clean shutdown path; the installer then waits for INSTALAR
+                    });
+                }
+            }
+        }
+        // ---- /FEATURE ----
         // ---- FEATURE: marketplace ----
         else if (c.rfind("mkt", 0) == 0) {   // mktlist | mktrefresh | mktinstall|id | mktcancel | mktcfg|url
             if (c == "mktlist") {
