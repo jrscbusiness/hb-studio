@@ -22,7 +22,9 @@
 #include <thread>
 #include <vector>
 
+#include "app/command_router.hpp"
 #include "app/engine.hpp"
+#include "app/state_json.hpp"
 #include "app/media_service.hpp"
 #include "app/ptz_settings.hpp"
 #include "app/source_assignments.hpp"
@@ -86,60 +88,66 @@ using namespace hb;
 
 namespace {
 
+// Gathers the live objects into a plain snapshot; the JSON layout itself lives in src/app/state_json.cpp.
 std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, const app::SourceAssignments& assignments,
                       int toastId, const std::string& toast) {
     const auto s = engine.snapshot();
     const auto v = vcam.status();
     const auto pf = engine.program().format();
-    char b[2048];
-    snprintf(b, sizeof b,
-             "{\"t\":\"s\",\"pvw\":%d,\"pgm\":%d,\"transition\":%s,\"progress\":%.3f,\"fps\":%.2f,\"target\":%d,"
-             "\"pw\":%d,\"ph\":%d,"
-             "\"ver\":\"" HB_VERSION "\",\"frames\":%llu,\"skipped\":%llu,\"tier\":\"%s\",\"cores\":%u,\"ramGiB\":%u,\"srcRec\":%d,\"srcMax\":%d,"
-             "\"vcam\":{\"supported\":%s,\"installed\":%s,\"active\":%s,\"connected\":%s,\"busy\":%s,\"error\":%s,"
-             "\"sent\":%llu,\"message\":\"%s\"}",
-             s.sw.pvw, s.sw.pgm, s.sw.transitioning ? "true" : "false", s.sw.progress, s.fps, s.targetFps,
-             pf.width, pf.height,
-             static_cast<unsigned long long>(s.produced), static_cast<unsigned long long>(s.skipped), s.tier.c_str(),
-             s.cores, s.ramGiB, s.sourcesRecommended, s.sourcesMax, v.supported ? "true" : "false",
-             v.installed ? "true" : "false", v.active ? "true" : "false", v.connected ? "true" : "false",
-             v.busy ? "true" : "false", v.error ? "true" : "false", static_cast<unsigned long long>(v.sent),
-             win::jsonEscape(v.message).c_str());
-    std::string j = b;
-    j += toastId > 0 ? ",\"toast\":{\"id\":" + std::to_string(toastId) + ",\"text\":\"" + win::jsonEscape(toast) + "\"}"
-                     : std::string(",\"toast\":null");
-    j += ",\"slots\":[";
+    app::StateSnapshot st;
+    st.version = HB_VERSION;
+    st.pvw = s.sw.pvw;
+    st.pgm = s.sw.pgm;
+    st.transitioning = s.sw.transitioning;
+    st.progress = s.sw.progress;
+    st.fps = s.fps;
+    st.targetFps = s.targetFps;
+    st.programWidth = pf.width;
+    st.programHeight = pf.height;
+    st.frames = s.produced;
+    st.skipped = s.skipped;
+    st.tier = s.tier;
+    st.cores = s.cores;
+    st.ramGiB = s.ramGiB;
+    st.sourcesRecommended = s.sourcesRecommended;
+    st.sourcesMax = s.sourcesMax;
+    st.vcam.supported = v.supported;
+    st.vcam.installed = v.installed;
+    st.vcam.active = v.active;
+    st.vcam.connected = v.connected;
+    st.vcam.busy = v.busy;
+    st.vcam.error = v.error;
+    st.vcam.sent = v.sent;
+    st.vcam.message = v.message;
+    st.toastId = toastId;
+    st.toast = toast;
     for (int i = 0; i < app::Engine::kSourceCount; ++i) {
         const auto info = engine.slotInfo(i);
         const auto assigned = assignments.get(i);
         // A disabled slot has been detach()'d (engine.slotInfo reports not live, same as an empty
         // slot), so the remembered device (id/name from SourceAssignments) must be overlaid here -
         // otherwise turning a camera off would look identical to never having assigned one.
-        const bool enabled = assigned.empty() || assigned.enabled;
-        const char* k = "test";
-        const char* st = "test";
-        std::string label, devId, msg;
+        app::StateSlot sl;
+        sl.enabled = assigned.empty() || assigned.enabled;
         if (info.live) {
             using S = video::SourceStatus::State;
-            k = "dev";
-            st = info.status.state == S::Online ? "online" : info.status.state == S::Connecting ? "connecting"
-               : info.status.state == S::NoSignal ? "nosignal" : "error";
-            label = info.label;
-            devId = info.deviceId;
-            msg = info.status.message;
-        } else if (!assigned.empty() && !enabled) {
-            k = "dev";
-            st = "off";
-            label = assigned.name;
-            devId = assigned.id;
+            sl.kind = "dev";
+            sl.status = info.status.state == S::Online ? "online" : info.status.state == S::Connecting ? "connecting"
+                      : info.status.state == S::NoSignal ? "nosignal" : "error";
+            sl.label = info.label;
+            sl.deviceId = info.deviceId;
+            sl.message = info.status.message;
+        } else if (!assigned.empty() && !sl.enabled) {
+            sl.kind = "dev";
+            sl.status = "off";
+            sl.label = assigned.name;
+            sl.deviceId = assigned.id;
         }
-        char sb[160];
-        snprintf(sb, sizeof sb, "%s{\"k\":\"%s\",\"st\":\"%s\",\"en\":%s,\"w\":%d,\"h\":%d,\"fps\":%.1f,\"name\":\"", i ? "," : "",
-                 k, st, enabled ? "true" : "false", info.status.width, info.status.height, info.status.fps);
-        j += sb + win::jsonEscape(label) + "\",\"id\":\"" + win::jsonEscape(devId) + "\",\"msg\":\"" + win::jsonEscape(msg) + "\"}";
+        sl.width = info.status.width;
+        sl.height = info.status.height;
+        sl.fps = info.status.fps;
+        st.slots.push_back(std::move(sl));
     }
-    j += "]";
-    j += ",\"log\":[";
     auto tail = engine.logTail();
     // 200, not the sidebar widget's old 9: the CONFIG tab's full Logs panel needs real history to
     // be worth copying into a bug report; the small PRODUÇÃO sidebar widget still only shows its
@@ -153,11 +161,9 @@ std::string stateJson(app::Engine& engine, win::VirtualCameraController& vcam, c
         char line[512];
         snprintf(line, sizeof line, "%02d:%02d:%02d [%s] [%s] %s", tm.tm_hour, tm.tm_min, tm.tm_sec,
                  core::levelName(r.level), r.module.c_str(), r.message.c_str());
-        if (i > from) j += ",";
-        j += "{\"t\":\"" + win::jsonEscape(line) + "\",\"l\":\"" + core::levelName(r.level) + "\"}";
+        st.log.push_back(app::StateLogLine{line, core::levelName(r.level)});
     }
-    j += "]}";
-    return j;
+    return app::buildStateJson(st);
 }
 
 }  // namespace
@@ -200,10 +206,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // changed format only takes effect the next time HB Studio starts, which "outfmt"'s toast says.
     video::ProgramFormat outputFormat{1920, 1080, {30, 1}};
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            std::ifstream f(win::narrow(std::wstring(p) + L"\\HBStudio\\outputformat.txt"), std::ios::binary);
-            CoTaskMemFree(p);
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) {
+            std::ifstream f(win::narrow(localAppData + L"\\HBStudio\\outputformat.txt"), std::ios::binary);
             int w = 0, h = 0, fn = 0, fd = 0;
             if (f && (f >> w >> h >> fn >> fd) && w > 0 && h > 0 && fn > 0 && fd > 0 && w <= 7680 && h <= 4320)
                 outputFormat = {w, h, {fn, fd}};
@@ -218,11 +223,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     std::wstring dataDir;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            dataDir = std::wstring(p) + L"\\HBStudio\\WebView2";
-            CoTaskMemFree(p);
-        }
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) dataDir = localAppData + L"\\HBStudio\\WebView2";
     }
 
     win::trace("settings loading");
@@ -232,10 +234,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     app::PtzSettings ptzSettings;
     std::string ptzPath;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            const std::wstring dir = std::wstring(p) + L"\\HBStudio";
-            CoTaskMemFree(p);
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) {
+            const std::wstring dir = localAppData + L"\\HBStudio";
             SHCreateDirectoryExW(nullptr, dir.c_str(), nullptr);
             ptzPath = win::narrow(dir + L"\\ptz.json");
         }
@@ -246,22 +247,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     app::SourceAssignments assignments;
     std::string assignPath;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            assignPath = win::narrow(std::wstring(p) + L"\\HBStudio\\inputs.txt");
-            CoTaskMemFree(p);
-        }
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) assignPath = win::narrow(localAppData + L"\\HBStudio\\inputs.txt");
         if (!assignPath.empty()) assignments.load(assignPath);
     }
     // ---- TRANSMISSÃO: outbound RTMP(S) destinations, persisted next to the other settings ----
     app::StreamDestinations destinations;
     std::string destPath;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            destPath = win::narrow(std::wstring(p) + L"\\HBStudio\\xmit.json");
-            CoTaskMemFree(p);
-        }
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) destPath = win::narrow(localAppData + L"\\HBStudio\\xmit.json");
         if (!destPath.empty()) destinations.load(destPath);
     }
     std::mutex sendersMutex;
@@ -270,31 +265,22 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // `outputFormat`, kept here too so the "outfmt" command can save a new choice for next launch.
     std::string outFmtPath;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            outFmtPath = win::narrow(std::wstring(p) + L"\\HBStudio\\outputformat.txt");
-            CoTaskMemFree(p);
-        }
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) outFmtPath = win::narrow(localAppData + L"\\HBStudio\\outputformat.txt");
     }
     // ---- plugins (themes + native video-source plugins), installed per user ----
     std::string pluginsDir;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            pluginsDir = win::narrow(std::wstring(p) + L"\\HBStudio\\plugins");
-            CoTaskMemFree(p);
-        }
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) pluginsDir = win::narrow(localAppData + L"\\HBStudio\\plugins");
     }
     plugins::PluginService plugins(pluginsDir, "windows-x64");
     std::atomic<bool> pluginsReady{false};
     // ---- audio mixer + recording ----
     std::string mediaDir, videosDir;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            mediaDir = win::narrow(std::wstring(p) + L"\\HBStudio");
-            CoTaskMemFree(p);
-        }
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) mediaDir = win::narrow(localAppData + L"\\HBStudio");
         PWSTR v = nullptr;
         if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Videos, 0, nullptr, &v))) {
             videosDir = win::narrow(std::wstring(v) + L"\\HB Studio");
@@ -641,11 +627,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     hb::ai::ProviderStore aiStore(aiSecrets.get());
     std::string aiPath;
     {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) {
-            aiPath = win::narrow(std::wstring(p) + L"\\HBStudio\\ai.json");
-            CoTaskMemFree(p);
-        }
+        const std::wstring localAppData = win::localAppDataPath();
+        if (!localAppData.empty()) aiPath = win::narrow(localAppData + L"\\HBStudio\\ai.json");
         if (!aiPath.empty()) aiStore.load(aiPath);
     }
     hb::ai::AiService aiService(aiStore, hb::ai::AiClient(hb::ai::AiClientDeps{hb::ai::makeDefaultAiHttp(), {}, {}}));
@@ -660,14 +643,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     };
     constexpr const char* kNoPtz = "nenhuma câmera PTZ conectada (disponível nas Fases 4–5). Nada foi enviado.";
 
-    // Splits "cmd|a|b|rest": at most `maxParts` parts, the last one keeps any further '|'.
-    auto split = [](const std::string& msg, std::size_t maxParts) {
-        std::vector<std::string> a;
-        std::size_t s0 = 0;
-        for (std::size_t i = 0; i <= msg.size(); ++i)
-            if (i == msg.size() || (msg[i] == '|' && a.size() + 1 < maxParts)) { a.push_back(msg.substr(s0, i - s0)); s0 = i + 1; }
-        return a;
-    };
+    // "cmd|a|b|rest" splitting lives in app/command_router.hpp (hb::app::splitCommand, unit-tested).
+    auto split = [](const std::string& msg, std::size_t maxParts) { return app::splitCommand(msg, maxParts); };
 
     // ---- FEATURE: remote ----
     // Phone/tablet remote control (src/remote). Remote sessions reach THIS SAME handler (onMessage)
@@ -798,7 +775,139 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     auto postChroma = [&] { host.postQueued("chroma", chromaSvc.statusJson()); };
     // ---- /FEATURE: chroma ----
 
+    // ---- Command router (app/command_router.hpp): simple commands that only call one service. The big
+    // if/else chain in onMessage below still handles everything not registered here. Names registered
+    // here must not be claimed by an earlier branch of that chain (tp, cloud*, cap, ai*, chroma*, chat*, ov*, ready).
+    app::CommandRouter router;
+    router.add("preview", [&](const app::Command& c) { engine.switcher().setPreview(c.num(1)); });
+    router.add("program", [&](const app::Command& c) { engine.switcher().setProgram(c.num(1)); });
+    router.add("cut", [&](const app::Command&) { engine.switcher().cut(); });
+    router.add("dissolve", [&](const app::Command& c) {
+        engine.switcher().startDissolve(std::clamp(c.num(1) > 0 ? c.num(1) : 500, 50, 10000));
+    });
+    router.add("tbar", [&](const app::Command& c) {
+        engine.switcher().setTBarPosition(static_cast<float>(std::atof(c.a[1].c_str())));
+    }, 2);
+    router.add("vcam", [&](const app::Command& c) {
+        if (c.a[1] == "activate") vcam.activate();
+        else if (c.a[1] == "deactivate") vcam.deactivate();
+    }, 2);
+    router.add("devrefresh", [&](const app::Command&) { scan(); });
+    router.add("previewq", [&](const app::Command& c) {
+        if (engine.setPreviewQuality(c.a[1])) {
+            if (!previewQPath.empty()) {
+                std::ofstream f(previewQPath, std::ios::binary | std::ios::trunc);
+                f << c.a[1];
+            }
+            host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(c.a[1]) + "\"}");
+        }
+    }, 2);
+    router.add("plugincancel", [&](const app::Command& c) { plugins.cancelInstall(c.a[1]); }, 2);
+    router.add("uitheme", [&](const app::Command& c) {
+        if (!(c.a[1] == "light" || c.a[1] == "dark" || c.a[1] == "gray" || c.a[1] == "obs" || c.a[1] == "system")) return;
+        // Native dark/light mode: built into the app, no plugin needed. The web page applies
+        // its own colours (CSS + localStorage, see ui/index.html); this just keeps the native
+        // window chrome (title bar) in sync and remembers the choice for the next launch.
+        themePref = c.a[1];
+        host.setTheme(effectiveDark(themePref));
+        if (!themePath.empty()) {
+            std::ofstream f(themePath, std::ios::binary | std::ios::trunc);
+            f << themePref;
+        }
+    }, 2);
+    router.add("outwin", [&](const app::Command& c) {
+        // Second/third monitor output: a plain window the operator drags to another screen and
+        // maximizes/fullscreens (F11) there - see src/app/windows/output_window.hpp.
+        win::OutputWindow& win_ = c.a[1] == "preview" ? prevWin : progWin;
+        if (c.a[2] == "open") win_.open(inst);
+        else if (c.a[2] == "close") win_.close();
+    }, 3);
+    router.add("ptzname", [&](const app::Command& c) {
+        if (ptzSettings.setPresetName(c.num(1), c.num(2), c.a[3])) ptzChanged();
+    }, 4, 4);
+    router.add("ptzcfg", [&](const app::Command& c) {
+        app::PtzCameraConfig cfg;
+        if (app::PtzSettings::parseConfig(c.a[2], cfg) && ptzSettings.setConfig(c.num(1), cfg)) {
+            ptzChanged();
+            toast("CAM " + std::to_string(c.num(1) + 1) + ": " + "configuração PTZ guardada.");
+        }
+    }, 3, 3);
+    router.add("ptzall", [&](const app::Command& c) {
+        app::PtzCameraConfig cfg;
+        if (app::PtzSettings::parseConfig(c.a[1], cfg)) {
+            ptzSettings.applyToAll(cfg);
+            ptzChanged();
+            toast("Configuração PTZ aplicada a todas as câmeras.");
+        }
+    }, 2, 2);
+    for (const char* ptzNoop : {"ptzgo", "ptzsave", "ptzmove"})
+        router.add(ptzNoop, [&](const app::Command& c) {
+            // No PTZ provider is connected yet (Phases 4-5): say so instead of pretending.
+            toast("CAM " + std::to_string(c.num(1) + 1) + ": " + kNoPtz);
+        });
+    // ptzstop / ptzzoom / ptzfocus: silent no-ops until a provider exists.
+    router.add("xmitsave", [&](const app::Command& c) {
+        app::StreamDestination d;
+        if (app::StreamDestinations::parseDestination(c.a[1], d)) {
+            // The UI never receives a saved key back in full (see StreamDestinations::uiJson),
+            // so an edit that didn't touch the key arrives with it blank - keep the stored one.
+            if (!d.id.empty() && d.streamKey.empty()) {
+                const auto existing = destinations.get(d.id);
+                if (!existing.empty()) d.streamKey = existing.streamKey;
+            }
+            const std::string savedId = destinations.upsert(d);
+            if (!savedId.empty()) {
+                if (!destPath.empty()) destinations.save(destPath);
+                postXmitDest();
+                toast(d.name.empty() ? "Destino de transmissão salvo." : ("Destino \"" + d.name + "\" salvo."));
+            } else {
+                toast("Não foi possível salvar: nome/servidor inválido ou limite de 16 destinos atingido.");
+            }
+        }
+    }, 2, 2);
+    router.add("xmitremove", [&](const app::Command& c) {
+        stopXmit(c.a[1]);
+        if (destinations.remove(c.a[1])) {
+            if (!destPath.empty()) destinations.save(destPath);
+            postXmitDest();
+            postXmitStatus();
+        }
+    }, 2);
+    router.add("xmitenable", [&](const app::Command& c) {
+        if (destinations.setEnabled(c.a[1], c.a[2] == "1")) {
+            if (!destPath.empty()) destinations.save(destPath);
+            if (c.a[2] != "1") stopXmit(c.a[1]);   // turning a destination off also stops it if running
+            postXmitDest();
+            postXmitStatus();
+        }
+    }, 3);
+    router.add("xmitstart", [&](const app::Command& c) {
+        startXmit(c.a[1]);
+        postXmitStatus();
+    }, 2);
+    router.add("xmitstop", [&](const app::Command& c) {
+        stopXmit(c.a[1]);
+        postXmitStatus();
+    }, 2);
+    router.add("xmitstartall", [&](const app::Command&) {
+        for (const auto& d : destinations.list())
+            if (d.enabled) startXmit(d.id);
+        postXmitStatus();
+    });
+    router.add("xmitstopall", [&](const app::Command&) {
+        for (const auto& d : destinations.list()) stopXmit(d.id);
+        postXmitStatus();
+    });
+    // ---- FEATURE: remote ----
+    router.add("remote", [&](const app::Command& c) {   // desktop UI only: remote|on / off / newpin / revoke / kick|id
+        const std::string t = remoteSvc.handleUi(c.raw);
+        if (!t.empty()) toast(t);
+        host.postQueued("remote", remoteSvc.statusJson());
+    });
+    // ---- /FEATURE ----
+
     auto onMessage = [&](const std::string& msg) {
+        if (router.dispatch(msg)) return;
         const std::string c0 = msg.substr(0, msg.find('|'));
         if (c0 == "tp") { tpHandle(msg); return; }   // FEATURE: teleprompter
         // ---- FEATURE: cloudbackup ----
@@ -810,14 +919,12 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         }
         // ---- /FEATURE: cloudbackup ----
         if (c0 == "cap") { captions.handleCommand(msg); host.postQueued("cap", captions.pollJson(true)); return; }   // FEATURE: captions
-        const std::size_t maxParts = c0 == "ptzname" ? 4 : (c0 == "ptzcfg" ? 3 : (c0 == "ptzall" ? 2 :
-                                     (c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : (c0 == "xmitsave" ? 2 : 8)))));
+        // (ptz*, xmit* and the other router-registered commands carry their own limits in router.add)
+        const std::size_t maxParts = c0 == "devassign" ? 3 : (c0 == "devformats" ? 2 : 8);
         auto a = split(msg, maxParts);
         if (a.empty()) return;
         auto idx = [&](std::size_t k) { return k < a.size() ? std::atoi(a[k].c_str()) : -1; };
         const std::string& c = a[0];
-        const int cam = idx(1);
-        const std::string camLabel = "CAM " + std::to_string(cam + 1) + ": ";
         // ---- FEATURE: ai ----
         if (c0.rfind("ai", 0) == 0 && aiCommands.handle(msg)) return;
         // ---- /FEATURE ----
@@ -887,24 +994,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             host.postQueued("cap", captions.pollJson(true));   // FEATURE: captions
             host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(engine.previewQuality()) + "\"}");
         }
-        else if (c == "uitheme" && a.size() >= 2 && (a[1] == "light" || a[1] == "dark" || a[1] == "gray" || a[1] == "obs" || a[1] == "system")) {
-            // Native dark/light mode: built into the app, no plugin needed. The web page applies
-            // its own colours (CSS + localStorage, see ui/index.html); this just keeps the native
-            // window chrome (title bar) in sync and remembers the choice for the next launch.
-            themePref = a[1];
-            host.setTheme(effectiveDark(themePref));
-            if (!themePath.empty()) {
-                std::ofstream f(themePath, std::ios::binary | std::ios::trunc);
-                f << themePref;
-            }
-        }
-        else if (c == "outwin" && a.size() >= 3) {
-            // Second/third monitor output: a plain window the operator drags to another screen and
-            // maximizes/fullscreens (F11) there — see src/app/windows/output_window.hpp.
-            win::OutputWindow& win_ = a[1] == "preview" ? prevWin : progWin;
-            if (a[2] == "open") win_.open(inst);
-            else if (a[2] == "close") win_.close();
-        }
         else if (c == "ndiout" && a.size() >= 2) {
             if (a[1] == "on" || a[1] == "off") {
                 ndiOutputEnabled = a[1] == "on";
@@ -971,13 +1060,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 editor->closeEditor();
             }
         }
-        // ---- FEATURE: remote ----
-        else if (c == "remote") {   // desktop UI only: remote|on / off / newpin / revoke / kick|id
-            const std::string t = remoteSvc.handleUi(msg);
-            if (!t.empty()) toast(t);
-            host.postQueued("remote", remoteSvc.statusJson());
-        }
-        // ---- /FEATURE ----
         // ---- FEATURE: marketplace ----
         else if (c.rfind("mkt", 0) == 0) {   // mktlist | mktrefresh | mktinstall|id | mktcancel | mktcfg|url
             if (c == "mktlist") {
@@ -1076,17 +1158,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             }
         }
         // ---- /FEATURE ----
-        else if (c == "preview") engine.switcher().setPreview(idx(1));
-        else if (c == "program") engine.switcher().setProgram(idx(1));
-        else if (c == "cut") engine.switcher().cut();
-        else if (c == "dissolve") engine.switcher().startDissolve(std::clamp(idx(1) > 0 ? idx(1) : 500, 50, 10000));
-        else if (c == "tbar" && a.size() >= 2) engine.switcher().setTBarPosition(static_cast<float>(std::atof(a[1].c_str())));
-        else if (c == "vcam" && a.size() > 1) {
-            if (a[1] == "activate") vcam.activate();
-            else if (a[1] == "deactivate") vcam.deactivate();
-        } else if (c == "devrefresh") {
-            scan();
-        } else if (c == "devassign" && a.size() >= 3) {
+        else if (c == "devassign" && a.size() >= 3) {
             const int slot = idx(1);
             std::string name = a[2];
             {
@@ -1190,51 +1262,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                     attach(slot, e.id, e.name, win::VideoFormat{e.w, e.h, e.fpsNum, e.fpsDen});
                 toast("CAM " + std::to_string(slot + 1) + ": formato de captura atualizado.");
             }
-        } else if (c == "xmitsave" && a.size() >= 2) {
-            app::StreamDestination d;
-            if (app::StreamDestinations::parseDestination(a[1], d)) {
-                // The UI never receives a saved key back in full (see StreamDestinations::uiJson),
-                // so an edit that didn't touch the key arrives with it blank - keep the stored one.
-                if (!d.id.empty() && d.streamKey.empty()) {
-                    const auto existing = destinations.get(d.id);
-                    if (!existing.empty()) d.streamKey = existing.streamKey;
-                }
-                const std::string savedId = destinations.upsert(d);
-                if (!savedId.empty()) {
-                    if (!destPath.empty()) destinations.save(destPath);
-                    postXmitDest();
-                    toast(d.name.empty() ? "Destino de transmissão salvo." : ("Destino \"" + d.name + "\" salvo."));
-                } else {
-                    toast("Não foi possível salvar: nome/servidor inválido ou limite de 16 destinos atingido.");
-                }
-            }
-        } else if (c == "xmitremove" && a.size() >= 2) {
-            stopXmit(a[1]);
-            if (destinations.remove(a[1])) {
-                if (!destPath.empty()) destinations.save(destPath);
-                postXmitDest();
-                postXmitStatus();
-            }
-        } else if (c == "xmitenable" && a.size() >= 3) {
-            if (destinations.setEnabled(a[1], a[2] == "1")) {
-                if (!destPath.empty()) destinations.save(destPath);
-                if (a[2] != "1") stopXmit(a[1]);   // turning a destination off also stops it if running
-                postXmitDest();
-                postXmitStatus();
-            }
-        } else if (c == "xmitstart" && a.size() >= 2) {
-            startXmit(a[1]);
-            postXmitStatus();
-        } else if (c == "xmitstop" && a.size() >= 2) {
-            stopXmit(a[1]);
-            postXmitStatus();
-        } else if (c == "xmitstartall") {
-            for (const auto& d : destinations.list())
-                if (d.enabled) startXmit(d.id);
-            postXmitStatus();
-        } else if (c == "xmitstopall") {
-            for (const auto& d : destinations.list()) stopXmit(d.id);
-            postXmitStatus();
         } else if (c == "outfmt" && a.size() >= 5) {
             // Only the 6 documented presets (CONFIG > Formatos de saída comuns) are accepted -
             // arbitrary resolutions aren't vetted against the switcher/virtual camera/recording
@@ -1254,14 +1281,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 postOutFmt();
                 toast("Formato salvo: " + std::to_string(w) + "×" + std::to_string(h) + " · " + std::to_string(fn / fd) +
                      " fps. Reinicie o HB Studio para aplicar.");
-            }
-        } else if (c == "previewq" && a.size() >= 2) {
-            if (engine.setPreviewQuality(a[1])) {
-                if (!previewQPath.empty()) {
-                    std::ofstream f(previewQPath, std::ios::binary | std::ios::trunc);
-                    f << a[1];
-                }
-                host.postQueued("previewq", "{\"t\":\"previewq\",\"id\":\"" + win::jsonEscape(a[1]) + "\"}");
             }
         } else if (c == "pluginpick") {
             // Native file dialog (UI thread). The chosen file is only INSPECTED; nothing is installed yet.
@@ -1284,8 +1303,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 host.postQueued("", plugins.confirmInstall(token));
                 host.postQueued("plugins", plugins.listJson());
             });
-        } else if (c == "plugincancel" && a.size() >= 2) {
-            plugins.cancelInstall(a[1]);
         } else if ((c == "pluginenable" || c == "pluginremove") && a.size() >= 2) {
             const std::string id = a[1];
             const bool enable = c == "pluginenable" && a.size() >= 3 && a[2] == "1";
@@ -1308,26 +1325,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 host.postQueued("theme", plugins.themeJson());
                 scan();
             });
-        } else if (c == "ptzname" && a.size() >= 4) {
-            if (ptzSettings.setPresetName(cam, idx(2), a[3])) ptzChanged();
-        } else if (c == "ptzcfg" && a.size() >= 3) {
-            app::PtzCameraConfig cfg;
-            if (app::PtzSettings::parseConfig(a[2], cfg) && ptzSettings.setConfig(cam, cfg)) {
-                ptzChanged();
-                toast(camLabel + "configuração PTZ guardada.");
-            }
-        } else if (c == "ptzall" && a.size() >= 2) {
-            app::PtzCameraConfig cfg;
-            if (app::PtzSettings::parseConfig(a[1], cfg)) {
-                ptzSettings.applyToAll(cfg);
-                ptzChanged();
-                toast("Configuração PTZ aplicada a todas as câmeras.");
-            }
-        } else if (c == "ptzgo" || c == "ptzsave" || c == "ptzmove") {
-            // No PTZ provider is connected yet (Phases 4-5): say so instead of pretending.
-            toast(camLabel + kNoPtz);
         }
-        // ptzstop / ptzzoom / ptzfocus: silent no-ops until a provider exists.
     };
 
     // ---- FEATURE: remote ----

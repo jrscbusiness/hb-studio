@@ -1,0 +1,29 @@
+/* OBS is flat: no accent glow / dotted texture behind the content */
+:root[data-theme="obs"] body{background-image:none}
+:root[data-theme="obs"]{
+  --sans:"Open Sans","Segoe UI",system-ui,Helvetica,Arial,sans-serif;
+  --bg:#1D1F26; --panel:#272A33; --line:#3C404D; --line-2:#464B59;
+  --ink:#FFFFFF; --ink-2:#E1E1E1; --muted:#969696;
+  --blue:#476BD7; --blue-2:#718CDC; --sky:#213E97; --mist:#323540;
+  --navy:#FFFFFF; --surface:#3C404D; --surface-2:#323540; --glass:rgba(39,42,51,.85); --on-accent:#FFFFFF;
+  --warn-ink:#EABC48; --warn-bg:#493709; --warn-line:#926E11;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:var(--sans); color:var(--ink); background:var(--bg); font-size:13px;
+  -webkit-font-smoothing:antialiased; user-select:none; cursor:default;
+  background-image:
+    radial-gradient(1200px 520px at 88% -8%, rgba(79,141,255,.20), transparent 60%),
+    radial-gradient(900px 480px at -8% 108%, rgba(31,107,255,.10), transparent 60%),
+    radial-gradient(circle, var(--line-2) 1px, transparent 1.2px);
+  background-size:auto,auto,26px 26px;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+button:disabled{cursor:not-allowed}
+.mono{font-family:var(--mono)}
+.cap{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+

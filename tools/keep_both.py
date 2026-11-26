@@ -42,6 +42,9 @@ def main(paths):
         print(f"{path}: balance after merge: braces {b[0]:+d} parens {b[1]:+d}" + ("" if b == (0, 0) else "  <-- NOT 0, check"))
         if path.endswith((".cpp", ".hpp", ".h")) and b != (0, 0):
             review = True
+        if path.endswith((".yml", ".yaml", ".cmake", "CMakeLists.txt")) and hunks:
+            print(f"{path}: structured file - concatenating can scramble steps/blocks, REVIEW by hand")
+            review = True
     return 1 if review else 0
 
 

@@ -1,0 +1,25 @@
+/* FEATURE: multitrack */
+.mt-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 18px;margin-top:8px}
+.mt-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mt-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);font-size:12px;color:var(--ink);cursor:pointer;user-select:none}
+.mt-chip input{accent-color:var(--blue);margin:0}
+.mt-chip.on{border-color:var(--blue);background:var(--mist)}
+.mt-chip.off{color:var(--muted)}
+.mt-set{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.mt-set label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--ink-2);font-weight:600}
+.mt-set select,.mt-set input[type=number]{height:30px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12px;color:var(--ink);background:var(--surface);min-width:0;width:100%}
+.mt-est{margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);font-size:12px;color:var(--ink-2);line-height:1.5}
+.mt-est b{color:var(--ink)}
+.mt-est.warning,.mt-est.blocked{background:var(--warn-bg);border-color:var(--warn-line);color:var(--ink)}
+.mt-trk{display:grid;grid-template-columns:70px minmax(0,1fr) 90px 70px 70px 70px;gap:4px 10px;font-size:11.5px;align-items:center;padding:3px 0;border-bottom:1px solid var(--line)}
+.mt-trk .n{font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-trk .e{color:var(--warn-ink)}
+.mt-trk.h{color:var(--muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
+@media (max-width:1100px){.mt-grid{grid-template-columns:1fr 1fr}}
+
+.recbtn{height:34px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);padding:0 14px;display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.1em;font-size:11px;color:var(--ink-2)}
+.recbtn i{width:10px;height:10px;border-radius:50%;background:#B3261E}
+.recbtn:hover{border-color:#B3261E}
+.recbtn.on{background:#B3261E;border-color:#B3261E;color:#fff}
+.recbtn.on i{background:#fff;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}

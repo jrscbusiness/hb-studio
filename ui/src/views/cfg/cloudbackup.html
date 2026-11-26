@@ -1,0 +1,48 @@
+      <!-- FEATURE: cloudbackup -->
+      <div class="card" id="cb-card"><h3><span class="cap">Backup em nuvem</span></h3>
+        <div class="body">
+          <div class="row" style="padding-top:0"><span class="k">Estado</span><span class="v"><span class="badge" id="cb-badge">DESLIGADO</span></span></div>
+          <label class="chk" style="margin:8px 0"><input type="checkbox" id="cb-enabled"><span class="box"></span>Enviar as gravações para a nuvem automaticamente (chave geral)</label>
+          <div class="dur"><span class="cap" style="width:62px">Destino</span>
+            <div class="seg" id="cb-prov"><button data-p="s3" class="on">S3 / R2 / B2</button><button data-p="gdrive">GOOGLE DRIVE</button></div>
+          </div>
+          <div id="cb-s3" class="cb-grid" style="margin-top:10px">
+            <label class="cb-f cb-w2"><span class="cap">Endpoint</span><input type="text" id="cb-endpoint" maxlength="200" placeholder="https://s3.us-east-005.backblazeb2.com"></label>
+            <label class="cb-f"><span class="cap">Região</span><input type="text" id="cb-region" maxlength="40" placeholder="us-east-1"></label>
+            <label class="cb-f"><span class="cap">Bucket</span><input type="text" id="cb-bucket" maxlength="63"></label>
+            <label class="cb-f"><span class="cap">Pasta (prefixo)</span><input type="text" id="cb-prefix" maxlength="120" placeholder="igreja/cultos"></label>
+            <label class="cb-f"><span class="cap">Endereçamento</span><select id="cb-addr"><option value="auto">Automático</option><option value="path">Path-style (MinIO, R2, B2)</option><option value="virtual">Virtual-host (AWS)</option></select></label>
+            <label class="cb-f"><span class="cap">Chave de acesso (Access Key ID)</span><input type="password" id="cb-akey" maxlength="200" autocomplete="off"></label>
+            <label class="cb-f"><span class="cap">Chave secreta</span><input type="password" id="cb-skey" maxlength="200" autocomplete="off"></label>
+          </div>
+          <div id="cb-gd" class="cb-grid" style="margin-top:10px;display:none">
+            <label class="cb-f cb-w2"><span class="cap">Client ID (seu projeto no Google Cloud)</span><input type="text" id="cb-gid" maxlength="200" placeholder="123-abc.apps.googleusercontent.com"></label>
+            <label class="cb-f"><span class="cap">Client secret</span><input type="password" id="cb-gsec" maxlength="200" autocomplete="off"></label>
+            <label class="cb-f"><span class="cap">Pasta no Drive</span><input type="text" id="cb-gfolder" maxlength="64" placeholder="HB Studio"></label>
+            <div class="cb-w2" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sm" id="cb-glogin">CONECTAR CONTA GOOGLE</button><span class="note" id="cb-gstate"></span></div>
+          </div>
+          <div class="cb-grid" style="margin-top:12px">
+            <label class="cb-f"><span class="cap">Limite de upload (Mbps, 0 = sem limite)</span><input type="number" id="cb-bw" min="0" max="10000" step="0.5" value="0"></label>
+            <div class="cb-f"><span class="cap">O que enviar</span>
+              <label class="chk"><input type="checkbox" id="cb-up-prog" checked><span class="box"></span>Gravação do PROGRAM</label>
+              <label class="chk"><input type="checkbox" id="cb-up-isov"><span class="box"></span>Trilhas ISO de vídeo</label>
+              <label class="chk"><input type="checkbox" id="cb-up-isoa"><span class="box"></span>Trilhas ISO de áudio</label>
+            </div>
+          </div>
+          <label class="chk" style="margin-top:10px"><input type="checkbox" id="cb-pause" checked><span class="box"></span>Pausar durante a transmissão (recomendado)</label>
+          <label class="chk" style="margin-top:6px"><input type="checkbox" id="cb-watch" checked><span class="box"></span>Também detectar gravações novas pela pasta (reserva)</label>
+          <label class="chk" style="margin-top:6px"><input type="checkbox" id="cb-del"><span class="box"></span>Apagar o arquivo local depois de confirmar o envio (cuidado)</label>
+          <div class="row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px;gap:8px;flex-wrap:wrap;justify-content:flex-start">
+            <button class="btn primary sm" id="cb-save" style="flex:none">SALVAR</button>
+            <button class="btn sm" id="cb-test">TESTAR CONEXÃO</button>
+            <button class="btn sm" id="cb-clear">REMOVER CREDENCIAIS</button>
+          </div>
+          <p class="note" id="cb-msg" style="margin-top:8px"></p>
+          <div class="row" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"><span class="cap">Fila de envio</span>
+            <span class="v"><button class="btn sm" id="cb-retryall">TENTAR TODOS</button> <button class="btn sm" id="cb-clearfin">LIMPAR CONCLUÍDOS</button></span></div>
+          <div class="cb-bar"><i id="cb-gbar"></i></div>
+          <p class="note" id="cb-sum">Nada na fila.</p>
+          <div id="cb-jobs" class="cb-jobs"></div>
+        </div>
+      </div>
+      <!-- /FEATURE: cloudbackup -->

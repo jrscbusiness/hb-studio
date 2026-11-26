@@ -1,7 +1,12 @@
 #include "app/windows/win_util.hpp"
 
+#include <objbase.h>
+#include <shlobj.h>
+
 #include <cstdint>
 #include <cstdio>
+
+#include "app/json_escape.hpp"
 
 namespace hb::win {
 
@@ -52,21 +57,14 @@ std::string base64(const std::uint8_t* d, std::size_t n) {
     return out;
 }
 
-std::string jsonEscape(const std::string& s) {
-    std::string o;
-    for (unsigned char c : s) {
-        switch (c) {
-            case '"': o += "\\\""; break;
-            case '\\': o += "\\\\"; break;
-            case '\n': o += "\\n"; break;
-            case '\r': break;
-            case '\t': o += "\\t"; break;
-            default:
-                if (c < 0x20) { char b[8]; snprintf(b, sizeof b, "\\u%04x", c); o += b; }
-                else o += static_cast<char>(c);
-        }
-    }
-    return o;
+std::string jsonEscape(const std::string& s) { return hb::app::jsonEscape(s); }
+
+std::wstring localAppDataPath() {
+    PWSTR p = nullptr;
+    std::wstring out;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p))) out = p;
+    CoTaskMemFree(p);   // safe on nullptr
+    return out;
 }
 
 unsigned windowsBuild() {

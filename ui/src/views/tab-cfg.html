@@ -1,0 +1,51 @@
+    <!-- ===================== CONFIG ===================== -->
+    <section class="view" id="v-cfg">
+      <div class="card"><h3><span class="cap">Aparência</span></h3>
+        <div class="body">
+          <div class="dur"><span class="cap" style="width:62px">Tema</span>
+            <div class="seg" id="theme-seg"><button data-th="light">CLARO</button><button data-th="dark">ESCURO</button><button data-th="gray">CINZA</button><button data-th="obs">OBS</button><button data-th="system" class="on">SISTEMA</button></div>
+          </div>
+          <p class="note" style="margin-top:10px">“Sistema” segue a preferência de tema claro/escuro do Windows. O tema escuro é nativo do HB Studio — não precisa instalar nenhum plugin.</p>
+        </div>
+      </div>
+      <div class="card"><h3><span class="cap">Saídas</span></h3>
+        <div class="body">
+          <p class="note" style="margin-bottom:10px">Para usar um segundo ou terceiro monitor (ex.: HDMI), abra a janela de saída e arraste-a para a tela desejada; dê um duplo clique ou aperte <b>F11</b> nela para preencher o monitor inteiro (<b>Esc</b> sai do modo cheio).</p>
+          <div class="row"><span class="k">Janela de PROGRAM</span><span class="v"><button class="btn sm" id="out-pgm-open">ABRIR</button> <button class="btn sm" id="out-pgm-close">FECHAR</button></span></div>
+          <div class="row"><span class="k">Janela de PREVIEW</span><span class="v"><button class="btn sm" id="out-pvw-open">ABRIR</button> <button class="btn sm" id="out-pvw-close">FECHAR</button></span></div>
+          <div class="row" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+            <span class="k">Saída NDI (rede local)</span>
+            <span class="v"><button class="btn sm" id="out-ndi-toggle">LIGAR</button></span>
+          </div>
+          <label style="display:flex;flex-direction:column;gap:5px;margin-top:8px"><span class="cap">Nome da fonte NDI</span>
+            <input type="text" id="out-ndi-name" value="HB Studio Program" maxlength="128" style="height:34px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink)"></label>
+          <p class="note" id="out-ndi-note" style="margin-top:8px"></p>
+        </div>
+      </div>
+      <div class="card"><h3><span class="cap">Computador detectado</span></h3>
+        <div class="body">
+          <div class="row"><span class="k">Perfil sugerido</span><span class="tier" id="g-tier">—</span></div>
+          <div class="row"><span class="k">Núcleos lógicos</span><span class="v" id="g-cores">—</span></div>
+          <div class="row"><span class="k">Memória</span><span class="v" id="g-ram">—</span></div>
+          <div class="row"><span class="k">Fontes recomendadas / máximo</span><span class="v" id="g-src">—</span></div>
+        </div></div>
+<!-- @include views/cfg/marketplace.html -->
+      <div class="card"><h3><span class="cap">Formatos de saída comuns</span></h3>
+        <div class="body"><div id="outfmt-list"></div>
+        <p class="note" style="margin-top:10px" id="outfmt-note"></p></div></div>
+      <div class="card"><h3><span class="cap">Qualidade do Preview</span></h3>
+        <div class="body"><div id="previewq-list"></div>
+        <p class="note" style="margin-top:10px">Controla o tamanho dos monitores PROGRAM/PREVIEW e das miniaturas das câmeras na tela — não afeta a resolução real da transmissão/gravação. Baixe para computadores mais fracos ou com muitas câmeras; a mudança vale na hora, sem precisar reiniciar.</p></div></div>
+<!-- @include views/cfg/ai.html -->
+<!-- @include views/cfg/remote.html -->
+<!-- @include views/cfg/cloudbackup.html -->
+<!-- @include views/cfg/captions.html -->
+      <div class="card"><h3><span class="cap">Registro (logs)</span></h3>
+        <div class="body">
+          <p class="note" style="margin-bottom:10px">Se algo der errado, copie o registro abaixo e envie junto com a descrição do problema — isso ajuda bastante a identificar a causa.</p>
+          <div class="log logbig" id="log-cfg"></div>
+          <div class="row" style="margin-top:10px;border-top:none"><span class="k"></span><span class="v"><button class="btn sm" id="log-cfg-copy">COPIAR REGISTRO</button></span></div>
+          <p class="note" id="log-cfg-note" style="margin-top:6px"></p>
+        </div>
+      </div>
+    </section>

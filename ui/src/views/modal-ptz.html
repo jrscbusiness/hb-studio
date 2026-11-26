@@ -1,0 +1,27 @@
+<div id="modal" class="modal"><div class="sheet" id="cfg-sheet">
+  <div class="sh-head"><div><span class="cap">Configurar PTZ</span><h2 id="cfg-title">CAM 1</h2></div><button class="icon" id="cfg-x">✕</button></div>
+  <div class="grid2">
+    <label>Protocolo de controle
+      <select id="f-proto">
+        <option value="onvif">ONVIF (recomendado)</option>
+        <option value="visca-ip">VISCA sobre IP (UDP)</option>
+        <option value="visca-serial">VISCA serial (conversor serial↔IP)</option>
+        <option value="pelco-d">Pelco-D (conversor serial↔IP)</option>
+        <option value="pelco-p">Pelco-P (conversor serial↔IP)</option>
+      </select></label>
+    <label>Endereço IP da câmera<input id="f-host" placeholder="192.168.15.100" spellcheck="false"></label>
+    <label>Porta<input id="f-port" type="number" min="0" max="65535"><em id="f-portnote"></em></label>
+    <label>Endereço (VISCA 1–7 · Pelco 1–255)<input id="f-addr" type="number" min="1" max="255"></label>
+    <label>Quantidade de presets
+      <select id="f-slots"><option>10</option><option>16</option><option>32</option><option>64</option></select></label>
+    <label>Numeração na câmera
+      <select id="f-base"><option value="1">Começa em 1 (padrão)</option><option value="0">Começa em 0</option></select></label>
+    <label class="span2">Onde guardar a posição
+      <select id="f-store"><option value="camera">Na memória da câmera (recomendado)</option><option value="software">No HB Studio (câmeras sem memória confiável)</option></select>
+      <em>“No HB Studio” grava a posição (pan/tilt/zoom) no programa e a reaplica ao chamar o preset; exige que a câmera informe a posição atual.</em></label>
+    <label>Velocidade padrão <b id="f-speedv" class="mono"></b><input id="f-speed" type="range" min="1" max="100"></label>
+    <div class="checks"><label class="chk"><input type="checkbox" id="f-ipan"><span class="box"></span>Inverter Pan</label><label class="chk"><input type="checkbox" id="f-itilt"><span class="box"></span>Inverter Tilt</label></div>
+  </div>
+  <p class="note" style="margin-top:12px">Credenciais (usuário/senha) serão guardadas no Cofre do Windows quando a conexão PTZ real for ativada (em desenvolvimento) — nunca neste arquivo.</p>
+  <div class="sh-foot"><button class="btn sm" id="cfg-all">APLICAR A TODAS AS CÂMERAS</button><span style="flex:1"></span><button class="btn sm" id="cfg-cancel">CANCELAR</button><button class="btn primary sm" id="cfg-save" style="flex:none">SALVAR</button></div>
+</div></div>

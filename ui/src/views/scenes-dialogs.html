@@ -1,0 +1,52 @@
+<!-- FEATURE: scenes -->
+<div id="scenemenu" class="ctxmenu">
+  <button id="scm-edit">Editar cena…</button>
+  <button id="scm-del">Excluir cena</button>
+</div>
+<div id="sc-pick" class="modal"><div class="sheet" style="width:860px">
+  <div class="sh-head"><div><span class="cap">Templates prontos</span><h2 id="scp-title">Escolha um template</h2></div><button class="icon" id="scp-x">✕</button></div>
+  <div id="scp-list">
+    <div class="sc-tabs" id="scp-tabs"></div>
+    <div class="sc-grid" id="scp-grid"></div>
+    <div class="sh-foot"><button class="btn sm" id="scp-import">IMPORTAR TEMPLATE…</button><span style="flex:1"></span></div>
+  </div>
+  <div id="scp-map" style="display:none">
+    <p class="note" id="scp-desc"></p>
+    <div class="sc-map">
+      <div><span class="cap">Cenas a criar</span><div id="scp-scenes"></div></div>
+      <div><span class="cap">Mapear papéis → entradas</span><div id="scp-roles" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+        <p class="note" id="scp-note" style="margin-top:10px"></p></div>
+    </div>
+    <div class="sh-foot"><button class="btn sm" id="scp-back">VOLTAR</button><button class="btn sm" id="scp-export">EXPORTAR…</button><button class="btn sm" id="scp-del" style="display:none">EXCLUIR TEMPLATE</button><span style="flex:1"></span><button class="btn primary sm" id="scp-apply" style="flex:none">CRIAR CENAS</button></div>
+  </div>
+</div></div>
+<div id="sc-edit" class="modal"><div class="sheet" style="width:900px">
+  <div class="sh-head"><div><span class="cap">Editar cena</span><h2>Arraste as camadas para mover; puxe o canto para redimensionar</h2></div><button class="icon" id="sce-close">✕</button></div>
+  <div class="sc-edit">
+    <div><canvas id="sc-cv" width="640" height="360"></canvas>
+      <label style="margin-top:10px">Nome da cena<input id="sce-name" maxlength="60"></label></div>
+    <div>
+      <div class="sc-layers" id="sce-layers"></div>
+      <div class="sc-fields" id="sce-fields">
+        <label class="span2">Fonte<select id="sce-slot"></select></label>
+        <label>X (%)<input id="sce-x" type="number" min="-100" max="200" step="1"></label>
+        <label>Y (%)<input id="sce-y" type="number" min="-100" max="200" step="1"></label>
+        <label>Largura (%)<input id="sce-w" type="number" min="1" max="300" step="1"></label>
+        <label>Altura (%)<input id="sce-h" type="number" min="1" max="300" step="1"></label>
+        <label>Ajuste<select id="sce-fit"><option value="fill">Preencher (corta)</option><option value="fit">Caber (barras)</option><option value="crop">Recorte com zoom</option></select></label>
+        <label>Opacidade (%)<input id="sce-op" type="number" min="0" max="100" step="5"></label>
+        <label>Cantos (%)<input id="sce-rad" type="number" min="0" max="50" step="1"></label>
+        <label>Borda (%)<input id="sce-bor" type="number" min="0" max="10" step="0.1"></label>
+        <label>Sombra<select id="sce-sh"><option value="0">Sem sombra</option><option value="1">Com sombra</option></select></label>
+        <label>Ordem (z)<input id="sce-z" type="number" min="-100" max="100" step="1"></label>
+      </div>
+      <div class="sc-layers" style="margin-top:10px"><button id="sce-add">+ camada</button><button id="sce-rm">remover camada</button></div>
+      <div class="grid2" style="margin-top:6px">
+        <label>Fundo<select id="sce-bgt"><option value="solid">Cor sólida</option><option value="gradient">Degradê</option></select></label>
+        <label>Cores<span style="display:flex;gap:6px"><input type="color" id="sce-bg1" style="height:38px;padding:2px"><input type="color" id="sce-bg2" style="height:38px;padding:2px"></span></label>
+      </div>
+    </div>
+  </div>
+  <div class="sh-foot"><button class="btn sm" id="sce-del">EXCLUIR CENA</button><input id="sce-tname" type="text" maxlength="60" placeholder="Nome do template" style="width:180px;height:34px"><button class="btn sm" id="sce-tpl">SALVAR COMO MEU TEMPLATE</button><span style="flex:1"></span><button class="btn sm" id="sce-cancel">CANCELAR</button><button class="btn primary sm" id="sce-save" style="flex:none">SALVAR</button></div>
+</div></div>
+<!-- /FEATURE -->

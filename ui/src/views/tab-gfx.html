@@ -1,0 +1,32 @@
+    <!-- FEATURE: overlays -->
+    <section class="view" id="v-gfx">
+      <div class="ovwrap">
+        <div class="card">
+          <h3><span class="cap">Gráficos sobre o Program</span><span class="cap mono" id="ov-count">0</span></h3>
+          <div class="body">
+            <div class="ovlist" id="ov-list"></div>
+            <p class="note" id="ov-empty">Nenhum gráfico ainda. Escolha um tipo abaixo e adicione: cronômetro, placar, QR Code, nome (lower third), legendas ao vivo ou chat destacado.</p>
+            <div class="ovtypes">
+              <select id="ov-type" aria-label="Tipo de gráfico">
+                <option value="timer">Cronômetro / contagem regressiva</option>
+                <option value="scoreboard">Placar</option>
+                <option value="qr">QR Code (doação / link)</option>
+                <option value="lowerthird">Nome / função (lower third)</option>
+                <option value="captions">Legendas ao vivo</option>
+                <option value="chatpin">Chat destacado</option>
+              </select>
+              <button class="btn primary sm" id="ov-add" style="flex:none">+ ADICIONAR</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Prévia do Program (com gráficos)</span></h3>
+          <div class="body">
+            <div class="ovthumb"><canvas id="cv-gfx" width="640" height="360"></canvas></div>
+            <label class="chk" style="margin-top:12px"><input type="checkbox" id="ov-prev"><span class="box"></span>Mostrar também no Preview em tela cheia (janela de saída)</label>
+            <p class="note" style="margin-top:8px">Os gráficos entram na saída Program: câmera virtual, gravação, NDI e transmissão. “NO AR” liga e desliga com animação.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- /FEATURE -->

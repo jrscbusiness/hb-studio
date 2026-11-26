@@ -1,0 +1,16 @@
+      <!-- FEATURE: remote -->
+      <div class="card" id="remote-card"><h3><span class="cap">Controle remoto</span></h3>
+        <div class="body">
+          <p class="note" style="margin-bottom:10px">Opere a mesa pelo navegador de um celular ou tablet na <b>mesma rede Wi-Fi</b> (segunda tela). Desligado por padrão e sempre desligado ao abrir o programa.</p>
+          <div class="row"><span class="k">Controle por celular/tablet</span><span class="v"><button class="btn sm" id="rm-toggle">LIGAR</button></span></div>
+          <div id="rm-info" style="display:none">
+            <div class="row"><span class="k">Endereço (digite no navegador)</span><span class="v" id="rm-urls"></span></div>
+            <div class="row"><span class="k">PIN de pareamento</span><span class="v"><b id="rm-pin" style="font-size:20px;letter-spacing:.2em">——</b> <button class="btn sm" id="rm-newpin">NOVO PIN</button></span></div>
+            <div id="rm-devs" style="margin-top:8px"></div>
+            <div class="row" style="border-top:none"><span class="k"></span><span class="v"><button class="btn sm" id="rm-revoke">DESCONECTAR TODOS</button></span></div>
+          </div>
+          <p class="note err" id="rm-err"></p>
+          <p class="note" style="margin-top:8px">Atenção: a conexão é HTTP puro, <b>sem criptografia (TLS)</b> — use só em rede de confiança. Cada aparelho recebe uma chave própria que expira; o PIN vale para um único pareamento. Redes de convidados/“isolamento de clientes” bloqueiam o acesso. Na primeira vez o Windows pede para liberar o firewall: permita em <b>redes privadas</b>.</p>
+        </div>
+      </div>
+      <!-- /FEATURE -->

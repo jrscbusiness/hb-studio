@@ -1,0 +1,48 @@
+/* ---------- PTZ ---------- */
+.icon{width:30px;height:30px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:14px;display:grid;place-items:center;transition:.15s}
+.icon:hover{border-color:var(--blue);color:var(--blue);background:var(--mist)}
+.ptzcams{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:8px}
+.ptzcams button{height:28px;border-radius:8px;border:1px solid var(--line);font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2);background:var(--surface)}
+.ptzcams button:hover{border-color:var(--blue-2)}
+.ptzcams button.on{background:var(--blue);border-color:var(--blue);color:var(--on-accent);box-shadow:0 4px 12px rgba(31,107,255,.3)}
+.follow{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-2);cursor:pointer;margin-bottom:12px}
+.follow input,.chk input{display:none}
+.box{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-2);display:grid;place-items:center;background:var(--surface);flex:none}
+input:checked+.box{background:var(--blue);border-color:var(--blue)}
+input:checked+.box::after{content:"";width:4px;height:8px;border:solid var(--on-accent);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.ctl{display:flex;gap:14px;align-items:center}
+.dpad{display:grid;grid-template-columns:repeat(3,34px);gap:4px}
+.dpad span{height:34px}
+.dpad button{height:34px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:12px;transition:.12s}
+.dpad button:hover{border-color:var(--blue);color:var(--blue);background:var(--mist)}
+.dpad button:active{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+.zf{flex:1;display:flex;flex-direction:column;gap:6px}
+.zrow{display:flex;align-items:center;gap:6px}.zrow .cap{flex:1;font-size:9.5px}
+.zrow button{width:34px;height:28px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-weight:700}
+.zrow button.wide{width:74px;font-size:11px}
+.zrow button:hover{border-color:var(--blue);color:var(--blue);background:var(--mist)}
+.presets{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px;max-height:210px;overflow:auto;padding:2px}
+.pre{height:50px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;transition:.12s;padding:0 2px;min-width:0}
+.pre b{font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+.pre span{font-size:8.5px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em}
+.pre.named{background:var(--mist);border-color:var(--sky)}
+.pre.named b{color:var(--blue)}.pre.named span{color:var(--ink-2)}
+.pre:hover{border-color:var(--blue);box-shadow:0 4px 14px rgba(31,107,255,.18)}
+.pre:active{transform:translateY(1px)}
+.mode-save .pre{border-style:dashed;border-color:var(--blue-2)}
+.mode-edit .pre{border-color:var(--blue);background:var(--surface)}
+.modal{position:fixed;inset:0;background:rgba(10,30,71,.32);backdrop-filter:blur(5px);display:none;place-items:center;z-index:50}
+.modal.on{display:grid;animation:in .2s ease}
+@keyframes in{from{opacity:0}}
+.sheet{width:640px;max-width:92vw;max-height:92vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 30px 90px rgba(10,30,71,.35);padding:22px 26px}
+.sheet.small{width:420px}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.sh-head h2{font-size:22px;font-weight:600;margin-top:4px}
+.sh-foot{display:flex;gap:10px;margin-top:18px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.span2{grid-column:span 2}
+.sheet label{display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:.06em;color:var(--ink-2);font-weight:600}
+.sheet label em{font-style:normal;font-weight:400;color:var(--muted);font-size:11px;letter-spacing:0;line-height:1.4}
+.sheet input[type=text],.sheet input:not([type]),.sheet input[type=number],.sheet input[type=password],.sheet select{height:38px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);outline:none;user-select:text;width:100%}
+.sheet input:focus,.sheet select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,107,255,.15)}
+.sheet input[type=range]{accent-color:var(--blue);height:38px}

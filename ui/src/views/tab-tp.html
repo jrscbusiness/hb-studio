@@ -1,0 +1,58 @@
+    <!-- FEATURE: teleprompter -->
+    <section class="view" id="v-tp">
+      <div class="card">
+        <h3><span class="cap">Roteiros</span></h3>
+        <div class="body">
+          <div class="tp-list" id="tp-list"></div>
+          <div class="tp-row">
+            <button class="btn sm" id="tp-new">NOVO</button>
+            <button class="btn sm" id="tp-import" title="Importar um arquivo .txt">IMPORTAR .TXT</button>
+            <button class="btn sm" id="tp-del">EXCLUIR</button>
+          </div>
+          <div class="tp-row"><input type="text" id="tp-name" maxlength="80" placeholder="Nome do roteiro" aria-label="Nome do roteiro"><button class="btn sm" id="tp-rename" style="flex:none">RENOMEAR</button></div>
+          <input type="file" id="tp-file" accept=".txt,text/plain" hidden>
+          <textarea id="tp-text" spellcheck="false" placeholder="Digite ou cole o roteiro aqui. Uma linha em branco separa parágrafos. Linhas que começam com # são anotações só para o operador."></textarea>
+          <div class="tp-keys" id="tp-edstat">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="cap">Visão do apresentador</span><span class="cap mono" id="tp-state">PARADO</span></h3>
+        <div class="body">
+          <div class="tp-view" id="tp-view"><div class="tpv-stage" id="tp-stage"><div class="tpv-txt" id="tp-txt"></div></div><div class="tpv-mark" id="tp-mark"></div><div class="tpv-cd" id="tp-cd"></div></div>
+          <div class="tp-prog" id="tp-prog" title="Clique para saltar"><i id="tp-progbar"></i></div>
+          <div class="tp-info"><span id="tp-pct">0%</span><span id="tp-remain">restam —</span><span id="tp-total">total —</span></div>
+          <div class="tp-trans">
+            <button class="btn sm" id="tp-restart" title="Voltar ao início (Home)">⏮</button>
+            <button class="btn primary" id="tp-play" title="Play / pause (Espaço)">PLAY</button>
+          </div>
+          <div class="tp-row">
+            <button class="btn sm" id="tp-pop">ABRIR APRESENTADOR</button>
+            <button class="btn sm" id="tp-popfs" title="Tela cheia na janela do apresentador (F11 ou duplo clique nela)">TELA CHEIA</button>
+            <button class="btn sm" id="tp-popx">FECHAR</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="cap">Ajustes</span></h3>
+        <div class="body">
+          <div class="seg" id="tp-mode"><button data-m="wpm" class="on">PALAVRAS/MIN</button><button data-m="pxs">PX/S</button></div>
+          <div class="tp-set">
+            <span class="cap" id="tp-speedlbl">Velocidade</span><input type="range" id="tp-speed" min="20" max="400" step="1" value="150" aria-label="Velocidade"><output id="tp-speedv">150</output>
+            <span class="cap">Fonte</span><input type="range" id="tp-font" min="20" max="220" step="2" value="64"><output id="tp-fontv">64</output>
+            <span class="cap">Entrelinha</span><input type="range" id="tp-lh" min="1" max="2.5" step="0.05" value="1.4"><output id="tp-lhv">1.4</output>
+            <span class="cap">Margens</span><input type="range" id="tp-margin" min="0" max="30" step="1" value="8"><output id="tp-marginv">8%</output>
+            <span class="cap">Linha leitura</span><input type="range" id="tp-markpos" min="10" max="80" step="1" value="35"><output id="tp-markposv">35%</output>
+            <span class="cap">Contagem</span><input type="range" id="tp-cdsec" min="0" max="30" step="1" value="3"><output id="tp-cdsecv">3s</output>
+            <span class="cap">Cor do texto</span><input type="color" id="tp-fg" value="#ffffff"><span></span>
+            <span class="cap">Cor do fundo</span><input type="color" id="tp-bg" value="#000000"><span></span>
+          </div>
+          <div class="tp-chk">
+            <label><input type="checkbox" id="tp-mirror"> Espelhar (H)</label>
+            <label><input type="checkbox" id="tp-flip"> Inverter (V)</label>
+            <label><input type="checkbox" id="tp-marker" checked> Linha de leitura</label>
+          </div>
+          <div class="tp-keys">Nesta aba: <kbd>Espaço</kbd> play/pause · <kbd>↑</kbd>/<kbd>↓</kbd> velocidade · <kbd>Home</kbd> início. Espaço aqui NÃO faz CUT. Clique num parágrafo da visão para saltar até ele.</div>
+        </div>
+      </div>
+    </section>
+    <!-- /FEATURE -->

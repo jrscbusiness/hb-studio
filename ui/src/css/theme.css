@@ -1,0 +1,42 @@
+:root{
+  --bg:#F2F6FD; --panel:#FFFFFF; --line:#DDE7F8; --line-2:#C9D8F2;
+  --ink:#0A1E47; --ink-2:#3B5280; --muted:#7A8DB3;
+  --blue:#1F6BFF; --blue-2:#4F8DFF; --sky:#BFD6FF; --mist:#EAF1FF;
+  --navy:#07122B; --ok:#1F6BFF; --warn:#E7A317;
+  --surface:#FFFFFF; --surface-2:#F7FAFF; --glass:rgba(255,255,255,.72); --on-accent:#FFFFFF;
+  --warn-ink:#A76A00; --warn-bg:#FFF6E5; --warn-line:#F3D08A;
+  --glow:0 0 0 1px rgba(31,107,255,.35), 0 8px 28px rgba(31,107,255,.28);
+  --shadow:0 1px 0 var(--surface) inset, 0 10px 34px rgba(20,60,160,.07);
+  --mono:"Cascadia Mono","JetBrains Mono",Consolas,"DejaVu Sans Mono",monospace;
+  --sans:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+/* Native dark mode (built in, no plugin needed): "Sistema" follows the OS via the media query
+   below; an explicit choice (data-theme) always wins over it. A plugin theme, if one is active,
+   overrides these with inline styles (applyTheme()), which take precedence over any of this. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1226; --panel:#111B33; --line:#243459; --line-2:#30446F;
+    --ink:#E8EEFF; --ink-2:#B2C1E6; --muted:#7F92BE;
+    --blue:#4F8DFF; --blue-2:#7FAEFF; --sky:#2D4C87; --mist:#1B2D52;
+    --navy:#E8EEFF; --surface:#16233F; --surface-2:#1C2C4D; --glass:rgba(17,27,51,.78); --on-accent:#FFFFFF;
+    --warn-ink:#F5C65A; --warn-bg:#3A2E12; --warn-line:#6B5522;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1226; --panel:#111B33; --line:#243459; --line-2:#30446F;
+  --ink:#E8EEFF; --ink-2:#B2C1E6; --muted:#7F92BE;
+  --blue:#4F8DFF; --blue-2:#7FAEFF; --sky:#2D4C87; --mist:#1B2D52;
+  --navy:#E8EEFF; --surface:#16233F; --surface-2:#1C2C4D; --glass:rgba(17,27,51,.78); --on-accent:#FFFFFF;
+  --warn-ink:#F5C65A; --warn-bg:#3A2E12; --warn-line:#6B5522;
+}
+/* Tons de cinza: a neutral, low-contrast theme for long sessions - no blue tint in the
+   backgrounds (unlike dark, which leans navy), and avoids both the dark theme's near-black and
+   the light theme's near-white, which are the two biggest sources of eye strain in long sessions.
+   The accent stays a soft, desaturated blue so live/selected states are still readable. */
+:root[data-theme="gray"]{
+  --bg:#3A3A3D; --panel:#454548; --line:#57575B; --line-2:#67676C;
+  --ink:#E6E6E8; --ink-2:#B6B6BA; --muted:#8C8C91;
+  --blue:#8CA8D8; --blue-2:#A7C0E8; --sky:#52627C; --mist:#4C4C50;
+  --navy:#E6E6E8; --surface:#454548; --surface-2:#505054; --glass:rgba(69,69,72,.78); --on-accent:#1A1A1C;
+  --warn-ink:#F0C65A; --warn-bg:#473C20; --warn-line:#6B5E33;
+}

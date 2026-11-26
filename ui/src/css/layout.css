@@ -1,0 +1,51 @@
+/* ---------- layout ---------- */
+.app{height:100%;display:grid;grid-template-rows:60px 1fr 30px;min-width:900px}
+header{
+  display:grid;grid-template-columns:minmax(110px,260px) minmax(0,1fr) auto;align-items:center;padding:0 22px;gap:8px;
+  border-bottom:1px solid var(--line); background:var(--glass); backdrop-filter:blur(14px);
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand svg{width:30px;height:30px}
+.brand b{font-weight:700;letter-spacing:.34em;font-size:14px}
+.brand i{font-style:normal;color:var(--blue)}
+nav{display:flex;justify-content:center;gap:4px;position:relative;min-width:0;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{flex:none}
+/* centre the tabs when they fit, but never push the first ones out of reach when they overflow
+   (justify-content:center would clip them to the left of the scroll origin, unreachable) */
+nav{justify-content:flex-start}
+nav button:first-child{margin-left:auto}
+nav button:last-child{margin-right:auto}
+/* 9 tabs no longer fit at laptop widths with the roomy desktop spacing: tighten progressively so the
+   header never makes the whole page wider than the window (that clipped the right-hand controls). */
+@media (max-width:1600px){nav button{padding:8px 9px;letter-spacing:.05em;font-size:11px}}
+@media (max-width:1400px){nav button{padding:8px 5px;letter-spacing:0;font-size:10px}.brand b{display:none}}
+@media (max-width:1150px){nav button{padding:8px 3px;letter-spacing:0;font-size:9.5px}}
+/* the right-hand status chips are the other wide thing in the header: drop their small captions on
+   laptop widths (the values - fps, profile, ON/OFF - stay) so all 9 tabs remain visible */
+@media (max-width:1600px){.chips .chip .k{display:none}.chips .chip .dot+.k{display:none}}
+nav button{padding:8px 18px;border-radius:10px;font-size:11.5px;letter-spacing:.16em;font-weight:600;color:var(--muted);transition:.18s}
+nav button:hover{color:var(--ink);background:var(--mist)}
+nav button.on{color:var(--blue);background:var(--mist);box-shadow:inset 0 -2px 0 var(--blue)}
+.chips{display:flex;justify-content:flex-end;gap:8px}
+.chip{
+  display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--line);font-size:11px;white-space:nowrap
+}
+.chip .k{color:var(--muted);letter-spacing:.12em;font-size:9.5px;text-transform:uppercase;font-weight:600}
+.chip .v{font-family:var(--mono);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--sky)}
+.dot.on{background:var(--blue);box-shadow:0 0 0 4px rgba(31,107,255,.18);animation:pulse 1.8s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 7px rgba(31,107,255,0)}}
+
+main{padding:18px 22px;min-height:0;position:relative}
+.view{display:none;height:100%}
+.view.on{display:grid}
+#v-prod{grid-template-columns:minmax(0,1fr) minmax(290px,330px);gap:18px;min-height:0}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);position:relative}
+.card h3{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0}
+.card .body{padding:12px 16px 16px}
+.col{display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto;padding:2px}
+.col .card{flex:none}
+
