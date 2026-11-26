@@ -1,0 +1,27 @@
+      <!-- FEATURE: updates -->
+      <div class="card" id="upd-card"><h3><span class="cap">Atualizações</span></h3>
+        <div class="body">
+          <div class="row"><span class="k">Versão instalada</span><span class="v mono" id="upd-cur">—</span></div>
+          <div class="row"><span class="k">Última verificação</span><span class="v" id="upd-last">nunca</span></div>
+          <div class="row"><span class="k">Situação</span><span class="v" id="upd-status">—</span></div>
+          <div class="mk-msg" id="upd-msg"></div>
+          <div id="upd-new" style="display:none;margin-top:10px;padding:10px 12px;border:1px solid var(--blue);border-radius:12px">
+            <b>Há uma versão nova</b> <span class="mono" id="upd-newv"></span>
+            <p class="note" id="upd-notes" style="margin:6px 0;white-space:pre-wrap"></p>
+            <p class="note" id="upd-size" style="margin:0 0 8px"></p>
+            <div class="upd-bar" id="upd-bar" style="display:none"><i id="upd-barfill"></i></div>
+            <div class="row" style="border-top:none"><span class="k"></span><span class="v">
+              <button class="btn sm" id="upd-install">BAIXAR E INSTALAR</button>
+              <button class="btn sm" id="upd-later">DEPOIS</button>
+              <button class="btn sm" id="upd-cancel" style="display:none">CANCELAR</button>
+            </span></div>
+          </div>
+          <div class="row" style="margin-top:10px"><span class="k">Verificar sozinho (no máx. a cada 6 h)</span><span class="v"><label class="chk" style="margin:0"><input type="checkbox" id="upd-auto" checked><span class="box"></span></label></span></div>
+          <div class="row" style="border-top:none"><span class="k"></span><span class="v"><button class="btn sm" id="upd-check">VERIFICAR AGORA</button></span></div>
+          <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Avançado: endereço da consulta (forks)</summary>
+            <div class="mk-cfg" style="margin-top:6px"><input type="text" id="upd-url" aria-label="Endereço da consulta de versão" spellcheck="false"><button class="btn sm" id="upd-url-save" style="flex:none">SALVAR</button><button class="btn sm" id="upd-url-reset" style="flex:none">PADRÃO</button></div>
+          </details>
+          <p class="note" style="margin-top:8px">A consulta é anônima (API pública do GitHub) e só compara o código-fonte da sua versão com o da última publicada. Ao atualizar, o HB Studio mostra uma confirmação do Windows antes de fechar e abrir o instalador. <b>O instalador ainda não tem assinatura digital</b>: o SHA-256 só detecta arquivo corrompido — veja docs/ATUALIZACAO.md.</p>
+        </div>
+      </div>
+      <!-- /FEATURE: updates -->

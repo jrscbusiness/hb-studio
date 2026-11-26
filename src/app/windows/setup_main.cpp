@@ -1,6 +1,7 @@
 // HBStudio-Setup.exe - graphical installer / uninstaller (one binary, two modes).
 //
-// The installer embeds HBStudio.exe and hb_vcam_source.dll as resources. It runs
+// The installer embeds HBStudio.exe and hb_vcam_source.dll (and, when built with ONNX Runtime, onnxruntime.dll
+// plus its MIT notices) as resources. It runs
 // elevated (manifest: requireAdministrator) because it writes to Program Files and
 // registers the virtual camera media source under HKLM. The same binary is copied to
 // the install folder as Uninstall.exe and started with --uninstall from
@@ -75,6 +76,19 @@ bool writeResource(int id, const std::wstring& path, std::wstring& err) {
     return ok;
 }
 
+// Optional embedded resource (e.g. onnxruntime.dll): absent when the installer was built without ONNX Runtime.
+bool hasResource(int id) {
+    const void* d = nullptr;
+    std::size_t n = 0;
+    return win::loadResource(id, &d, &n) && n > 0;
+}
+
+std::size_t resourceSize(int id) {
+    const void* d = nullptr;
+    std::size_t n = 0;
+    return win::loadResource(id, &d, &n) ? n : 0;
+}
+
 std::wstring system32() {
     wchar_t b[MAX_PATH];
     const UINT n = GetSystemDirectoryW(b, MAX_PATH);
@@ -143,6 +157,8 @@ bool createShortcut(const std::wstring& link, const std::wstring& target, const 
 }
 
 void writeUninstallEntry(const std::wstring& dir) {
+    // ~12 MB of app + the optional onnxruntime.dll (bundled for the AI chroma key).
+    const DWORD estimatedKb = static_cast<DWORD>(12000 + resourceSize(IDR_ORT_DLL) / 1024);
     HKEY k;
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, kUninstallKey, 0, nullptr, 0, KEY_WRITE, nullptr, &k, nullptr) != ERROR_SUCCESS)
         return;
@@ -159,7 +175,7 @@ void writeUninstallEntry(const std::wstring& dir) {
     str(L"UninstallString", L"\"" + dir + L"\\Uninstall.exe\" --uninstall");
     dw(L"NoModify", 1);
     dw(L"NoRepair", 1);
-    dw(L"EstimatedSize", 12000);
+    dw(L"EstimatedSize", estimatedKb);
     RegCloseKey(k);
 }
 
@@ -237,6 +253,20 @@ private:
             return false;
         }
 
+        // AI chroma key runtime (optional): onnxruntime.dll must sit next to HBStudio.exe (the app delay-loads it).
+        // A failure here is only a warning: the rest of the app works without it.
+        std::wstring ortWarn;
+        if (hasResource(IDR_ORT_DLL)) {
+            std::wstring e2;
+            if (!writeResource(IDR_ORT_DLL, dir + L"\\onnxruntime.dll", e2))
+                ortWarn = L"Aviso: não foi possível instalar o onnxruntime.dll; o chroma por IA ficará indisponível. " + e2;
+            const std::wstring licDir = dir + L"\\licenses";
+            SHCreateDirectoryExW(nullptr, licDir.c_str(), nullptr);
+            std::wstring ignore;
+            if (hasResource(IDR_ORT_LICENSE)) writeResource(IDR_ORT_LICENSE, licDir + L"\\onnxruntime-LICENSE.txt", ignore);
+            if (hasResource(IDR_ORT_NOTICES)) writeResource(IDR_ORT_NOTICES, licDir + L"\\onnxruntime-ThirdPartyNotices.txt", ignore);
+        }
+
         std::wstring extra;
         if (vcam) {
             const std::wstring dll = dir + L"\\VirtualCamera\\hb_vcam_source.dll";
@@ -273,6 +303,7 @@ private:
 
         step(++i, total, L"Finalizando");
         writeUninstallEntry(dir);
+        if (!ortWarn.empty()) err = ortWarn;
         if (o.vcam && !vcam)
             err = L"Aviso: a câmera virtual exige Windows 11 e não foi instalada neste computador. O restante funciona normalmente.";
         step(total, total, L"Finalizando", "ok");
@@ -297,6 +328,10 @@ private:
         else err = L"A câmera virtual não pôde ser desregistrada; o arquivo foi mantido para evitar um registro quebrado. Reinicie o computador e tente remover de novo.";
         RemoveDirectoryW((dir + L"\\VirtualCamera").c_str());
         DeleteFileW((dir + L"\\HBStudio.exe").c_str());
+        DeleteFileW((dir + L"\\onnxruntime.dll").c_str());
+        DeleteFileW((dir + L"\\licenses\\onnxruntime-LICENSE.txt").c_str());
+        DeleteFileW((dir + L"\\licenses\\onnxruntime-ThirdPartyNotices.txt").c_str());
+        RemoveDirectoryW((dir + L"\\licenses").c_str());
 
         step(3, total, L"Removendo atalhos e registro");
         DeleteFileW((knownFolder(FOLDERID_CommonPrograms) + L"\\HB Studio\\HB Studio.lnk").c_str());

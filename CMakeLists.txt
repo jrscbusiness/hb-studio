@@ -111,6 +111,28 @@ if(WIN32)
     file(MAKE_DIRECTORY "${HB_EMBED_DIR}" "${CMAKE_BINARY_DIR}/rc")
     configure_file(ui/index.html "${HB_EMBED_DIR}/index.html" COPYONLY)
     configure_file(ui/setup.html "${HB_EMBED_DIR}/setup.html" COPYONLY)
+    # ---- FEATURE: ort-installer ---- bundle onnxruntime.dll (+ MIT notices) into the installer when the official
+    # ONNX Runtime package is present (HB_ORT_DIR, same default as cmake/modules/chroma.cmake). Without it the
+    # resources are simply not embedded and the installer behaves as before (AI chroma stays unavailable).
+    set(HB_ORT_DIR "${CMAKE_SOURCE_DIR}/third_party/onnxruntime" CACHE PATH "Extracted onnxruntime-win-x64 release (optional)")
+    set(HB_SETUP_ORT_RC "")
+    if(EXISTS "${HB_ORT_DIR}/include/onnxruntime_cxx_api.h" AND EXISTS "${HB_ORT_DIR}/lib/onnxruntime.lib"
+       AND EXISTS "${HB_ORT_DIR}/lib/onnxruntime.dll")
+      configure_file("${HB_ORT_DIR}/lib/onnxruntime.dll" "${HB_EMBED_DIR}/onnxruntime.dll" COPYONLY)
+      set(HB_SETUP_ORT_RC "IDR_ORT_DLL RCDATA \"${HB_EMBED_DIR}/onnxruntime.dll\"")
+      if(EXISTS "${HB_ORT_DIR}/LICENSE")
+        configure_file("${HB_ORT_DIR}/LICENSE" "${HB_EMBED_DIR}/onnxruntime-LICENSE.txt" COPYONLY)
+        string(APPEND HB_SETUP_ORT_RC "\nIDR_ORT_LICENSE RCDATA \"${HB_EMBED_DIR}/onnxruntime-LICENSE.txt\"")
+      endif()
+      if(EXISTS "${HB_ORT_DIR}/ThirdPartyNotices.txt")
+        configure_file("${HB_ORT_DIR}/ThirdPartyNotices.txt" "${HB_EMBED_DIR}/onnxruntime-ThirdPartyNotices.txt" COPYONLY)
+        string(APPEND HB_SETUP_ORT_RC "\nIDR_ORT_NOTICES RCDATA \"${HB_EMBED_DIR}/onnxruntime-ThirdPartyNotices.txt\"")
+      endif()
+      message(STATUS "Installer: bundling onnxruntime.dll from ${HB_ORT_DIR}")
+    else()
+      message(STATUS "Installer: onnxruntime.dll not bundled (HB_ORT_DIR not found)")
+    endif()
+    # ---- /FEATURE ----
     configure_file(src/app/windows/rc/app.rc.in "${CMAKE_BINARY_DIR}/rc/app.rc" @ONLY)
     configure_file(src/app/windows/rc/setup.rc.in "${CMAKE_BINARY_DIR}/rc/setup.rc" @ONLY)
 

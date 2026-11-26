@@ -56,17 +56,14 @@ rodapé do app (`0.3.0+<commit>`) vem do `HB_VERSION` no `CMakeLists.txt` mais o
    outra pasta: `cmake -S . -B build -DHB_ORT_DIR=C:/libs/onnxruntime-win-x64-1.x.y`.
 2. Reconfigure. O CMake imprime `Chroma: ONNX Runtime found ...`; o app liga com *delay-load*, então
    **sem a DLL o app ainda abre** e a IA apenas avisa "onnxruntime.dll não encontrada".
-3. **Distribuindo a DLL:** `onnxruntime.dll` precisa estar na mesma pasta do `HBStudio.exe`.
-   *Estado atual:* o instalador **ainda não** a embute (ele só carrega `HBStudio.exe` e
-   `hb_vcam_source.dll`), então hoje é uma pendência do instalador — veja [docs/CHROMA.md](docs/CHROMA.md).
-   Para testar localmente, copie `third_party/onnxruntime/lib/onnxruntime.dll` para
-   `build/Release/` (ao lado do `HBStudio.exe`). Para empacotar no instalador será preciso: (a)
-   acrescentar a DLL em `src/app/windows/rc/setup.rc.in` como mais um `RCDATA` (copiando-a para
-   `build/embed/` num `add_custom_command` como já é feito com `hb_vcam_source.dll`), (b) um novo
-   id em `resource_ids.h`, (c) gravá-la em `setup_main.cpp` junto do `HBStudio.exe` e removê-la no
-   desinstalar, (d) incluir o aviso de licença do pacote oficial (MIT, listado em
-   [LICENSES.md](LICENSES.md)). O modelo de segmentação **não** vai no instalador: é baixado sob
-   demanda pelo usuário (URL e SHA-256 fixados).
+3. **Distribuindo a DLL:** `onnxruntime.dll` precisa estar na mesma pasta do `HBStudio.exe`. **O instalador a
+   embute automaticamente** quando `third_party/onnxruntime` (ou `HB_ORT_DIR`) contém `include/`, `lib/onnxruntime.lib`
+   e `lib/onnxruntime.dll`: o CMake copia a DLL (e `LICENSE`/`ThirdPartyNotices.txt`, MIT) para `build/embed/` e o
+   `setup.rc` ganha os recursos `IDR_ORT_DLL/LICENSE/NOTICES`; o instalador grava a DLL ao lado do exe, os avisos em
+   `licenses\` e remove tudo ao desinstalar. Sem a pasta, nada é embutido e o instalador é o de antes. O CI baixa o
+   zip oficial na versão fixada em `ORT_VERSION` (`ci.yml`; SHA-256 em `ORT_ZIP_SHA256`). Localmente, para testar sem
+   instalar: copie `onnxruntime.dll` para `build/Release/`. O modelo de segmentação **não** vai no instalador: é baixado
+   sob demanda pelo usuário (URL e SHA-256 fixados).
 
 ### Legendas locais (whisper.cpp)
 
