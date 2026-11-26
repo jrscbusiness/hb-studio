@@ -1,0 +1,12 @@
+/* FEATURE: ai */
+.ai-f{display:flex;flex-direction:column;gap:5px;margin-top:8px;min-width:0}
+.ai-f input,.ai-f select{height:34px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);user-select:text;width:100%;min-width:0;box-sizing:border-box;outline:none}
+.ai-f input:focus,.ai-f select:focus{border-color:var(--blue)}
+.ai-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.ai-acts .btn{flex:0 1 auto}
+.ai-free{display:none;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--mist);color:var(--blue);border:1px solid var(--line-2);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.ai-free.on{display:inline-block}
+.ai-res{margin-top:8px;min-height:18px}
+.ai-res.ok{color:var(--blue)}
+.ai-sub{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+/* /FEATURE */

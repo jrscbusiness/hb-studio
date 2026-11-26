@@ -1,0 +1,36 @@
+    <!-- ===================== PLUGINS ===================== -->
+    <section class="view" id="v-plg">
+      <!-- FEATURE: marketplace -->
+      <div class="mk-top"><div class="seg" id="plg-seg"><button data-s="inst" class="on">INSTALADOS</button><button data-s="mkt">MARKETPLACE</button></div>
+        <span class="note" id="mk-top-note" style="display:none">Extensões da comunidade. Instalar sempre passa pela tela de revisão e consentimento.</span></div>
+      <div class="mk" id="mk">
+        <div class="mk-main">
+          <div class="mk-bar">
+            <input type="text" id="mk-q" placeholder="Buscar por nome, autor ou etiqueta…" aria-label="Buscar no Marketplace">
+            <select id="mk-cat" aria-label="Categoria"><option value="">Todas as categorias</option><option value="theme">Temas</option><option value="video-source">Fontes de vídeo</option><option value="audio-effect">Efeitos de áudio</option><option value="graphic">Gráficos</option><option value="template">Templates</option></select>
+            <button class="btn sm" id="mk-refresh" style="flex:none">ATUALIZAR LISTA</button>
+          </div>
+          <div class="mk-msg" id="mk-msg"></div>
+          <div class="mk-grid" id="mk-grid"></div>
+        </div>
+        <div class="card mk-drawer" id="mk-drawer"><h3><span class="cap">Detalhes</span><button class="icon" id="mk-dx" aria-label="Fechar">✕</button></h3><div class="body" id="mk-dbody"></div></div>
+      </div>
+      <!-- /FEATURE: marketplace -->
+      <div class="plgwrap">
+        <div class="card">
+          <h3><span class="cap">Plugins instalados</span><button class="btn primary sm" id="plg-install" style="flex:none">INSTALAR PLUGIN…</button></h3>
+          <div class="body">
+            <p class="note" style="margin-bottom:12px">Plugins estendem o HB Studio (arquivos <b>.hbplugin</b>): <b>temas</b> mudam a aparência, <b>fontes de vídeo</b> adicionam entradas (placas de captura, protocolos) e <b>efeitos de áudio</b> entram nas faixas do mixer.</p>
+            <div id="plg-list"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Segurança</span></h3>
+          <div class="body">
+            <p class="note"><b>Temas</b> só trocam cores e não executam código.</p>
+            <p class="note" style="margin-top:8px"><b>Plugins de fonte e de efeito</b> são programas nativos: rodam dentro do HB Studio com os mesmos poderes dele. Instale somente de autores em quem você confia. Todo plugin novo (e toda atualização) começa <b>desativado</b>, e a integridade dos arquivos é verificada (SHA-256) antes de cada carregamento.</p>
+            <p class="note" style="margin-top:8px">Pasta dos plugins: <span class="mono" id="plg-dir" style="word-break:break-all">—</span></p>
+          </div>
+        </div>
+      </div>
+    </section>

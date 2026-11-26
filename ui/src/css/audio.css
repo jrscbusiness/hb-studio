@@ -1,0 +1,45 @@
+/* ---------- ÁUDIO ---------- */
+.audwrap{display:grid;grid-template-rows:auto minmax(0,1fr);gap:14px;overflow:auto;padding:2px;min-height:0}
+.strips{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;align-items:stretch}
+.strip{flex:none;width:136px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:10px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:.12s}
+.strip:hover{border-color:var(--blue-2)}
+.strip.sel{border-color:var(--blue);box-shadow:var(--glow)}
+.strip.master{width:150px;background:var(--surface-2)}
+.strip input.nm,.strip select{width:100%;height:28px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font:inherit;font-size:11.5px;padding:0 6px;color:var(--ink);outline:none;user-select:text;min-width:0}
+.strip input.nm{font-weight:700;letter-spacing:.06em;text-align:center}
+.strip select{font-size:10.5px;color:var(--ink-2)}
+.strip .st{font-size:9px;letter-spacing:.12em;font-weight:700;text-align:center;color:var(--muted)}
+.strip .st.online{color:var(--blue)}.strip .st.error{color:#B3261E}.strip .st.nosignal{color:var(--warn-ink)}
+.faderbox{display:flex;gap:8px;justify-content:center;height:150px}
+.meter{width:12px;border-radius:6px;background:var(--mist);position:relative;overflow:hidden;border:1px solid var(--line)}
+.meter i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#E7A317 0,#4F8DFF 18%,#1F6BFF 100%);border-radius:0 0 5px 5px}
+.meter b{position:absolute;left:0;right:0;height:2px;background:var(--navy);bottom:0}
+.meter.clip{border-color:#B3261E}
+.fader{writing-mode:vertical-lr;direction:rtl;width:26px;height:100%;accent-color:var(--blue);margin:0}
+.sdb{font-family:var(--mono);font-size:11px;text-align:center;color:var(--ink-2)}
+.tg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.tg button{height:26px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--ink-2)}
+.tg button:hover{border-color:var(--blue);color:var(--blue)}
+.tg button.on{background:var(--blue);border-color:var(--blue);color:var(--on-accent)}
+.tg button.on.m{background:#B3261E;border-color:#B3261E}
+.tg button.on.s{background:var(--warn);border-color:var(--warn);color:#fff}
+.strip input[type=range].h{width:100%;accent-color:var(--blue);height:18px}
+.strip .lbl{font-size:9px;letter-spacing:.12em;color:var(--muted);font-weight:600;display:flex;justify-content:space-between}
+.fxcard{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:10px 12px;margin-bottom:10px}
+.fxcard.byp{opacity:.55}
+.fxcard .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.fxcard .hd b{flex:1;font-size:13px}
+.fxcard .hd .gr{font-family:var(--mono);font-size:10.5px;color:var(--ink-2)}
+.fxcard .hd button{width:26px;height:26px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font-size:12px;color:var(--ink-2)}
+.fxcard .hd button:hover{border-color:var(--blue);color:var(--blue)}
+.fxcard .hd button.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+.prm{display:grid;grid-template-columns:130px 1fr 74px;gap:10px;align-items:center;font-size:12px;color:var(--ink-2);padding:3px 0}
+.prm input[type=range]{accent-color:var(--blue);height:18px;width:100%}
+.prm select{height:28px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);font:inherit;color:var(--ink);grid-column:span 2}
+.prm .vv{font-family:var(--mono);font-size:11px;text-align:right;color:var(--ink)}
+.addfx{display:flex;gap:8px;align-items:center}
+.addfx select{flex:1;height:34px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);font:inherit;padding:0 8px;color:var(--ink)}
+.audset{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.audset label{display:flex;flex-direction:column;gap:5px;font-size:10.5px;letter-spacing:.08em;color:var(--ink-2);font-weight:600}
+.audset select,.audset input{height:32px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);font:inherit;font-size:12px;padding:0 8px;color:var(--ink);outline:none}
+

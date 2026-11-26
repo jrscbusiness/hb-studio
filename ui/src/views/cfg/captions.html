@@ -1,0 +1,29 @@
+      <!-- FEATURE: captions -->
+      <div class="card" id="cap-card"><h3><span class="cap">Legendas ao vivo</span></h3>
+        <div class="body">
+          <div class="row" style="padding-top:0"><span class="k">Legendas automáticas do áudio do Program</span><span class="v"><button class="btn sm" id="cap-toggle">LIGAR</button></span></div>
+          <div class="capstat"><span class="capdot" id="cap-dot"></span><span id="cap-status">Desligado</span><span style="margin-left:auto;font-family:var(--mono)" id="cap-lat" title="Tempo de reconhecimento + áudio acumulado na fila">— ms</span></div>
+          <div class="capgrid">
+            <label class="f"><span class="cap">Idioma falado</span><select id="cap-lang"></select></label>
+            <label class="f"><span class="cap">Motor</span><select id="cap-engine"><option value="whisper">Local (offline) — whisper.cpp</option><option value="cloud">Nuvem (opcional) — API compatível com OpenAI</option></select></label>
+          </div>
+          <div id="cap-local" style="margin-top:10px"><span class="cap" style="display:block;margin-bottom:6px">Modelo de voz</span><div id="cap-models"></div></div>
+          <div id="cap-cloud" style="display:none">
+            <div class="capgrid">
+              <label class="f"><span class="cap">Endereço base (https)</span><input type="text" id="cap-curl" maxlength="512" placeholder="https://api.openai.com/v1"></label>
+              <label class="f"><span class="cap">Modelo</span><input type="text" id="cap-cmodel" maxlength="100" placeholder="whisper-1"></label>
+            </div>
+            <label class="f" style="margin-top:10px"><span class="cap">Chave da API <span id="cap-keyhint" style="text-transform:none;letter-spacing:0"></span></span><input type="password" id="cap-ckey" maxlength="400" autocomplete="off" placeholder="cole a chave aqui"></label>
+            <p class="note" style="margin-top:8px"><b>Atenção:</b> este motor envia o áudio do Program para o servidor informado. Nem todo provedor oferece transcrição (o OpenRouter, por exemplo, não oferece).</p>
+          </div>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="cap-prof"><span class="box"></span>Filtrar palavrões</label>
+            <label class="chk"><input type="checkbox" id="cap-srt"><span class="box"></span>Salvar .srt da sessão junto às gravações</label>
+          </div>
+          <div id="cap-box" aria-live="polite"></div>
+          <div class="row" style="margin-top:8px;border-bottom:none"><span class="k">Transcrição ao vivo</span><span class="v"><button class="btn sm" id="cap-clear">LIMPAR</button></span></div>
+          <p class="note" id="cap-msg"></p>
+          <p class="note" style="margin-top:6px">As legendas aparecem no PROGRAM pelo elemento “Legendas” em GRÁFICOS. Mudanças de idioma, modelo e filtro valem na próxima vez que ligar. A precisão varia com sotaque, ruído e música; o motor local não envia nada pela internet.</p>
+        </div>
+      </div>
+      <!-- /FEATURE: captions -->

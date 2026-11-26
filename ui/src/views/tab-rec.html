@@ -1,0 +1,58 @@
+    <!-- ===================== GRAVAÇÃO ===================== -->
+    <section class="view" id="v-rec">
+      <div class="recwrap">
+        <div class="card"><h3><span class="cap">Formato de gravação</span></h3>
+          <div class="body">
+            <p class="note" style="margin-bottom:10px">Grava a saída <b>Program</b> (vídeo + áudio do mixer). Somente formatos que funcionam neste computador aparecem aqui.</p>
+            <div id="fmt-video"></div><div id="fmt-audio"></div>
+          </div>
+        </div>
+        <!-- FEATURE: multitrack -->
+        <div class="card" id="mt-card" style="grid-column:1/-1"><h3><span class="cap">Multipista (ISO)</span><button class="btn sm" id="mt-open" style="flex:none">ABRIR PASTA</button></h3>
+          <div class="body">
+            <p class="note">Grava cada câmera (limpa, sem overlays) e cada canal do mixer em arquivos separados, numa pasta por sessão com <b>program</b>, <b>iso\</b>, <b>audio\</b> e <b>session.json</b> (sincronismo). Padrão: nada além do Program.</p>
+            <div class="mt-grid">
+              <div><span class="cap">Câmeras</span><div class="mt-list" id="mt-cams"></div></div>
+              <div><span class="cap">Canais de áudio</span><div class="mt-list" id="mt-chans"></div></div>
+              <div class="mt-set">
+                <label>Resolução<select id="mt-res"><option value="native">Nativa da câmera</option><option value="1080">1080p</option><option value="720">720p</option><option value="540">540p</option></select></label>
+                <label>Quadros/s<select id="mt-fps"><option value="program">Igual ao Program</option><option>24</option><option>25</option><option>30</option><option>50</option><option>60</option></select></label>
+                <label>Formato do áudio<select id="mt-afmt"></select></label>
+                <label>Ponto do áudio<select id="mt-tap"><option value="pre">Antes do fader</option><option value="post">Depois do fader</option></select></label>
+                <label>Vídeo (kbps, 0 = auto)<input type="number" id="mt-vkbps" min="0" max="100000" step="500"></label>
+                <label>Dividir a cada (min, 0 = não)<input type="number" id="mt-rotmin" min="0" max="1440"></label>
+                <label style="grid-column:1/-1;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="mt-expert"> Modo avançado: permitir acima do limite seguro</label>
+              </div>
+            </div>
+            <div class="mt-est" id="mt-est"></div>
+            <div id="mt-tracks" style="margin-top:10px"></div>
+          </div>
+        </div>
+        <!-- /FEATURE: multitrack -->
+        <div class="col">
+          <div class="card"><h3><span class="cap">Gravação</span><button class="recbtn" id="rec-btn2" style="flex:none"><i></i><span>GRAVAR</span></button></h3>
+            <div class="body">
+              <div class="recstat" id="rec-stat"></div>
+              <p class="note" id="rec-err" style="color:#B3261E;margin-top:8px"></p>
+            </div>
+          </div>
+          <div class="card"><h3><span class="cap">Ajustes</span></h3>
+            <div class="body sheet">
+              <div class="grid2">
+                <label class="span2">Pasta de destino<div style="display:flex;gap:8px"><input type="text" id="rc-folder" readonly style="flex:1"><button class="btn sm" id="rc-pick" style="flex:none">ESCOLHER…</button></div></label>
+                <label class="span2">Nome do arquivo<input type="text" id="rc-template" maxlength="100"><em>{date} data · {time} hora · {n} contador. Nunca sobrescreve: acrescenta (2), (3)…</em></label>
+                <label data-for="vk">Taxa de vídeo (kbps)<input type="number" id="rc-videoKbps" min="500" max="100000" step="500"></label>
+                <label data-for="vq">Qualidade JPEG (1–100)<input type="number" id="rc-videoQuality" min="1" max="100"></label>
+                <label data-for="kf">Quadro-chave (s)<input type="number" id="rc-keyframeSec" min="1" max="10"></label>
+                <label data-for="ak">Taxa de áudio (kbps)<select id="rc-audioKbps"><option>96</option><option>128</option><option>160</option><option>192</option><option>256</option><option>320</option></select></label>
+                <label data-for="ar">Amostragem do áudio<select id="rc-audioRate"><option value="44100">44,1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select></label>
+                <label>Dividir a cada (min, 0 = não)<input type="number" id="rc-splitMin" min="0" max="1440"></label>
+                <label>Dividir a cada (MB, 0 = não)<input type="number" id="rc-splitMB" min="0" max="100000"></label>
+                <label>Parar se sobrar menos de (MB)<input type="number" id="rc-minFreeMB" min="50" max="100000"></label>
+              </div>
+              <p class="note" id="rc-note" style="margin-top:10px"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>

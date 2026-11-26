@@ -1,0 +1,113 @@
+<!-- FEATURE: teleprompter - presenter window page. Inert here (template); the Windows host extracts
+     it (src/teleprompter/presenter_page.cpp) and loads it into a second WebView2. It must never
+     contain the literal closing-template tag. Rendering is transform-only (no layout per frame). -->
+<template id="tpPresenterPage"><!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Teleprompter</title>
+<style>
+:root{--fg:#fff;--bg:#000;--fs:64px;--lh:1.4;--mg:8%}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);cursor:none;user-select:none}
+body.cur{cursor:default}
+#stage{position:absolute;inset:0;overflow:hidden}
+#txt{position:absolute;left:var(--mg);right:var(--mg);top:0;will-change:transform;font:600 var(--fs)/var(--lh) "Segoe UI","Segoe UI Variable Display",Arial,sans-serif}
+#txt p{margin:0 0 .7em;white-space:pre-wrap;overflow-wrap:anywhere}
+#mk{position:absolute;left:0;right:0;height:0;border-top:3px solid rgba(255,64,64,.85)}
+#mk::before,#mk::after{content:"";position:absolute;top:-12px;border:11px solid transparent}
+#mk::before{left:0;border-left-color:rgba(255,64,64,.95)}
+#mk::after{right:0;border-right-color:rgba(255,64,64,.95)}
+#bar{position:absolute;left:0;bottom:0;height:5px;width:100%;background:rgba(80,160,255,.9);transform-origin:0 50%;transform:scaleX(0)}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font:700 40vh/1 "Cascadia Mono",Consolas,monospace;color:#fff;background:rgba(0,0,0,.6)}
+#wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 24px "Segoe UI",Arial,sans-serif;opacity:.6}
+/* FEATURE: cloudbackup */
+.cb-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.cb-w2{grid-column:1/-1}
+.cb-f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cb-f input[type=text],.cb-f input[type=password],.cb-f input[type=number],.cb-f select{height:32px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);min-width:0}
+.cb-bar{height:6px;border-radius:4px;background:var(--mist);overflow:hidden;margin:8px 0 4px}
+.cb-bar i{display:block;height:100%;width:0;background:var(--blue)}
+.cb-jobs{display:flex;flex-direction:column;gap:6px;max-height:210px;overflow:auto}
+.cb-job{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--surface);font-size:12px}
+.cb-job .t{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.cb-job .t b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cb-job .e{color:var(--ink-2);margin-top:3px;word-break:break-word}
+.cb-job.error .e{color:var(--red,#d93025)}
+.cb-job .bar{height:5px;border-radius:4px;background:var(--mist);overflow:hidden;margin:5px 0 0}
+.cb-job .bar i{display:block;height:100%;width:0;background:var(--blue)}
+.cb-job.done .bar i{background:var(--green,#1e9e5a)}
+.cb-job button{height:24px;font-size:10px;padding:0 9px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);flex:none}
+/* /FEATURE: cloudbackup */
+</style></head>
+<body>
+<div id="stage"><div id="txt"></div></div>
+<div id="mk"></div><div id="bar"></div><div id="cd"></div><div id="wait">Aguardando o HB Studio…</div>
+<script>
+(() => {
+  const host = window.chrome && window.chrome.webview;
+  const send = m => { if (host) host.postMessage(m); };
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage'), txt = $('#txt'), cdEl = $('#cd'), bar = $('#bar'), mk = $('#mk');
+  let st = null, recv = 0, H = 1, V = 1, mark = 0.35, raf = 0, rt = 0, fs = false, hasText = false;
+  const pos = () => !st ? 0 : st.state === 'playing' ? Math.min(1, st.pos + st.rate * (performance.now() - recv) / 1000) : st.pos;
+  function frame() {
+    cancelAnimationFrame(raf);
+    const p = pos();
+    txt.style.transform = 'translate3d(0,' + (mark * V - p * H).toFixed(2) + 'px,0)';
+    bar.style.transform = 'scaleX(' + p.toFixed(5) + ')';
+    if (st && st.state === 'countdown') {
+      const left = Math.max(0, st.cd - (performance.now() - recv) / 1000);
+      cdEl.style.display = 'flex'; cdEl.textContent = String(Math.max(1, Math.ceil(left)));
+    } else cdEl.style.display = 'none';
+    if (st && (st.state === 'playing' || st.state === 'countdown')) raf = requestAnimationFrame(frame);
+  }
+  function report() {   // layout size for the px/s <-> wpm model; debounced, never per frame
+    clearTimeout(rt);
+    rt = setTimeout(() => send('tp|layout|p|' + Math.round(H) + '|' + Math.round(V)), 150);
+  }
+  function measure() { H = Math.max(1, txt.offsetHeight); V = Math.max(1, innerHeight); report(); frame(); }
+  function applyStyle(s) {
+    const r = document.documentElement.style;
+    r.setProperty('--fg', s.fg); r.setProperty('--bg', s.bg); r.setProperty('--fs', s.font + 'px');
+    r.setProperty('--lh', s.lh); r.setProperty('--mg', s.margin + '%');
+    stage.style.transform = 'scale(' + (s.mirror ? -1 : 1) + ',' + (s.flip ? -1 : 1) + ')';
+    mark = s.markerpos / 100;
+    mk.style.display = s.marker ? 'block' : 'none';
+    mk.style.top = ((s.flip ? 1 - mark : mark) * 100) + '%';   // the stage is flipped, the marker must follow
+    measure();
+  }
+  function build(d) {
+    txt.textContent = '';
+    hasText = false;
+    for (const b of d.blocks || []) {
+      if (b.k !== 'p') continue;   // cues/comments are for the operator only
+      const p = document.createElement('p'); p.textContent = b.t; txt.appendChild(p); hasText = true;
+    }
+    $('#wait').style.display = hasText ? 'none' : 'flex';
+    measure();
+  }
+  function onMsg(m) {
+    let d; try { d = typeof m === 'string' ? JSON.parse(m) : m; } catch (e) { return; }
+    if (!d || typeof d.t !== 'string') return;
+    if (d.t === 'tp') { st = d; recv = performance.now(); frame(); }
+    else if (d.t === 'tpscript') build(d);
+    else if (d.t === 'tpstyle') applyStyle(d);
+  }
+  if (host) host.addEventListener('message', e => onMsg(e.data));
+  window.__tpPresenterMessage = onMsg;   // test hook
+  addEventListener('resize', measure);
+  const toggleFs = () => { fs = !fs; send('tp|presenter|fullscreen'); };
+  addEventListener('dblclick', toggleFs);
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); send('tp|toggle'); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); send('tp|nudge|10'); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); send('tp|nudge|-10'); }
+    else if (e.key === 'Home') { e.preventDefault(); send('tp|restart'); }
+    else if (e.key === 'F11') { e.preventDefault(); toggleFs(); }
+    else if (e.key === 'Escape' && fs) { fs = false; send('tp|presenter|fullscreen'); }
+  });
+  let ct = 0;
+  addEventListener('mousemove', () => { document.body.classList.add('cur'); clearTimeout(ct); ct = setTimeout(() => document.body.classList.remove('cur'), 2000); });
+  send('tp|hello');
+})();
+</script>
+</body></html>
+</template>
+<!-- /FEATURE -->

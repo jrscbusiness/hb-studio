@@ -1,0 +1,106 @@
+    <!-- ===================== PRODUÇÃO ===================== -->
+    <section class="view on" id="v-prod">
+      <div class="stage">
+        <div class="monitors">
+          <div class="card mon pvw">
+            <div class="top"><div class="tag pvw"><span class="dot"></span>PREVIEW</div><span class="tc" id="pvw-name">—</span></div>
+            <div class="screen"><canvas id="cv-pvw" width="640" height="360"></canvas>
+              <div class="hud"><span>1920×1080</span><span id="pvw-hud">PRÓXIMA</span></div></div>
+          </div>
+          <div class="card mon pgm">
+            <div class="top"><div class="tag pgm"><span class="dot on"></span>PROGRAM</div>
+              <span class="tc" id="tc">00:00:00:00</span>
+              <button class="icon" id="pgm-fs" title="Tela cheia (ou duplo clique na imagem)">⛶</button></div>
+            <div class="screen"><canvas id="cv-pgm" width="640" height="360"></canvas>
+              <div class="name" id="pgm-name">—</div>
+              <div class="hud"><span id="pgm-res">1920×1080 · 30 fps</span><span>NO AR</span></div></div>
+          </div>
+        </div>
+
+        <div class="card switch">
+          <div class="bus">
+            <div class="busrow"><span class="cap">Program</span><div class="keys" id="bus-pgm"></div></div>
+            <div class="busrow"><span class="cap">Preview</span><div class="keys" id="bus-pvw"></div></div>
+          </div>
+          <div class="trans">
+            <div class="btnrow">
+              <button class="btn" id="b-cut">CUT <kbd>ESPAÇO</kbd></button>
+              <button class="btn primary" id="b-dis">DISSOLVE <kbd>ENTER</kbd></button>
+            </div>
+            <div class="dur"><span class="cap" style="width:62px">Duração</span>
+              <div class="seg" id="dur"><button data-ms="250">250</button><button data-ms="500" class="on">500</button><button data-ms="1000">1000</button><button data-ms="2000">2000</button></div>
+            </div>
+            <div class="tbarrow"><span class="cap" style="width:62px">T-bar</span><input type="range" id="tbar" min="0" max="1000" step="1" value="0" aria-label="Misturar manualmente entre PREVIEW e PROGRAM"></div>
+          </div>
+        </div>
+
+        <div class="card inputs">
+          <h3><span class="cap">Entradas</span><span class="cap mono" id="in-count">16 / 16</span><!-- FEATURE: scenes --><button class="btn sm" id="sc-open" title="Templates prontos: culto, aula, podcast, evento">TEMPLATES</button><!-- /FEATURE --></h3>
+          <div class="inputsrow">
+            <div class="bankbar">
+              <button class="bankbtn on" data-bank="0" title="Fileira 1 (CAM 1–8) — teclado e botões de PROGRAM/PREVIEW"></button>
+              <button class="bankbtn" data-bank="1" title="Fileira 2 (CAM 9–16) — teclado e botões de PROGRAM/PREVIEW"></button>
+              <!-- FEATURE: scenes -->
+              <button class="bankbtn scn" data-bank="2" title="CENAS 1–8 — layouts com várias câmeras (teclado e botões de PROGRAM/PREVIEW)"></button>
+              <button class="bankbtn scn" data-bank="3" title="CENAS 9–16"></button>
+              <!-- /FEATURE -->
+            </div>
+            <div class="tiles" id="tiles"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card" id="ptz">
+          <h3><span class="cap">PTZ</span><span class="cap" id="ptz-state" style="color:var(--blue-2)">sem câmera</span>
+            <button class="icon" id="ptz-cfg" title="Configurar PTZ desta câmera">⚙</button></h3>
+          <div class="body">
+            <div class="ptzcams" id="ptz-cams"></div>
+            <label class="follow"><input type="checkbox" id="ptz-follow" checked><span class="box"></span>Seguir o Preview</label>
+            <div class="ctl">
+              <div class="dpad">
+                <span></span><button data-d="up">▲</button><span></span>
+                <button data-d="left">◀</button><button data-d="stop" class="stopb">■</button><button data-d="right">▶</button>
+                <span></span><button data-d="down">▼</button><span></span>
+              </div>
+              <div class="zf">
+                <div class="zrow"><span class="cap">Zoom</span><button data-z="out">−</button><button data-z="in">+</button></div>
+                <div class="zrow"><span class="cap">Foco</span><button data-f="near">−</button><button data-f="far">+</button></div>
+                <div class="zrow"><span class="cap">Auto</span><button data-f="auto" class="wide">AF</button></div>
+              </div>
+            </div>
+            <div class="cap" style="margin:14px 0 6px">Presets</div>
+            <div class="seg" id="ptz-mode"><button data-m="go" class="on">IR PARA</button><button data-m="save">SALVAR</button><button data-m="edit">EDITAR</button></div>
+            <div class="presets" id="presets"></div>
+            <p class="note" id="ptz-note" style="margin-top:10px"></p>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Saída · Câmera virtual</span></h3>
+          <div class="body">
+            <div class="status"><span class="dot" id="v-dot"></span><b id="v-title">—</b></div>
+            <p class="note" id="v-note"></p>
+            <div style="height:12px"></div>
+            <button class="btn primary wide sm" id="v-main" style="flex:none"></button>
+            <div style="height:8px"></div>
+            <button class="btn wide sm" id="v-sec" style="display:none"></button>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Sistema</span></h3>
+          <div class="body">
+            <div class="row"><span class="k">Perfil do computador</span><span class="tier" id="s-tier">—</span></div>
+            <div class="row"><span class="k">Processador</span><span class="v" id="s-cores">—</span></div>
+            <div class="row"><span class="k">Memória</span><span class="v" id="s-ram">—</span></div>
+            <div class="row"><span class="k">Program</span><span class="v" id="s-fps">—</span></div>
+            <div class="meter"><i id="s-meter"></i></div>
+            <div class="row" style="margin-top:6px"><span class="k">Quadros pulados</span><span class="v" id="s-skip">0</span></div>
+            <div class="row"><span class="k">Câmera virtual</span><span class="v" id="s-vsent">0 quadros</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="cap">Registro</span></h3>
+          <div class="body"><div class="log" id="log"></div></div>
+        </div>
+      </div>
+    </section>

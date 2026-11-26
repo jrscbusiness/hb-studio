@@ -1,0 +1,31 @@
+  <!-- FEATURE: chroma -->
+  <div class="chr" id="chr">
+    <h3>FUNDO</h3>
+    <div class="grid2">
+      <label>Remoção de fundo<select id="chr-mode">
+        <option value="off">Desligado</option><option value="green">Chroma verde</option>
+        <option value="blue">Chroma azul</option><option value="ai" id="chr-ai-opt">IA (sem tela verde)</option></select></label>
+      <label>Substituir por<select id="chr-repl">
+        <option value="color">Cor sólida</option><option value="blur">Desfoque do próprio fundo</option>
+        <option value="image">Imagem</option><option value="transparent">Transparente (para cenas)</option></select></label>
+      <label id="chr-tol-l">Tolerância<input type="range" id="chr-tol" min="0" max="100"></label>
+      <label id="chr-soft-l">Suavidade da borda<input type="range" id="chr-soft" min="0" max="100"></label>
+      <label id="chr-spill-l">Reflexo verde/azul na pele<input type="range" id="chr-spill" min="0" max="100"></label>
+      <label id="chr-q-l">Qualidade da IA<select id="chr-q"><option value="low">Baixa (leve)</option><option value="med">Média</option><option value="high">Alta (pesada)</option></select></label>
+      <label id="chr-color-l">Cor do fundo<input type="color" id="chr-color" value="#101010"></label>
+      <label id="chr-blur-l">Intensidade do desfoque<input type="range" id="chr-blur" min="0" max="100"></label>
+      <label id="chr-img-l">Imagem de fundo<span class="row"><button class="btn sm" id="chr-img" type="button">ESCOLHER…</button><em id="chr-imgname">nenhuma</em></span></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <canvas id="chr-prev" width="160" height="90"></canvas>
+      <div style="flex:1;min-width:0">
+        <p class="note" id="chr-hint">Prévia ao vivo do resultado (xadrez = transparente). Se recortar a pessoa, aumente a tolerância; se sobrar fundo, diminua.</p>
+        <p class="note" id="chr-model"></p>
+        <div class="bar" id="chr-bar" style="display:none"><i id="chr-bari"></i></div>
+        <div class="row"><button class="btn sm" id="chr-dl" type="button" style="display:none">BAIXAR MODELO</button>
+          <button class="btn sm" id="chr-cancel" type="button" style="display:none">CANCELAR DOWNLOAD</button></div>
+        <p class="note err" id="chr-warn" style="display:none"></p>
+      </div>
+    </div>
+  </div>
+  <!-- /FEATURE: chroma -->

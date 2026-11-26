@@ -1,0 +1,37 @@
+/* ---------- right cards ---------- */
+.row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border-bottom:0}
+.row .k{color:var(--ink-2)}
+.row .v{font-family:var(--mono);font-weight:600}
+.tier{font-family:var(--mono);font-weight:700;color:var(--blue);background:var(--mist);padding:2px 9px;border-radius:999px;font-size:11px}
+.meter{height:5px;background:var(--mist);border-radius:5px;margin-top:6px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue-2),var(--blue));transition:width .3s}
+.note{color:var(--ink-2);line-height:1.5;font-size:12px}
+.note.err{color:var(--warn-ink)}
+.status{display:flex;align-items:center;gap:10px;margin:2px 0 12px}
+.status b{letter-spacing:.14em;font-size:12px}
+.log{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);line-height:1.55;max-height:130px;overflow:hidden}
+.log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log .w{color:var(--warn-ink)}.log .e{color:#B3261E}
+.logbig{max-height:320px;overflow-y:auto}
+.logbig div{white-space:pre-wrap;overflow:visible;text-overflow:unset}
+.ptz{display:grid;grid-template-columns:repeat(3,28px);gap:4px;opacity:.5}
+.ptzrow{display:flex;gap:16px;align-items:center}
+.ptz span{height:28px;border-radius:10px;border:1px solid var(--line-2);display:grid;place-items:center;color:var(--ink-2);font-size:13px;background:var(--surface)}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--sky);border-top-color:var(--blue);animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ---------- other views ---------- */
+.empty{margin:auto;max-width:520px;text-align:center;padding:40px}
+.empty svg{width:96px;height:96px;margin-bottom:18px}
+.empty h2{font-size:18px;letter-spacing:.06em;margin-bottom:8px}
+.empty p{color:var(--ink-2);line-height:1.6}
+.phase{display:inline-block;margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--blue);background:var(--mist);padding:4px 12px;border-radius:999px}
+#v-cfg{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-content:start;align-items:start;
+  overflow-y:auto;overflow-x:hidden;min-height:0;padding:0 8px 24px 0}   /* many config cards now: the tab must scroll, the page itself never does */
+
+footer{display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-top:1px solid var(--line);color:var(--muted);font-size:10.5px;letter-spacing:.08em;background:var(--glass)}
+footer span b{color:var(--ink-2);font-family:var(--mono);font-weight:600}
+#toast{position:fixed;left:50%;bottom:44px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:12px;font-size:12px;transition:.25s;pointer-events:none;box-shadow:0 12px 40px rgba(10,30,71,.35)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+

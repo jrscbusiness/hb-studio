@@ -1,0 +1,36 @@
+<div id="modal4" class="modal"><div class="sheet" style="width:560px">
+  <div class="sh-head"><div><span class="cap">Destino de transmissão</span><h2 id="xm-title">Novo destino</h2></div><button class="icon" id="xm-x">✕</button></div>
+  <div class="grid2">
+    <label>Nome<input id="xm-name" maxlength="64" placeholder="Ex.: YouTube — culto de domingo"></label>
+    <label>Plataforma<select id="xm-platform">
+      <option value="youtube">YouTube</option>
+      <option value="twitch">Twitch</option>
+      <option value="facebook">Facebook</option>
+      <option value="kick">Kick</option>
+      <option value="vimeo">Vimeo</option>
+      <option value="linkedin">LinkedIn</option>
+      <option value="x">X (Twitter)</option>
+      <option value="custom">Personalizado / servidor RTMP próprio</option>
+    </select></label>
+    <label>Protocolo<select id="xm-protocol"><option value="rtmp">RTMP</option><option value="rtmps">RTMPS</option><option value="srt">SRT</option></select></label>
+    <label style="grid-column:1/-1">Endereço do servidor<input id="xm-server" placeholder="rtmp://..." spellcheck="false"></label>
+    <label style="grid-column:1/-1">Chave de transmissão<input id="xm-key" type="password" placeholder="Cole aqui a chave da sua conta nesta plataforma" spellcheck="false" autocomplete="off"></label>
+    <label>Bitrate de vídeo (kbps)<input id="xm-vkbps" type="number" min="300" max="60000" step="100"></label>
+    <label>Bitrate de áudio (kbps)<input id="xm-akbps" type="number" min="32" max="512" step="8"></label>
+    <label style="grid-column:1/-1">Codificador<select id="xm-encoder">
+      <option value="auto">Automático (recomendado)</option>
+      <option value="x264">Software (x264)</option>
+      <option value="nvenc">NVIDIA NVENC</option>
+      <option value="qsv">Intel Quick Sync</option>
+      <option value="amf">AMD AMF</option>
+    </select></label>
+  </div>
+  <label class="chk" style="margin-top:4px"><input type="checkbox" id="xm-ownformat"><span class="box"></span>Usar resolução/fps própria para este destino, em vez de seguir o Program</label>
+  <div class="grid2" id="xm-ownformat-fields" style="display:none;margin-top:8px">
+    <label>Largura<input id="xm-w" type="number" min="160" max="7680"></label>
+    <label>Altura<input id="xm-h" type="number" min="90" max="4320"></label>
+    <label>FPS<input id="xm-fps" type="number" min="1" max="240"></label>
+  </div>
+  <p class="note" id="xm-note" style="margin-top:10px"></p>
+  <div class="sh-foot"><span style="flex:1"></span><button class="btn sm" id="xm-cancel">CANCELAR</button><button class="btn primary sm" id="xm-save" style="flex:none">SALVAR</button></div>
+</div></div>

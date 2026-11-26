@@ -1,0 +1,25 @@
+/* FEATURE: scenes */
+.tiles.scenes .tile:not(.scene),.tiles:not(.scenes) .tile.scene{display:none}
+.tile.scene.sc-empty{opacity:.5;border-style:dashed}
+.tile.scene.sc-empty .lb b{color:#BFD6FF}
+.bankbtn.scn.on{background:linear-gradient(180deg,#B06BFF,#7A3CE0);border-color:#7A3CE0}
+.bankbtn.scn:hover{border-color:#B06BFF}
+.sc-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.sc-tabs button{height:30px;padding:0 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:12px;font-weight:600}
+.sc-tabs button.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.sc-card{border:1px solid var(--line-2);border-radius:12px;padding:8px;cursor:pointer;background:var(--surface-2,var(--surface));display:flex;flex-direction:column;gap:6px;text-align:left}
+.sc-card:hover,.sc-card:focus-visible{border-color:var(--blue);outline:none}
+.sc-card canvas,.sc-row canvas{width:100%;aspect-ratio:16/9;border-radius:8px;display:block;background:#000}
+.sc-card b{font-size:13px;color:var(--ink)}.sc-card em{font-style:normal;font-size:11px;color:var(--muted);line-height:1.35}
+.sc-card .mini{display:flex;gap:4px}.sc-card .mini canvas{flex:1;min-width:0}
+.sc-map{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.sc-row{display:flex;gap:10px;align-items:center;padding:6px 0}
+.sc-row canvas{width:96px;flex:none}
+.sc-edit{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+#sc-cv{width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;touch-action:none;display:block}
+.sc-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.sc-layers{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.sc-layers button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font-size:11.5px;color:var(--ink-2)}
+.sc-layers button.on{background:var(--blue);color:var(--on-accent);border-color:var(--blue)}
+/* /FEATURE */

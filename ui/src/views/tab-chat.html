@@ -1,0 +1,32 @@
+    <!-- FEATURE: chat -->
+    <section class="view" id="v-chat">
+      <div class="chatwrap" id="chat-wrap">
+        <div class="card chatmain">
+          <h3><span class="cap">Chat unificado</span><span class="cap mono" id="chat-count">0 mensagens</span></h3>
+          <div class="body">
+            <div class="chat-tools">
+              <button class="btn sm" id="chat-pause" title="Pausar a rolagem automática">PAUSAR ROLAGEM</button>
+              <button class="btn sm" id="chat-compact" title="Modo compacto: esconde o painel de conexões">COMPACTO</button>
+              <button class="btn sm" id="chat-unpin" title="Tira a mensagem destacada da transmissão">LIMPAR DESTAQUE</button>
+              <button class="btn sm" id="chat-clear" title="Limpa a lista (não apaga nada nas plataformas)">LIMPAR LISTA</button>
+            </div>
+            <div class="chat-filters" id="chat-filters">
+              <button class="cchip p-youtube" data-p="youtube">YOUTUBE</button>
+              <button class="cchip p-facebook" data-p="facebook">FACEBOOK</button>
+              <button class="cchip p-instagram" data-p="instagram">INSTAGRAM</button>
+              <button class="cchip p-twitch" data-p="twitch">TWITCH</button>
+              <label><input type="checkbox" id="chat-hidecmd">ocultar comandos</label>
+              <label><input type="checkbox" id="chat-hidebot">ocultar bots</label>
+              <input type="text" id="chat-search" placeholder="Buscar autor ou texto" aria-label="Buscar no chat" maxlength="80">
+            </div>
+            <div id="chat-feed" role="log" aria-live="off"></div>
+            <div class="chat-hint">Clique em uma mensagem para destacá-la no ar (precisa de um elemento “Chat fixado” em GRÁFICOS). Silenciar um usuário só vale aqui, não nas plataformas.</div>
+          </div>
+        </div>
+        <div class="card chatside">
+          <h3><span class="cap">Conexões</span></h3>
+          <div class="body" id="chat-plats"></div>
+        </div>
+      </div>
+    </section>
+    <!-- /FEATURE: chat -->

@@ -1,0 +1,26 @@
+/* ---------- inputs ---------- */
+/* .inputs's row (see .stage) already has a definite height; h3 keeps its natural height and
+   .inputsrow flexes to fill the rest, so the 2 tile rows always fit without needing to scroll -
+   unlike the monitors above, tile height here comes straight from its grid row (not aspect-ratio),
+   since 16 small thumbnails tolerate a slightly-off aspect far better than losing part of the row. */
+.inputs{display:flex;flex-direction:column;min-height:0}
+.inputs h3{flex:none}
+.inputsrow{display:flex;flex:1;min-height:0;gap:10px;padding:10px 14px 14px;align-items:stretch}
+.bankbar{display:flex;flex-direction:column;gap:10px;width:18px;flex:none}
+.bankbtn{flex:1;border-radius:7px;background:var(--surface);border:1px solid var(--line-2);cursor:pointer;padding:0;transition:.12s}
+.bankbtn:hover{border-color:var(--blue-2)}
+.bankbtn.on{background:linear-gradient(180deg,#3C86FF,#1F6BFF);border-color:var(--blue);box-shadow:var(--glow)}
+.tiles{flex:1;min-height:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:10px}
+.tile.offbank{opacity:.55}
+.tile.off{opacity:.45}
+.tile{position:relative;border-radius:10px;overflow:hidden;background:var(--navy);min-height:0;
+  border:2px solid transparent;transition:.15s;cursor:pointer}
+.tile canvas{width:100%;height:100%;display:block}
+.tile:hover{border-color:var(--sky)}
+.tile .lb{position:absolute;left:6px;bottom:5px;display:flex;gap:5px;align-items:center}
+.tile .lb b{white-space:nowrap;font-family:var(--mono);font-size:9.5px;color:#fff;background:rgba(7,18,43,.62);padding:2px 6px;border-radius:5px;backdrop-filter:blur(4px)}
+.tile .lb em.bad{background:#B07A00;color:#FFF3D6}
+.tile .lb em{font-style:normal;font-size:7px;letter-spacing:.14em;color:#BFD6FF;background:rgba(31,107,255,.45);padding:2px 5px;border-radius:4px}
+.tile.pvw{border-color:var(--blue-2);box-shadow:0 0 0 3px rgba(79,141,255,.22)}
+.tile.pgm{border-color:var(--blue);box-shadow:var(--glow)}
+.tile .tally{position:absolute;right:6px;top:6px;font-size:8.5px;letter-spacing:.14em;font-weight:700;padding:2px 6px;border-radius:4px;display:none}

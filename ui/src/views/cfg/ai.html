@@ -1,0 +1,32 @@
+      <!-- FEATURE: ai -->
+      <div class="card" id="ai-card"><h3><span class="cap">Inteligência Artificial</span></h3>
+        <div class="body">
+          <p class="note">Opcional. Cole a chave de API da IA que você quiser usar — há opções <b>grátis</b> pelo OpenRouter (modelos “:free”) e pelo 9router (programa local). A chave fica criptografada neste computador e nunca é mostrada de volta. Nada é enviado à IA enquanto você não usar uma ferramenta de IA.</p>
+          <label class="ai-f"><span class="cap">Provedores salvos</span><select id="ai-sel"></select></label>
+          <label class="ai-f"><span class="cap">Tipo</span><select id="ai-kind">
+            <option value="openrouter">OpenRouter (tem modelos grátis)</option>
+            <option value="9router">9router (local, sem custo)</option>
+            <option value="custom">Personalizado (OpenAI, Groq, Ollama, LM Studio…)</option></select></label>
+          <label class="ai-f"><span class="cap">Endereço base da API</span><input type="text" id="ai-url" maxlength="256" spellcheck="false" autocomplete="off"></label>
+          <label class="ai-f"><span class="cap">Chave de API (somente escrita)</span><input type="password" id="ai-key" maxlength="512" spellcheck="false" autocomplete="new-password"></label>
+          <label class="ai-f"><span class="cap">Modelo <span class="ai-free" id="ai-free">grátis</span></span><input type="text" id="ai-model" maxlength="200" spellcheck="false" autocomplete="off" list="ai-models-dl" placeholder="ex.: meta-llama/llama-3.3-70b-instruct:free"></label>
+          <datalist id="ai-models-dl"></datalist>
+          <label class="ai-f" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="ai-onlyfree" style="width:auto;height:auto"><span class="note">Mostrar só modelos grátis na lista</span></label>
+          <div class="ai-acts">
+            <button class="btn sm" id="ai-models-btn">BUSCAR MODELOS</button>
+            <button class="btn sm" id="ai-test-btn">TESTAR CONEXÃO</button>
+            <button class="btn sm primary" id="ai-save-btn" style="flex:0 1 auto">SALVAR</button>
+            <button class="btn sm" id="ai-act-btn">ATIVAR</button>
+            <button class="btn sm" id="ai-del-btn">REMOVER</button>
+          </div>
+          <p class="note ai-res" id="ai-res" aria-live="polite"></p>
+          <p class="note" id="ai-active-note"></p>
+          <div class="ai-sub">
+            <span class="cap">Assistente (opcional): sugerir título e descrição da live</span>
+            <label class="ai-f"><input type="text" id="ai-topic" maxlength="1000" placeholder="Assunto da transmissão, ex.: culto de domingo com a banda convidada"></label>
+            <div class="ai-acts"><button class="btn sm" id="ai-sug-btn">SUGERIR</button></div>
+            <label class="ai-f"><span class="cap">Título sugerido</span><input type="text" id="ai-sug-title" readonly></label>
+            <label class="ai-f"><span class="cap">Descrição sugerida</span><input type="text" id="ai-sug-desc" readonly></label>
+            <div class="ai-acts"><button class="btn sm" id="ai-copy-title">COPIAR TÍTULO</button><button class="btn sm" id="ai-copy-desc">COPIAR DESCRIÇÃO</button></div>
+            <p class="note ai-res" id="ai-sug-res" aria-live="polite"></p>
+          </div>

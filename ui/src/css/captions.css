@@ -1,0 +1,16 @@
+/* FEATURE: captions */
+#cap-card .capgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:10px}
+#cap-card label.f{display:flex;flex-direction:column;gap:5px;min-width:0}
+#cap-card select,#cap-card input[type=text],#cap-card input[type=password]{height:34px;width:100%;min-width:0;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);padding:0 10px;font:inherit;color:var(--ink);outline:none;user-select:text}
+#cap-card .capstat{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--ink-2)}
+#cap-card .capdot{width:9px;height:9px;border-radius:50%;background:var(--line-2);flex:none}
+#cap-card .capdot.loading{background:#E0A100}#cap-card .capdot.listening{background:#1FA45B}#cap-card .capdot.error{background:#D13B30}
+#cap-card .capmodel{align-items:center}
+#cap-card .capmodel .grow{min-width:0;flex:1}
+#cap-card .capbar{height:6px;border-radius:4px;background:var(--mist);border:1px solid var(--line-2);margin-top:6px;overflow:hidden}
+#cap-card .capbar i{display:block;height:100%;width:0;background:var(--blue)}
+#cap-card .checks{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px}
+#cap-box{margin-top:10px;height:112px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:8px 10px;font-size:13px;line-height:1.45;user-select:text}
+#cap-box div{margin-bottom:3px}
+#cap-box .cp{color:var(--muted);font-style:italic}
+/* /FEATURE: captions */

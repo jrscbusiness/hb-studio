@@ -1,0 +1,3 @@
+.tile.pgm .tally{display:block;background:var(--blue);color:var(--on-accent)}
+.tile.pvw:not(.pgm) .tally{display:block;background:var(--surface);color:var(--blue)}
+

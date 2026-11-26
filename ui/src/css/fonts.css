@@ -1,0 +1,4 @@
+/* Tema "OBS": palette = OBS Studio's own Yami theme (frontend/data/themes/Yami.obt, GPL-2.0 project; only
+   colour values are reused) and its UI font, Open Sans (SIL OFL 1.1, latin subset, embedded so it works offline). */
+@font-face{font-family:"Open Sans";font-weight:400;font-style:normal;font-display:swap;src:url(data:font/woff2;base64,@base64(fonts/OpenSans-400.woff2)) format("woff2")}
+@font-face{font-family:"Open Sans";font-weight:600;font-style:normal;font-display:swap;src:url(data:font/woff2;base64,@base64(fonts/OpenSans-600.woff2)) format("woff2")}

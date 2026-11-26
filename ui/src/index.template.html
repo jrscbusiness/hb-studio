@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HB Studio</title>
+<style>
+<!-- @include css/theme.css -->
+<!-- @include css/fonts.css -->
+<!-- @include css/theme-obs.css -->
+<!-- @include css/layout.css -->
+<!-- @include css/inputs.css -->
+<!-- @include css/scenes.css -->
+<!-- @include css/tally.css -->
+<!-- @include css/monitors.css -->
+<!-- @include css/switcher.css -->
+<!-- @include css/cards.css -->
+<!-- @include css/ptz.css -->
+<!-- @include css/chroma.css -->
+<!-- @include css/cameras.css -->
+<!-- @include css/plugins.css -->
+<!-- @include css/audio.css -->
+<!-- @include css/xmit.css -->
+<!-- @include css/rec.css -->
+<!-- @include css/multitrack.css -->
+<!-- @include css/ai.css -->
+<!-- @include css/teleprompter.css -->
+<!-- @include css/captions.css -->
+<!-- @include css/overlays.css -->
+<!-- @include css/marketplace.css -->
+<!-- @include css/chat.css -->
+</style>
+</head>
+<body>
+<div class="app">
+<!-- @include views/header.html -->
+
+  <main>
+<!-- @include views/tab-xmit.html -->
+
+<!-- @include views/tab-gfx.html -->
+
+<!-- @include views/tab-prod.html -->
+
+<!-- @include views/tab-cam.html -->
+
+<!-- @include views/tab-chat.html -->
+
+<!-- @include views/tab-tp.html -->
+
+
+<!-- @include views/tab-aud.html -->
+
+<!-- @include views/tab-rec.html -->
+
+<!-- @include views/tab-plg.html -->
+
+<!-- @include views/tab-cfg.html -->
+  </main>
+
+  <footer>
+    <span>ATALHOS · <b>1–8</b> preview · <b>⇧ 1–8</b> program direto · <b>ESPAÇO</b> cut · <b>ENTER</b> dissolve</span>
+    <span>HB STUDIO <b id="ver">—</b> · fontes de vídeo: <b id="foot-src">TESTE</b></span>
+  </footer>
+</div>
+<!-- @include views/modal-ptz.html -->
+<!-- @include views/modal-preset-name.html -->
+<!-- @include views/modal-camera-settings.html -->
+<!-- @include views/modal-plugin-review.html -->
+<!-- @include views/modal-xmit-dest.html -->
+<!-- @include views/modal-overlay-edit.html -->
+<!-- @include views/menu-tile.html -->
+<!-- @include views/scenes-dialogs.html -->
+<!-- @include views/tp-presenter-page.html -->
+<div id="toast"></div>
+
+<script>
+(() => {
+<!-- @include js/core.js -->
+<!-- @include js/ptz.js -->
+<!-- @include js/camera-devices.js -->
+<!-- @include js/camera-settings.js -->
+<!-- @include js/chroma.js -->
+<!-- @include js/tile-menu.js -->
+<!-- @include js/theme.js -->
+<!-- @include js/plugins.js -->
+<!-- @include js/darkmode.js -->
+<!-- @include js/outputs.js -->
+<!-- @include js/config-formats.js -->
+<!-- @include js/config-previewq.js -->
+<!-- @include js/xmit.js -->
+<!-- @include js/frames-state.js -->
+<!-- @include js/audio.js -->
+<!-- @include js/rec.js -->
+<!-- @include js/multitrack.js -->
+<!-- @include js/rec-actions.js -->
+<!-- @include js/ai.js -->
+<!-- @include js/scenes.js -->
+<!-- @include js/teleprompter.js -->
+<!-- @include js/overlays.js -->
+<!-- @include js/marketplace.js -->
+<!-- @include js/chat.js -->
+<!-- @include js/cloudbackup.js -->
+<!-- @include js/captions.js -->
+<!-- @include js/dispatch.js -->
+})();
+</script>
+</body>
+</html>
