@@ -15,8 +15,8 @@ list() {
 if [ "${1:-}" = "--wait" ]; then
   sha="$(git rev-parse HEAD)"
   for _ in $(seq 1 120); do                       # up to ~60 min, polling every 30 s
-    row="$(gh run list --branch "$BR" --limit 15 --json headSha,status,conclusion,databaseId,displayTitle \
-      --jq ".[] | select(.headSha==\"$sha\") | \"\(.databaseId) \(.status) \(.conclusion // \"-\") \(.displayTitle[0:50])\"" 2>/dev/null | head -1)"
+    row="$(gh run list --branch "$BR" --limit 15 --json headSha,status,conclusion,databaseId,displayTitle,workflowName \
+      --jq ".[] | select(.headSha==\"$sha\" and .workflowName==\"${WORKFLOW:-ci}\") | \"\(.databaseId) \(.status) \(.conclusion // \"-\") \(.displayTitle[0:50])\"" 2>/dev/null | head -1)"
     if [ -n "$row" ]; then
       set -- $row
       id="$1"; status="$2"; concl="$3"
