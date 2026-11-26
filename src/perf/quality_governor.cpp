@@ -66,7 +66,7 @@ int QualityGovernor::update(const GovernorSample& s, double nowSec) {
         haveSample_ = true;
         lastSkipped_ = s.skipped;
         lastEvalSec_ = nowSec;
-        lastChangeSec_ = nowSec;
+        lastChangeSec_ = nowSec - cfg_.stepDownCooldownSec;   // nothing to cool down from yet
         return level_;
     }
     if (nowSec - lastEvalSec_ < cfg_.minSampleSec) return level_;

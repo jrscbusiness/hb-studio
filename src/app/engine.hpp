@@ -46,6 +46,9 @@ public:
     // false if `id` doesn't match any preset in previewQualityPresets(); true and applied (takes
     // effect on the very next UI frame - no restart needed, unlike the Program Output resolution).
     bool setPreviewQuality(const std::string& id);
+    // FEATURE: perf - index form used by the QualityGovernor (0 = lightest). Out of range: false, unchanged.
+    int previewQualityIndex() const { return previewQualityIndex_.load(); }
+    bool setPreviewQualityIndex(int i);
 
     struct Snapshot {
         switcher::Switcher::State sw;

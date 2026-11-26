@@ -34,6 +34,13 @@ bool Engine::setPreviewQuality(const std::string& id) {
     return false;
 }
 
+// FEATURE: perf
+bool Engine::setPreviewQualityIndex(int i) {
+    if (i < 0 || static_cast<std::size_t>(i) >= previewQualityPresets().size()) return false;
+    previewQualityIndex_.store(i);
+    return true;
+}
+
 Engine::Engine(video::ProgramFormat format) {
     log_ = std::make_shared<core::MemorySink>(500);
     logger_.addSink(log_);
