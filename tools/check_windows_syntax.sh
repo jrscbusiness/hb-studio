@@ -50,7 +50,6 @@ FILES=(
   src/discovery/udp_socket_win.cpp
   src/marketplace/downloader_win.cpp
   src/ndi/ndi_backend_win.cpp
-  src/onvif/http_client_win.cpp
   src/overlay/windows/gdi_glyphs.cpp
   src/ptz/udp_transport_win.cpp
   src/recording/windows/mf_writers.cpp

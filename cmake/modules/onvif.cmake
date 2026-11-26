@@ -21,12 +21,9 @@ add_library(hb_onvif STATIC
   src/onvif/parsers.cpp
   src/onvif/onvif_client.cpp
   src/onvif/http_client_posix.cpp
-  src/onvif/http_client_win.cpp)
+  src/onvif/net_adapter.cpp)
 target_include_directories(hb_onvif PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(hb_onvif PUBLIC hb_core pugixml::pugixml)
-if(WIN32)
-  target_link_libraries(hb_onvif PUBLIC winhttp)
-endif()
+target_link_libraries(hb_onvif PUBLIC hb_core hb_net pugixml::pugixml)
 
 add_library(hb_discovery STATIC
   src/discovery/ws_discovery.cpp
@@ -53,6 +50,7 @@ if(HB_BUILD_TESTS)
     tests/onvif_soap_test.cpp
     tests/onvif_parsers_test.cpp
     tests/onvif_client_test.cpp
+    tests/onvif_net_adapter_test.cpp
     tests/discovery_ws_test.cpp
     tests/discovery_engine_test.cpp)
   target_link_libraries(hb_onvif_tests PRIVATE hb_discovery GTest::gtest_main)
