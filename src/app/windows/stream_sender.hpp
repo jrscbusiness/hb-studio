@@ -11,10 +11,11 @@
 
 #include "app/stream_destinations.hpp"
 #include "audio_io/audio_engine.hpp"
+#include "streaming/stream_stats.hpp"
 #include "streaming/windows/mf_encoder.hpp"
 #include "video/program_output.hpp"
 
-// Drives one outbound RTMP connection for one StreamDestination: taps the Program video/audio
+// Drives one outbound RTMP(S) connection (with automatic reconnect/backoff and optional adaptive bitrate) for one StreamDestination: taps the Program video/audio
 // (same addConsumer()/addProgramConsumer() pattern rec::Recorder already uses), encodes it, and
 // publishes it. Runs entirely on its own thread, started by start() and torn down by stop()/the
 // destructor, so a stuck/slow/failed destination can never affect the others or the real-time
@@ -37,6 +38,9 @@ public:
         bool publishing = false;   // actually connected to the server and sending media
         std::string message;       // pt-BR, last status/error - always set, even on success
         std::uint64_t videoUnits = 0, audioUnits = 0;
+        bool reconnecting = false;   // connection lost / not yet up, waiting for the next attempt
+        bool adaptive = false;       // adaptive bitrate enabled for this destination
+        hb::streaming::StreamStats::Snapshot stats;   // live health (bitrate, drops, queues...)
         std::chrono::steady_clock::time_point startedAt{};
     };
     Status status() const;
@@ -54,6 +58,8 @@ private:
 
     mutable std::mutex statusMutex_;
     Status status_;
+    mutable hb::streaming::StreamStats stats_;
+    std::atomic<std::uint64_t> droppedVideoTotal_{0};
 
     video::ProgramOutput::ConsumerId vConsumer_ = 0;
     audio_io::AudioEngine::ConsumerId aConsumer_ = 0;

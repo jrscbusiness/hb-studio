@@ -25,6 +25,9 @@ struct StreamDestination {
     std::string encoder = "auto";   // auto | x264 | nvenc | qsv | amf (passed through to the encoder)
     int videoKbps = 6000;
     int audioKbps = 160;
+    // Adaptive bitrate (opt-in, default OFF): lower the video bitrate (down to 40% of videoKbps) while the
+    // send queue grows or frames drop, recover slowly when healthy. Best effort - see docs/TRANSMISSAO.md.
+    bool adaptiveBitrate = false;
     // A destination normally shares the program's own resolution/fps; set useOwnFormat to override
     // with width/height/fpsNum/fpsDen (e.g. a platform capped at 1080p30 while others run 4K60).
     bool useOwnFormat = false;

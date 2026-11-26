@@ -3,8 +3,11 @@
 #include <algorithm>
 
 #include "audio/audio_common.hpp"
+#include "streaming/adaptive_bitrate.hpp"
 #include "streaming/flv.hpp"
+#include "streaming/reconnecting_publisher.hpp"
 #include "streaming/rtmp_client.hpp"
+#include "streaming/transport.hpp"
 
 namespace hb::win {
 
@@ -28,17 +31,25 @@ void StreamSender::setStatus(bool running, bool publishing, std::string message)
 }
 
 StreamSender::Status StreamSender::status() const {
-    std::lock_guard lock(statusMutex_);
-    return status_;
+    Status s;
+    {
+        std::lock_guard lock(statusMutex_);
+        s = status_;
+    }
+    s.stats = stats_.snapshot();
+    return s;
 }
 
 void StreamSender::start() {
     if (thread_.joinable()) return;   // already running
     stopFlag_ = false;
+    droppedVideoTotal_ = 0;
+    stats_.reset();
     {
         std::lock_guard lock(statusMutex_);
         status_ = Status{};
         status_.running = true;
+        status_.adaptive = dest_.adaptiveBitrate;
         status_.startedAt = std::chrono::steady_clock::now();
     }
     thread_ = std::thread([this] { run(); });
@@ -50,22 +61,37 @@ void StreamSender::stop() {
     if (thread_.joinable()) thread_.join();
     if (vConsumer_) { program_.removeConsumer(vConsumer_); vConsumer_ = 0; }
     if (aConsumer_) { audio_.removeProgramConsumer(aConsumer_); aConsumer_ = 0; }
+    {
+        std::lock_guard lock(queueMutex_);
+        videoQueue_.clear();
+        audioQueue_.clear();
+    }
     setStatus(false, false, status().message);
 }
 
 void StreamSender::run() {
-    const auto target = streaming::parseRtmpUrl(dest_.serverUrl);
+    // Which wire protocol: the URL scheme wins (rtmps:// is always TLS); a destination whose protocol
+    // says rtmps but whose URL still says rtmp:// is upgraded (default port 443 unless spelled out).
+    std::string url = dest_.serverUrl;
+    if (dest_.protocol == "srt") {
+        std::string why;
+        streaming::makeStreamTransport("srt", &why);
+        setStatus(false, false, why);
+        return;
+    }
+    const auto target = streaming::parseRtmpUrl(url);
     if (!target.ok) {
         setStatus(false, false, "Endereço do servidor inválido: \"" + dest_.serverUrl + "\".");
         return;
     }
+    const bool tls = target.tls || dest_.protocol == "rtmps";
+    if (tls && !target.tls) {
+        url = "rtmps://" + target.host + ":" + std::to_string(target.portExplicit ? target.port : 443) + "/" + target.app;
+    }
+    const std::string proto = tls ? "rtmps" : "rtmp";
 
     // Encoders are created and started BEFORE the network connection: there is no point opening a
-    // real connection to the operator's own YouTube/Twitch/etc. account (which shows up as a
-    // "viewer"/connection attempt on their dashboard) if nothing can ever be sent over it. Once a
-    // real Media Foundation implementation replaces today's placeholder (see
-    // src/streaming/windows/mf_video_encoder.cpp), this same code starts working end to end with no
-    // changes needed here.
+    // real connection to the operator's own account if nothing can ever be sent over it.
     const auto pf = program_.format();
     const int w = dest_.useOwnFormat ? dest_.width : pf.width;
     const int h = dest_.useOwnFormat ? dest_.height : pf.height;
@@ -83,64 +109,128 @@ void StreamSender::run() {
         setStatus(false, false, "Áudio: " + audioEnc->lastError());
         return;
     }
+    stats_.setTargetKbps(dest_.videoKbps + dest_.audioKbps);
+    stats_.setEncoderKbps(dest_.videoKbps + dest_.audioKbps);
+    stats_.setEncoderName(videoEnc->activeEncoderName());
 
-    setStatus(true, false, "Conectando a " + target.host + "…");
-    hb::streaming::RtmpTarget rt;
-    rt.host = target.host;
-    rt.port = target.port;
-    rt.app = target.app;
-    rt.streamKey = dest_.streamKey;
-    hb::streaming::RtmpClient rtmp;
-    if (!rtmp.start(rt, 8000)) {
-        videoEnc->stop();
-        audioEnc->stop();
-        setStatus(false, false, rtmp.lastError());
-        return;
-    }
+    streaming::ReconnectingPublisher::Options po;
+    po.url = url;
+    po.streamKey = dest_.streamKey;
+    streaming::ReconnectingPublisher pub(
+        po, [proto] { return streaming::makeStreamTransport(proto); }, &stats_);
 
     vConsumer_ = program_.addConsumer([this](const std::shared_ptr<const video::Frame>& f) {
         std::lock_guard lock(queueMutex_);
-        if (videoQueue_.size() >= kMaxQueuedVideo) videoQueue_.pop_front();
+        if (videoQueue_.size() >= kMaxQueuedVideo) {
+            videoQueue_.pop_front();
+            ++droppedVideoTotal_;
+            stats_.onDropped(true);
+        }
         videoQueue_.push_back(f);
         queueCv_.notify_one();
     });
     aConsumer_ = audio_.addProgramConsumer([this](const float* s, std::size_t frames) {
         std::lock_guard lock(queueMutex_);
-        if (audioQueue_.size() >= kMaxQueuedAudio) audioQueue_.pop_front();
+        if (audioQueue_.size() >= kMaxQueuedAudio) {
+            audioQueue_.pop_front();
+            stats_.onDropped(false);
+        }
         audioQueue_.emplace_back(s, s + frames * static_cast<std::size_t>(audioChannels_));
         queueCv_.notify_one();
     });
 
-    setStatus(true, true, "Transmitindo para " + (dest_.name.empty() ? target.host : dest_.name) + ".");
+    streaming::AbrConfig ac;
+    ac.targetKbps = dest_.videoKbps;
+    streaming::AdaptiveBitrate abr(ac);
+    bool abrActive = dest_.adaptiveBitrate;
+
+    const std::string label = dest_.name.empty() ? target.host : dest_.name;
     const auto start = std::chrono::steady_clock::now();
-    bool sentVideoHeader = false, sentAudioHeader = false;
+    auto lastTick = start;
+    unsigned gen = 0;
+    bool sentVideoHeader = false, sentAudioHeader = false, waitKey = true;
     std::uint64_t videoUnits = 0, audioUnits = 0;
+    setStatus(true, false, "Conectando a " + target.host + "…");
 
     while (!stopFlag_) {
+        const bool connected = pub.poll();
+        if (pub.gaveUp()) {
+            setStatus(false, false, pub.lastError());
+            break;
+        }
+        {
+            std::lock_guard lock(statusMutex_);
+            status_.running = true;
+            status_.publishing = connected;
+            status_.reconnecting = !connected && pub.attempts() > 0;
+            if (connected) {
+                status_.message = "Transmitindo para " + label + ".";
+            } else if (pub.attempts() > 0) {
+                status_.message = "Reconectando em " + std::to_string((pub.msUntilRetry() + 999) / 1000) + " s (tentativa " +
+                                  std::to_string(pub.attempts()) + "): " + pub.lastError();
+            } else {
+                status_.message = "Conectando a " + target.host + "…";
+            }
+        }
+
         std::shared_ptr<const video::Frame> vFrame;
         std::vector<float> aBlock;
+        int qv = 0, qa = 0;
         {
             std::unique_lock lock(queueMutex_);
-            queueCv_.wait_for(lock, std::chrono::milliseconds(200),
+            queueCv_.wait_for(lock, std::chrono::milliseconds(connected ? 200 : 100),
                               [&] { return stopFlag_.load() || !videoQueue_.empty() || !audioQueue_.empty(); });
             if (!videoQueue_.empty()) { vFrame = videoQueue_.front(); videoQueue_.pop_front(); }
             if (!audioQueue_.empty()) { aBlock = std::move(audioQueue_.front()); audioQueue_.pop_front(); }
+            qv = static_cast<int>(videoQueue_.size());
+            qa = static_cast<int>(audioQueue_.size());
         }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now - lastTick >= std::chrono::seconds(1)) {
+            lastTick = now;
+            stats_.setQueueDepth(qv, qa);
+            if (abrActive && connected) {
+                const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+                streaming::AbrSample sample;
+                sample.queueDepth = qv;
+                sample.queueCapacity = static_cast<int>(kMaxQueuedVideo);
+                sample.droppedTotal = droppedVideoTotal_.load();
+                const int nb = abr.update(ms, sample);
+                if (nb > 0) {
+                    if (videoEnc->setBitrateKbps(nb)) {
+                        stats_.setEncoderKbps(nb + dest_.audioKbps);
+                    } else {
+                        abrActive = false;   // this encoder cannot change bitrate live: stop trying
+                        stats_.setLastError("Este codificador não permite mudar o bitrate ao vivo; bitrate adaptativo desativado.");
+                    }
+                }
+            }
+        }
+
+        if (!connected) continue;   // frames popped above are discarded: nothing to send them on
+        if (pub.generation() != gen) {   // fresh session: codec headers again, and start on a keyframe
+            gen = pub.generation();
+            sentVideoHeader = sentAudioHeader = false;
+            waitKey = true;
+            videoEnc->requestKeyFrame();
+        }
+
         bool ok = true;
         if (vFrame) {
             const std::uint32_t ts = msFromStart(start);
-            ok = ok && videoEnc->encode(vFrame->data.data(), vFrame->width, vFrame->height, vFrame->stride, ts,
-                                        [&](const EncodedVideoUnit& u) {
-                                            if (!sentVideoHeader) {
-                                                std::vector<std::uint8_t> sps, pps;
-                                                if (videoEnc->spsPps(sps, pps)) {
-                                                    rtmp.sendVideo(u.timestampMs, streaming::flv::buildAvcSequenceHeader(sps, pps));
-                                                    sentVideoHeader = true;
-                                                }
-                                            }
-                                            rtmp.sendVideo(u.timestampMs, streaming::flv::buildAvcVideoTag({u.nalu}, u.keyframe));
-                                            ++videoUnits;
-                                        });
+            ok = videoEnc->encode(vFrame->data.data(), vFrame->width, vFrame->height, vFrame->stride, ts,
+                                  [&](const EncodedVideoUnit& u) {
+                                      if (waitKey && !u.keyframe) return;
+                                      if (!sentVideoHeader) {
+                                          std::vector<std::uint8_t> sps, pps;
+                                          if (!videoEnc->spsPps(sps, pps)) return;
+                                          if (!pub.sendVideo(u.timestampMs, streaming::flv::buildAvcSequenceHeader(sps, pps))) return;
+                                          sentVideoHeader = true;
+                                      }
+                                      waitKey = false;
+                                      if (pub.sendVideo(u.timestampMs, streaming::flv::buildAvcVideoTag({u.nalu}, u.keyframe))) ++videoUnits;
+                                  });
         }
         if (ok && !aBlock.empty()) {
             const std::uint32_t ts = msFromStart(start);
@@ -148,18 +238,16 @@ void StreamSender::run() {
             ok = audioEnc->encode(aBlock.data(), frames, ts, [&](const EncodedAudioUnit& u) {
                 if (!sentAudioHeader) {
                     std::vector<std::uint8_t> asc;
-                    if (audioEnc->audioSpecificConfig(asc)) {
-                        rtmp.sendAudio(u.timestampMs, streaming::flv::buildAacSequenceHeader(asc));
-                        sentAudioHeader = true;
-                    }
+                    if (!audioEnc->audioSpecificConfig(asc)) return;
+                    if (!pub.sendAudio(u.timestampMs, streaming::flv::buildAacSequenceHeader(asc))) return;
+                    sentAudioHeader = true;
                 }
-                rtmp.sendAudio(u.timestampMs, streaming::flv::buildAacAudioTag(u.raw));
-                ++audioUnits;
+                if (pub.sendAudio(u.timestampMs, streaming::flv::buildAacAudioTag(u.raw))) ++audioUnits;
             });
         }
-        if (!ok || !rtmp.isPublishing()) {
-            setStatus(true, false,
-                     "Conexão perdida" + (rtmp.lastError().empty() ? std::string(".") : (": " + rtmp.lastError())));
+        if (!ok) {   // hard encoder failure: reconnecting cannot fix that
+            setStatus(false, false,
+                      "Codificador falhou: " + (videoEnc->lastError().empty() ? audioEnc->lastError() : videoEnc->lastError()));
             break;
         }
         {
@@ -171,7 +259,7 @@ void StreamSender::run() {
 
     videoEnc->stop();
     audioEnc->stop();
-    rtmp.stop();
+    pub.stop();
 }
 
 }  // namespace hb::win

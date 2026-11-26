@@ -58,6 +58,7 @@ void readDest(const Json& o, StreamDestination& d) {
     if (auto* v = jget(o, "encoder"); v && v->t == Json::T::Str) d.encoder = v->s;
     if (auto* v = jget(o, "videoKbps"); v && v->t == Json::T::Num) d.videoKbps = static_cast<int>(v->n);
     if (auto* v = jget(o, "audioKbps"); v && v->t == Json::T::Num) d.audioKbps = static_cast<int>(v->n);
+    if (auto* v = jget(o, "adaptiveBitrate"); v && v->t == Json::T::Bool) d.adaptiveBitrate = v->b;
     if (auto* v = jget(o, "useOwnFormat"); v && v->t == Json::T::Bool) d.useOwnFormat = v->b;
     if (auto* v = jget(o, "width"); v && v->t == Json::T::Num) d.width = static_cast<int>(v->n);
     if (auto* v = jget(o, "height"); v && v->t == Json::T::Num) d.height = static_cast<int>(v->n);
@@ -70,7 +71,8 @@ std::string destJson(const StreamDestination& d) {
     o << "\"id\":\"" << esc(d.id) << "\",\"name\":\"" << esc(d.name) << "\",\"platform\":\"" << esc(d.platform)
       << "\",\"protocol\":\"" << esc(d.protocol) << "\",\"serverUrl\":\"" << esc(d.serverUrl) << "\",\"streamKey\":\""
       << esc(d.streamKey) << "\",\"enabled\":" << (d.enabled ? "true" : "false") << ",\"encoder\":\"" << esc(d.encoder)
-      << "\",\"videoKbps\":" << d.videoKbps << ",\"audioKbps\":" << d.audioKbps << ",\"useOwnFormat\":"
+      << "\",\"videoKbps\":" << d.videoKbps << ",\"audioKbps\":" << d.audioKbps << ",\"adaptiveBitrate\":" << (d.adaptiveBitrate ? "true" : "false")
+      << ",\"useOwnFormat\":"
       << (d.useOwnFormat ? "true" : "false") << ",\"width\":" << d.width << ",\"height\":" << d.height
       << ",\"fpsNum\":" << d.fpsNum << ",\"fpsDen\":" << d.fpsDen;
     return o.str();
@@ -211,7 +213,7 @@ std::string StreamDestinations::uiJson() const {
           << "\",\"keySet\":" << (d.streamKey.empty() ? "false" : "true") << ",\"keyHint\":\""
           << esc(maskSecret(d.streamKey)) << "\",\"enabled\":" << (d.enabled ? "true" : "false") << ",\"encoder\":\""
           << esc(d.encoder) << "\",\"videoKbps\":" << d.videoKbps << ",\"audioKbps\":" << d.audioKbps
-          << ",\"useOwnFormat\":" << (d.useOwnFormat ? "true" : "false") << ",\"width\":" << d.width
+          << ",\"adaptiveBitrate\":" << (d.adaptiveBitrate ? "true" : "false") << ",\"useOwnFormat\":" << (d.useOwnFormat ? "true" : "false") << ",\"width\":" << d.width
           << ",\"height\":" << d.height << ",\"fpsNum\":" << d.fpsNum << ",\"fpsDen\":" << d.fpsDen << "}";
     }
     o << "]}";

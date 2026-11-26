@@ -35,6 +35,7 @@
 // ---- /FEATURE ----
 #include "app/windows/dshow_capture.hpp"
 #include "app/windows/stream_sender.hpp"
+#include "streaming/stream_stats.hpp"
 #include "app/windows/task_queue.hpp"
 #include "app/windows/resource_ids.h"
 #include "app/windows/vcam_controller.hpp"
@@ -417,7 +418,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
                 j += std::string(first ? "" : ",") + "{\"id\":\"" + win::jsonEscape(kv.first) + "\",\"running\":" +
                      (st.running ? "true" : "false") + ",\"publishing\":" + (st.publishing ? "true" : "false") +
                      ",\"message\":\"" + win::jsonEscape(st.message) + "\",\"videoUnits\":" + std::to_string(st.videoUnits) +
-                     ",\"audioUnits\":" + std::to_string(st.audioUnits) + "}";
+                     ",\"audioUnits\":" + std::to_string(st.audioUnits) + ",\"reconnecting\":" +
+                     (st.reconnecting ? "true" : "false") + ",\"adaptive\":" + (st.adaptive ? "true" : "false") +
+                     ",\"stats\":" + streaming::statsToJson(st.stats) + "}";
                 first = false;
             }
         }

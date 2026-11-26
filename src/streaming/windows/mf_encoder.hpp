@@ -61,6 +61,16 @@ public:
 
     virtual std::string activeEncoderName() const = 0;   // "x264" | "nvenc" | "qsv" | "amf", once known
     virtual std::string lastError() const = 0;
+
+    // Runtime controls (added after the contract was frozen; non-pure so existing implementations keep
+    // compiling). Both are BEST EFFORT and must be called from the same thread as encode().
+    // setBitrateKbps: changes the mean bitrate live (ICodecAPI CODECAPI_AVEncCommonMeanBitRate) for
+    // adaptive bitrate. Returns false when the MFT does not support it (many hardware MFTs do not);
+    // the caller then simply keeps the original bitrate.
+    virtual bool setBitrateKbps(int /*kbps*/) { return false; }
+    // requestKeyFrame: asks for an IDR on the next frame (CODECAPI_AVEncVideoForceKeyFrame), used after
+    // a reconnect so the new session starts on a keyframe. False when unsupported.
+    virtual bool requestKeyFrame() { return false; }
 };
 
 // One AAC encoder instance; input is interleaved float32 stereo at a fixed sample rate (matching
