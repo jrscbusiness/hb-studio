@@ -838,6 +838,7 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   ok((await page.locator('#xm-hint').textContent()).includes('SRT ainda não'), 'TRANSMISSÃO: SRT mostra aviso de não suportado');
   await page.selectOption('#xm-protocol', 'rtmp');
   ok(await page.locator('#xm-abr').count() === 1 && !(await page.isChecked('#xm-abr')), 'TRANSMISSÃO: bitrate adaptativo vem desligado por padrão');
+  await page.selectOption('#xm-platform', 'custom');
   await page.fill('#xm-server', '');
   await clearSent();
   await page.click('#xm-save');
