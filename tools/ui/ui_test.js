@@ -742,7 +742,22 @@ const DEVICES = () => ({ t: 'devices', busy: false, list: [{ id: 'obs', name: 'O
   console.log('\n[5c] Tema claro/escuro nativo (sem plugin)');
   await tab('cfg');
   ok(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme !== undefined), 'CONFIG: tema nativo presente (sem plugin algum instalado)');
-  ok((await page.locator('#theme-seg button.on').getAttribute('data-th')) === 'system', 'TEMA: começa em "Sistema" (segue o Windows)');
+  {   // default theme: checked on a FRESH page (earlier tests in this file force other themes on `page`)
+    const fresh = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await fresh.addInitScript(() => { window.chrome = { webview: { postMessage: () => {}, addEventListener: () => {} } }; });
+    await fresh.goto('file://' + html);
+    await fresh.waitForTimeout(200);
+    ok((await fresh.locator('#theme-seg button.on').getAttribute('data-th')) === 'obs', 'TEMA: o padrão é "OBS"');
+    ok(await fresh.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'obs', 'TEMA: o tema OBS já está aplicado ao abrir (sem escolha salva)');
+    ok(await fresh.evaluate(() => getComputedStyle(document.body).backgroundColor) === 'rgb(29, 31, 38)', 'TEMA: o fundo padrão é o do OBS');
+    ok((await fresh.locator('#theme-seg button').evaluateAll(b => b.map(x => x.dataset.th).sort().join(','))) === 'dark,gray,light,obs,system', 'TEMA: todas as opções continuam disponíveis (claro, escuro, cinza, OBS, sistema)');
+    await fresh.locator('#tabs button[data-v=cfg]').click();   // the selector lives in the CONFIG tab
+    await fresh.locator('#theme-seg button[data-th=gray]').click();
+    await fresh.reload();
+    await fresh.waitForTimeout(200);
+    ok(await fresh.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'gray', 'TEMA: uma escolha diferente do padrão continua sendo lembrada depois de reabrir');
+    await fresh.close();
+  }
   const sentT0 = await page.evaluate(() => window.__sent.length);
   const bgBefore = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await page.locator('#theme-seg button[data-th=dark]').click();

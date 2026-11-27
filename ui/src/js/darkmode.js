@@ -1,6 +1,6 @@
   // ---------- native dark/light mode (built in; no plugin needed) ----------
   (() => {
-    let pref = 'system';
+    let pref = 'obs';   // OBS is the default theme; every other choice stays available and is remembered once picked
     try { const s = localStorage.getItem('hb.theme'); if (s === 'light' || s === 'dark' || s === 'gray' || s === 'obs' || s === 'system') pref = s; } catch (e) {}
     const apply = p => {
       if (p === 'system') document.documentElement.removeAttribute('data-theme');

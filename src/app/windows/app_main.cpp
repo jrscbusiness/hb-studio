@@ -358,7 +358,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (pref == "light") return false;
         return win::systemPrefersDark();  // "system" (default)
     };
-    std::string themePref = "system";
+    std::string themePref = "obs";   // default theme (the saved choice, if any, overrides it)
     if (!themePath.empty()) {
         std::ifstream f(themePath, std::ios::binary);
         std::string v;
